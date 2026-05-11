@@ -1,0 +1,105 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ERO Hub{% endblock %} — ERO Database</title>
+
+  <!-- Bootstrap 5 — served locally, no CDN -->
+  <link rel="stylesheet" href="{% static 'employers/css/bootstrap.min.css' %}">
+  <!-- ERO custom styles -->
+  <link rel="stylesheet" href="{% static 'employers/css/custom.css' %}">
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-light">
+
+<!-- ── Navigation bar ──────────────────────────────────────────────────────── -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+  <div class="container-fluid">
+
+    <a class="navbar-brand fw-bold" href="{% url 'dashboard' %}">
+      ERO Hub
+    </a>
+
+    <button class="navbar-toggler" type="button"
+            data-bs-toggle="collapse" data-bs-target="#mainNav"
+            aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+             href="{% url 'dashboard' %}">Dashboard</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'compan' in request.resolver_match.url_name|default:'' %}active{% endif %}"
+             href="{% url 'company_list' %}">Companies</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'contact' in request.resolver_match.url_name|default:'' %}active{% endif %}"
+             href="{% url 'contact_list' %}">Contacts</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'report' %}active{% endif %}"
+             href="{% url 'report' %}">Reports</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'import' in request.resolver_match.url_name|default:'' %}active{% endif %}"
+             href="{% url 'import_csv' %}">Import CSV</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/admin/" target="_blank">Admin ↗</a>
+        </li>
+      </ul>
+
+      <!-- User info + logout on the right -->
+      {% if user.is_authenticated %}
+      <ul class="navbar-nav ms-auto align-items-center">
+        <li class="nav-item">
+          <span class="navbar-text text-light me-2">
+            Logged in as <strong>{{ user.username }}</strong>
+          </span>
+        </li>
+        <li class="nav-item">
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+          </form>
+        </li>
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<!-- ── End navbar ──────────────────────────────────────────────────────────── -->
+
+<!-- ── Flash messages ─────────────────────────────────────────────────────── -->
+{% if messages %}
+<div class="container-fluid mt-2">
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show mb-1" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<!-- ── End messages ────────────────────────────────────────────────────────── -->
+
+<!-- ── Page content ───────────────────────────────────────────────────────── -->
+<main class="container-fluid py-4">
+  {% block content %}{% endblock %}
+</main>
+<!-- ── End content ────────────────────────────────────────────────────────── -->
+
+<!-- Bootstrap JS bundle (includes Popper) — served locally -->
+<script src="{% static 'employers/js/bootstrap.bundle.min.js' %}"></script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>
