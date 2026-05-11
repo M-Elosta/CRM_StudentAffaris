@@ -1,6 +1,146 @@
 {% extends "employers/base.html" %}
-{% block title %}company form{% endblock %}
+{% block title %}{{ title }}{% endblock %}
+
 {% block content %}
-<h2 class="mb-3 text-capitalize">company form</h2>
-<p class="text-muted">Full implementation coming in a later step.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">{{ title }}</h2>
+  {% if company %}
+  <a href="{% url 'company_detail' company.pk %}" class="btn btn-outline-secondary">Cancel</a>
+  {% else %}
+  <a href="{% url 'company_list' %}" class="btn btn-outline-secondary">Cancel</a>
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <!-- ── Basic Information ───────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Basic Information</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Company Name <span class="text-danger">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors|join:", " }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Industry</label>
+          {{ form.industry }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Sector</label>
+          {{ form.sector }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Date Added</label>
+          {{ form.date_added }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Country</label>
+          {{ form.country }}
+          <!-- Datalist for searchable country suggestions -->
+          <datalist id="country-list">
+            <option value="Qatar"><option value="Saudi Arabia"><option value="UAE">
+            <option value="Kuwait"><option value="Bahrain"><option value="Oman">
+            <option value="United States"><option value="United Kingdom">
+            <option value="Germany"><option value="France"><option value="Canada">
+            <option value="Australia"><option value="India"><option value="Egypt">
+            <option value="Jordan"><option value="Lebanon"><option value="Turkey">
+          </datalist>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sequence #</label>
+          {{ form.sequence }}
+          <div class="form-text">Original row number from spreadsheet (optional)</div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Address</label>
+          {{ form.address }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Links ──────────────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Links</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label">Website</label>
+          {{ form.website }}
+          <div class="form-text">https://example.com — scheme auto-added if missing</div>
+          {% if form.website.errors %}<div class="text-danger small">{{ form.website.errors|join:", " }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label">LinkedIn URL</label>
+          {{ form.linkedin_url }}
+          {% if form.linkedin_url.errors %}<div class="text-danger small">{{ form.linkedin_url.errors|join:", " }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label">Handshake URL</label>
+          {{ form.handshake_url }}
+          {% if form.handshake_url.errors %}<div class="text-danger small">{{ form.handshake_url.errors|join:", " }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Status ─────────────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Status</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="form-check">
+            {{ form.signed_mou }}
+            <label class="form-check-label fw-semibold" for="{{ form.signed_mou.id_for_label }}">Signed MoU</label>
+          </div>
+          <div class="form-text">A Memorandum of Understanding has been signed with this company.</div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check">
+            {{ form.is_favorite }}
+            <label class="form-check-label fw-semibold" for="{{ form.is_favorite.id_for_label }}">Favorite Employer</label>
+          </div>
+          <div class="form-text">Mark companies you actively prioritise for outreach.</div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check">
+            {{ form.is_blacklisted }}
+            <label class="form-check-label fw-semibold" for="{{ form.is_blacklisted.id_for_label }}">Blacklisted</label>
+          </div>
+          <div class="form-text">Exclude from outreach and event invitations.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Notes ──────────────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Notes</div>
+    <div class="card-body">
+      <label class="form-label">Comments</label>
+      {{ form.comments }}
+    </div>
+  </div>
+
+  <!-- ── Action buttons (top and bottom) ───────────────────────────────── -->
+  <div class="d-flex flex-wrap gap-2">
+    <button type="submit" name="save" class="btn btn-primary btn-lg">Save</button>
+    <button type="submit" name="save_continue" class="btn btn-outline-primary btn-lg">Save &amp; Continue Editing</button>
+    <button type="submit" name="save_add_another" class="btn btn-outline-secondary btn-lg">Save &amp; Add Another</button>
+    {% if company %}
+    <a href="{% url 'company_detail' company.pk %}" class="btn btn-outline-secondary btn-lg ms-auto">Cancel</a>
+    {% else %}
+    <a href="{% url 'company_list' %}" class="btn btn-outline-secondary btn-lg ms-auto">Cancel</a>
+    {% endif %}
+  </div>
+
+</form>
 {% endblock %}

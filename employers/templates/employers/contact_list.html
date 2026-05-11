@@ -1,6 +1,63 @@
 {% extends "employers/base.html" %}
-{% block title %}contact list{% endblock %}
+{% block title %}Contacts{% endblock %}
+
 {% block content %}
-<h2 class="mb-3 text-capitalize">contact list</h2>
-<p class="text-muted">Full implementation coming in a later step.</p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Contacts <span class="fs-5 text-muted">({{ count }})</span></h2>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-md-3">
+    <form method="get">
+      <div class="filter-sidebar">
+        <div class="fw-semibold mb-3">Filter</div>
+        <div class="mb-2">{{ filter.form.search.label_tag }}{{ filter.form.search }}</div>
+        <div class="mb-2">{{ filter.form.is_primary.label_tag }}{{ filter.form.is_primary }}</div>
+        <div class="mb-2">{{ filter.form.is_blacklisted.label_tag }}{{ filter.form.is_blacklisted }}</div>
+        <div class="mb-3">{{ filter.form.available_for_presentations.label_tag }}{{ filter.form.available_for_presentations }}</div>
+        <button type="submit" class="btn btn-primary w-100 mb-2">Apply</button>
+        <a href="{% url 'contact_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-12 col-md-9">
+    {% if contacts %}
+    <div class="card shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr><th>Name</th><th>Company</th><th>Title</th><th>Email</th><th>Flags</th></tr>
+          </thead>
+          <tbody>
+            {% for contact in contacts %}
+            <tr>
+              <td class="fw-semibold">
+                <a href="{% url 'company_detail' contact.company.pk %}#contacts" class="text-decoration-none">{{ contact.full_name }}</a>
+                {% if contact.is_primary %}<span class="badge bg-primary ms-1" style="font-size:.65rem">Primary</span>{% endif %}
+              </td>
+              <td><a href="{% url 'company_detail' contact.company.pk %}" class="text-muted text-decoration-none">{{ contact.company.name }}</a></td>
+              <td class="text-muted small">{{ contact.job_title|default:"—" }}</td>
+              <td class="small">{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}—{% endif %}</td>
+              <td>
+                {% if contact.is_blacklisted %}<span class="badge badge-black" style="font-size:.65rem">Blacklisted</span>{% endif %}
+                {% if contact.available_for_presentations %}<span class="badge bg-info text-dark" style="font-size:.65rem">Presentations</span>{% endif %}
+                {% if contact.is_alumni %}<span class="badge bg-secondary" style="font-size:.65rem">Alumni</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5 text-muted">
+        {% if request.GET %}No contacts match your filters. <a href="{% url 'contact_list' %}">Clear →</a>
+        {% else %}No contacts yet. Add them from a <a href="{% url 'company_list' %}">company page</a>.{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

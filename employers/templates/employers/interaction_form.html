@@ -1,6 +1,118 @@
 {% extends "employers/base.html" %}
-{% block title %}interaction form{% endblock %}
+{% block title %}{{ title }}{% endblock %}
+
 {% block content %}
-<h2 class="mb-3 text-capitalize">interaction form</h2>
-<p class="text-muted">Full implementation coming in a later step.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">{{ title }}</h2>
+  {% if company %}
+  <a href="{% url 'company_detail' company.pk %}" class="btn btn-outline-secondary">← Back to {{ company.name }}</a>
+  {% else %}
+  <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">← Dashboard</a>
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Interaction Details</div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% if not company %}
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold">Company <span class="text-danger">*</span></label>
+          {{ form.company }}
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label">Contact <span class="text-muted">(optional)</span></label>
+          {{ form.contact }}
+          <div class="form-text">Select a company first to filter contacts.</div>
+        </div>
+        {% else %}
+        <div class="col-12 col-md-6">
+          <label class="form-label">Contact <span class="text-muted">(optional)</span></label>
+          {{ form.contact }}
+        </div>
+        <div class="col-md-6"></div>
+        {% endif %}
+
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
+          {{ form.interaction_type }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
+          {{ form.date }}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Summary <span class="text-danger">*</span></label>
+          {{ form.summary }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Follow-up</div>
+    <div class="card-body">
+      <div class="form-check mb-3">
+        {{ form.follow_up_needed }}
+        <label class="form-check-label fw-semibold" for="{{ form.follow_up_needed.id_for_label }}">Follow-up needed</label>
+      </div>
+      <div id="followup-fields" style="display:none">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Follow-up Date</label>
+            {{ form.follow_up_date }}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Follow-up Notes</label>
+            {{ form.follow_up_notes }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2">
+    <button type="submit" name="save" class="btn btn-primary btn-lg">Log Interaction</button>
+    <button type="submit" name="save_add_another" class="btn btn-outline-secondary btn-lg">Log &amp; Add Another</button>
+    {% if company %}
+    <a href="{% url 'company_detail' company.pk %}" class="btn btn-outline-secondary btn-lg ms-auto">Cancel</a>
+    {% else %}
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-lg ms-auto">Cancel</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Show/hide follow-up date fields when checkbox is toggled.
+const cb = document.getElementById('{{ form.follow_up_needed.id_for_label }}');
+const ff = document.getElementById('followup-fields');
+function updateFollowup() { ff.style.display = cb.checked ? 'block' : 'none'; }
+cb.addEventListener('change', updateFollowup);
+updateFollowup();
+
+// Filter contact dropdown by selected company (on the standalone form).
+{% if not company %}
+const contactsData = {{ contacts_json|safe }};
+const companySelect = document.getElementById('id_company');
+const contactSelect = document.getElementById('id_contact');
+
+function filterContacts() {
+  const companyId = companySelect.value;
+  const contacts  = contactsData[companyId] || [];
+  // Clear existing options except the first (empty).
+  while (contactSelect.options.length > 1) contactSelect.remove(1);
+  contacts.forEach(function(c) {
+    const opt = new Option(c.name, c.id);
+    contactSelect.add(opt);
+  });
+}
+companySelect.addEventListener('change', filterContacts);
+filterContacts();
+{% endif %}
+</script>
 {% endblock %}

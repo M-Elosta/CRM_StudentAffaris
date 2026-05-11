@@ -1,6 +1,81 @@
 {% extends "employers/base.html" %}
-{% block title %}company list{% endblock %}
+{% block title %}Companies{% endblock %}
+
 {% block content %}
-<h2 class="mb-3 text-capitalize">company list</h2>
-<p class="text-muted">Full implementation coming in a later step.</p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Companies <span class="fs-5 text-muted">({{ count }})</span></h2>
+  <a href="{% url 'company_add' %}" class="btn btn-primary">+ Add Company</a>
+</div>
+
+<div class="row g-3">
+
+  <!-- Filter sidebar -->
+  <div class="col-12 col-md-3">
+    <form method="get" id="filter-form">
+      <div class="filter-sidebar">
+        <div class="fw-semibold mb-3">Filter</div>
+        <div class="mb-2">{{ filter.form.search.label_tag }}{{ filter.form.search }}</div>
+        <div class="mb-2">{{ filter.form.industry.label_tag }}{{ filter.form.industry }}</div>
+        <div class="mb-2">{{ filter.form.sector.label_tag }}{{ filter.form.sector }}</div>
+        <div class="mb-2">{{ filter.form.signed_mou.label_tag }}{{ filter.form.signed_mou }}</div>
+        <div class="mb-2">{{ filter.form.is_favorite.label_tag }}{{ filter.form.is_favorite }}</div>
+        <div class="mb-3">{{ filter.form.is_blacklisted.label_tag }}{{ filter.form.is_blacklisted }}</div>
+        <button type="submit" class="btn btn-primary w-100 mb-2">Apply Filters</button>
+        <a href="{% url 'company_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
+      </div>
+      <div class="mt-3 d-grid gap-2">
+        <button type="submit" name="export_excel" value="1" class="btn btn-outline-success btn-sm">⬇ Export to Excel (.xlsx)</button>
+        <button type="submit" name="export_csv" value="1" class="btn btn-outline-secondary btn-sm">⬇ Export to CSV</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Results table -->
+  <div class="col-12 col-md-9">
+    {% if companies %}
+    <div class="card shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Company</th>
+              <th>Industry</th>
+              <th>Sector</th>
+              <th>Country</th>
+              <th class="text-center">MoU</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for company in companies %}
+            <tr>
+              <td><a href="{% url 'company_detail' company.pk %}" class="text-decoration-none fw-semibold">{{ company.name }}</a></td>
+              <td class="text-muted small">{{ company.industry|default:"—" }}</td>
+              <td class="text-muted small">{{ company.sector|default:"—" }}</td>
+              <td class="text-muted small">{{ company.country|default:"—" }}</td>
+              <td class="text-center">
+                {% if company.signed_mou %}<span class="badge badge-mou">MoU</span>{% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="text-center">
+                {% if company.is_blacklisted %}<span class="badge badge-black">Blacklisted</span>{% endif %}
+                {% if company.is_favorite %}<span class="badge badge-fav">★ Favorite</span>{% endif %}
+                {% if not company.is_blacklisted and not company.is_favorite %}<span class="text-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5 text-muted">
+        {% if request.GET %}No companies match your filters. <a href="{% url 'company_list' %}">Clear filters →</a>
+        {% else %}No companies yet. <a href="{% url 'company_add' %}">Add your first company →</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
 {% endblock %}
