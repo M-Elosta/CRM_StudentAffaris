@@ -37,6 +37,11 @@ class CompanyFilter(django_filters.FilterSet):
         label='Sector',
         widget=forms.Select(choices=_SECTOR_CHOICES, attrs={'class': 'form-select'}),
     )
+    country = django_filters.CharFilter(
+        lookup_expr='icontains',
+        label='Country',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Qatar'}),
+    )
     signed_mou = django_filters.BooleanFilter(
         label='Signed MoU',
         widget=forms.Select(choices=_BOOL_CHOICES, attrs={'class': 'form-select'}),
@@ -52,7 +57,7 @@ class CompanyFilter(django_filters.FilterSet):
 
     class Meta:
         model  = Company
-        fields = ['search', 'industry', 'sector', 'signed_mou', 'is_favorite', 'is_blacklisted']
+        fields = ['search', 'industry', 'sector', 'country', 'signed_mou', 'is_favorite', 'is_blacklisted']
 
     def filter_search(self, queryset, name, value):
         if not value:

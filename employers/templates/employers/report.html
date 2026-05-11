@@ -17,12 +17,7 @@
         <div class="mb-2">{{ filter.form.search.label_tag }}{{ filter.form.search }}</div>
         <div class="mb-2">{{ filter.form.industry.label_tag }}{{ filter.form.industry }}</div>
         <div class="mb-2">{{ filter.form.sector.label_tag }}{{ filter.form.sector }}</div>
-
-        <div class="mb-2">
-          <label class="form-label">Country</label>
-          <input type="text" name="search" class="form-control" placeholder="Country…"
-                 value="{{ request.GET.search|default:'' }}">
-        </div>
+        <div class="mb-2">{{ filter.form.country.label_tag }}{{ filter.form.country }}</div>
 
         <div class="mb-2">
           <label class="form-label">Date Added From</label>

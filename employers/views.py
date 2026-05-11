@@ -632,10 +632,12 @@ def import_preview(request):
         messages.info(request, 'Import cancelled.')
         return redirect('import_csv')
 
+    will_import = max(0, total_rows - len(duplicate_names))
     return render(request, 'employers/import_preview.html', {
         'original_name':   original_name,
         'data_type':       data_type,
         'total_rows':      total_rows,
+        'will_import':     will_import,
         'preview_rows':    preview_rows,
         'all_warnings':    all_warnings,
         'duplicate_names': duplicate_names,
