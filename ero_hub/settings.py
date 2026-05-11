@@ -67,8 +67,9 @@ ROOT_URLCONF = 'ero_hub.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # Look for templates inside each app's templates/ folder.
-        'DIRS': [],
+        # DIRS includes the employers/templates root so Django finds
+        # top-level 404.html and 500.html for error pages.
+        'DIRS': [BASE_DIR / 'employers' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

@@ -382,23 +382,262 @@ def _contacts_by_company_json():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Reports  (full implementation in Step 9)
+# Reports + Export
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def report(request):
-    return render(request, 'employers/report.html', {})
+    """
+    Multi-filter report page. Filters companies, previews results, exports.
+    Reuses CompanyFilter but adds date_added range fields handled manually
+    so we don't need a second FilterSet class.
+    """
+    qs = Company.objects.all()
+    f  = CompanyFilter(request.GET, queryset=qs)
+    companies = f.qs
+
+    # Date range filtering (layered on top of CompanyFilter).
+    date_from = request.GET.get('date_from', '').strip()
+    date_to   = request.GET.get('date_to', '').strip()
+    if date_from:
+        try:
+            companies = companies.filter(date_added__gte=date_from)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            companies = companies.filter(date_added__lte=date_to)
+        except Exception:
+            pass
+
+    if 'export_excel' in request.GET:
+        return companies_to_excel(companies)
+    if 'export_csv' in request.GET:
+        return companies_to_csv(companies)
+
+    return render(request, 'employers/report.html', {
+        'filter':    f,
+        'companies': companies[:200],   # cap preview at 200 rows for performance
+        'count':     companies.count(),
+        'date_from': date_from,
+        'date_to':   date_to,
+        'has_filters': bool(request.GET),
+    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CSV Import  (full implementation in Step 10)
+# Web CSV Import — upload → preview → confirm
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def import_csv(request):
-    return render(request, 'employers/import_csv.html', {})
+    """
+    Step 1: Show the upload form and handle the initial file submission.
+    On POST, validates the file and type, runs the cleaning pipeline to
+    generate a preview, then redirects to the preview page (or re-renders
+    with errors).
+    """
+    import os, uuid
+    from django.core.files.storage import default_storage
+
+    error = None
+
+    if request.method == 'POST':
+        uploaded = request.FILES.get('csv_file')
+        data_type = request.POST.get('data_type', 'company')
+
+        # Validate: must be a .csv file ≤ 50 MB.
+        if not uploaded:
+            error = 'Please select a CSV file.'
+        elif not uploaded.name.lower().endswith('.csv'):
+            error = 'Only .csv files are accepted.'
+        elif uploaded.size > 52_428_800:
+            error = 'File is too large (max 50 MB).'
+        else:
+            # Save to a temp file in media/imports/.
+            os.makedirs(os.path.join('media', 'imports'), exist_ok=True)
+            tmp_name = f'imports/{uuid.uuid4().hex}.csv'
+            path = default_storage.save(tmp_name, uploaded)
+            full_path = default_storage.path(path)
+
+            # Store the path and type in session for the preview step.
+            request.session['import_file'] = path
+            request.session['import_type'] = data_type
+            request.session['import_original_name'] = uploaded.name
+            return redirect('import_preview')
+
+    return render(request, 'employers/import_csv.html', {
+        'error': error,
+        'data_types': [('company', 'Company')],
+    })
 
 
 @login_required
 def import_preview(request):
-    return render(request, 'employers/import_preview.html', {})
+    """
+    Step 2: Read the uploaded file, run the cleaning pipeline in dry-run mode,
+    and show a preview table with warning badges.
+    Step 3: On confirm POST, run the real import.
+    """
+    import os
+    from django.core.files.storage import default_storage
+    from .management.commands.import_csv import (
+        HANDLERS, _normalise_header, handle_company_row,
+    )
+
+    file_path_rel = request.session.get('import_file')
+    data_type     = request.session.get('import_type', 'company')
+    original_name = request.session.get('import_original_name', 'file.csv')
+
+    if not file_path_rel:
+        messages.error(request, 'No file to preview. Please upload again.')
+        return redirect('import_csv')
+
+    full_path = default_storage.path(file_path_rel)
+
+    # ── Parse the CSV through the cleaning pipeline ───────────────────────────
+    import pandas as pd
+    from .management.commands.import_csv import COMPANY_COLUMN_MAP
+
+    preview_rows  = []   # list of {field: {'value': x, 'warn': msg|None}}
+    all_warnings  = []
+    duplicate_names = []
+    total_rows    = 0
+    parse_error   = None
+
+    try:
+        handler    = HANDLERS[data_type]
+        column_map = handler['column_map']
+
+        for encoding in ('utf-8-sig', 'latin-1', 'cp1252'):
+            try:
+                df = pd.read_csv(full_path, encoding=encoding, dtype=str)
+                df = df.dropna(how='all').reset_index(drop=True)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise ValueError('Could not decode file with any supported encoding.')
+
+        total_rows = len(df)
+
+        # Map columns.
+        mapped_fields = {}
+        for col in df.columns:
+            norm = _normalise_header(col)
+            mapped_fields[col] = column_map.get(norm)  # None = unknown
+
+        unknown_cols = [c for c, f in mapped_fields.items() if f is None]
+        for col in unknown_cols:
+            all_warnings.append(f"Column '{col}' not recognised and will be skipped")
+
+        # Process first 20 rows for the preview table.
+        from employers.models import Company
+        for row_num, (_, row) in enumerate(df.head(20).iterrows(), start=2):
+            row_data = {f: row[c] for c, f in mapped_fields.items() if f}
+            row_warnings = []
+            cleaned = handler['row_handler'](row_data, row_warnings, row_num)
+            all_warnings.extend(row_warnings)
+
+            # Check for duplicate.
+            name = cleaned.get('name')
+            is_dup = bool(name and Company.objects.filter(name__iexact=name).exists())
+            if is_dup and name not in duplicate_names:
+                duplicate_names.append(name)
+
+            # Build per-cell warning map for badge colouring in template.
+            cell_warns = {w.split("'")[1] if "'" in w else '': w for w in row_warnings}
+            preview_rows.append({
+                'name':        cleaned.get('name', ''),
+                'date_added':  cleaned.get('date_added', ''),
+                'industry':    cleaned.get('industry', ''),
+                'sector':      cleaned.get('sector', ''),
+                'country':     cleaned.get('country', ''),
+                'signed_mou':  cleaned.get('signed_mou', False),
+                'is_duplicate': is_dup,
+                'row_warnings': row_warnings,
+            })
+
+    except Exception as exc:
+        parse_error = str(exc)
+
+    # ── Confirm: run the real import ──────────────────────────────────────────
+    if request.method == 'POST' and 'confirm' in request.POST:
+        from django.core.management import call_command
+        from io import StringIO
+        import sys
+
+        update = request.POST.get('update_dupes') == '1'
+        try:
+            from .management.commands.import_csv import (
+                Command as ImportCommand,
+            )
+            from django.db import transaction
+
+            cmd = ImportCommand()
+            cmd.stdout = cmd.stderr = open(os.devnull, 'w')
+
+            handler_obj = HANDLERS[data_type]
+            col_map     = handler_obj['column_map']
+
+            for encoding in ('utf-8-sig', 'latin-1', 'cp1252'):
+                try:
+                    df2 = pd.read_csv(full_path, encoding=encoding, dtype=str)
+                    df2 = df2.dropna(how='all').reset_index(drop=True)
+                    break
+                except UnicodeDecodeError:
+                    continue
+
+            mapped2 = {col: col_map.get(_normalise_header(col)) for col in df2.columns}
+            counts  = {'created': 0, 'updated': 0, 'skipped': 0, 'error': 0}
+            warn2   = []
+
+            with transaction.atomic():
+                for row_num, (_, row) in enumerate(df2.iterrows(), start=2):
+                    row_data = {f: row[c] for c, f in mapped2.items() if f}
+                    try:
+                        cleaned2 = handler_obj['row_handler'](row_data, warn2, row_num)
+                        result, _ = handler_obj['db_handler'](cleaned2, update, False, warn2, row_num)
+                        counts[result] += 1
+                    except Exception as e:
+                        counts['error'] += 1
+                        warn2.append(f'Row {row_num}: {e}')
+
+            # Clean up temp file.
+            default_storage.delete(file_path_rel)
+            del request.session['import_file']
+            del request.session['import_type']
+            del request.session['import_original_name']
+
+            messages.success(
+                request,
+                f'Import complete: {counts["created"]} created, '
+                f'{counts["updated"]} updated, {counts["skipped"]} skipped, '
+                f'{counts["error"]} errors.'
+            )
+            return redirect('company_list')
+
+        except Exception as exc:
+            messages.error(request, f'Import failed: {exc}')
+            return redirect('import_csv')
+
+    # Cancel: discard temp file.
+    if request.method == 'POST' and 'cancel' in request.POST:
+        try:
+            default_storage.delete(file_path_rel)
+        except Exception:
+            pass
+        for k in ('import_file', 'import_type', 'import_original_name'):
+            request.session.pop(k, None)
+        messages.info(request, 'Import cancelled.')
+        return redirect('import_csv')
+
+    return render(request, 'employers/import_preview.html', {
+        'original_name':   original_name,
+        'data_type':       data_type,
+        'total_rows':      total_rows,
+        'preview_rows':    preview_rows,
+        'all_warnings':    all_warnings,
+        'duplicate_names': duplicate_names,
+        'parse_error':     parse_error,
+    })
