@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Data Import — ERO System</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="sidebar-placeholder"></div>
+<div class="main-content">
+  <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+
+  <div class="mb-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-upload me-2 text-primary"></i>Data Import</h4>
+    <p class="text-muted small mb-0">Bulk import records from Excel or CSV</p>
+  </div>
+
+  <!-- Step 1: Entity + Template -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">1</span>Select Entity & Upload File</h6>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Entity Type</label>
+          <select id="entity-select" class="form-select">
+            <option value="">Select entity…</option>
+            <option>Company</option>
+            <option>Contact</option>
+            <option>Outreach</option>
+            <option>Recruitment</option>
+            <option>Career Event</option>
+            <option>Student-Led Event</option>
+            <option>Academic Engagement</option>
+            <option>Hiring Feedback</option>
+            <option>Potential Collaboration</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-outline-secondary w-100" id="btn-template" disabled>
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Download Template
+          </button>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Upload File (.xlsx or .csv)</label>
+          <input type="file" id="file-input" class="form-control" accept=".xlsx,.csv" disabled>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Column Mapping -->
+  <div class="card shadow-sm mb-3 d-none" id="step-mapping">
+    <div class="card-body">
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">2</span>Map Columns</h6>
+      <p class="text-muted small">Match your file's columns to the database fields. Auto-matched columns are highlighted.</p>
+      <div id="mapping-table"></div>
+      <button class="btn btn-primary mt-3" id="btn-validate">
+        <i class="bi bi-check2-circle me-1"></i>Validate & Preview
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3: Preview + Actions -->
+  <div class="card shadow-sm mb-3 d-none" id="step-preview">
+    <div class="card-body">
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">3</span>Review & Import</h6>
+      <div id="summary-badges" class="mb-3 d-flex gap-2 flex-wrap"></div>
+      <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+        <table class="table table-sm table-bordered mb-0 align-middle" id="preview-table">
+          <thead class="table-light sticky-top" id="preview-thead"></thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-success" id="btn-confirm">
+          <i class="bi bi-cloud-upload me-1"></i>Confirm Import
+        </button>
+        <button class="btn btn-outline-secondary d-none" id="btn-download-errors">
+          <i class="bi bi-file-earmark-x me-1"></i>Download Errors
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Result -->
+  <div class="alert d-none" id="import-result"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/import.js"></script>
+</body>
+</html>

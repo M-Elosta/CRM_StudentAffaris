@@ -7,9 +7,7 @@ let editingId    = null;
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
 
-  document.getElementById('search-input').addEventListener('input', e => {
-    renderTable(filterContacts(e.target.value.trim()));
-  });
+  document.getElementById('search-input').addEventListener('input', applyFilters);
 
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-company').addEventListener('change', applyFilters);
@@ -40,7 +38,7 @@ async function loadContacts() {
   setTableLoading(true);
   try {
     allContacts = await fetchAPI('/api/contacts');
-    renderTable(allContacts);
+    applyFilters();
   } catch (err) {
     showToast('Failed to load contacts: ' + err.message, 'danger');
   } finally {
@@ -70,11 +68,11 @@ function applyFilters() {
   const companyId = document.getElementById('filter-company').value;
 
   let filtered = filterContacts(q);
-
   if (status)    filtered = filtered.filter(c => c.Status === status);
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
 
   renderTable(filtered);
+  updateRecordCount(filtered.length, allContacts.length);
 }
 
 function filterContacts(q) {
@@ -268,6 +266,12 @@ async function handleDelete() {
       }
     }
   );
+}
+
+function updateRecordCount(shown, total) {
+  const el = document.getElementById('record-count');
+  if (!el) return;
+  el.textContent = shown === total ? `${total} record${total !== 1 ? 's' : ''}` : `${shown} of ${total}`;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

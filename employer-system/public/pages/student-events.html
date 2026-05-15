@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Student-Led Events — ERO System</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="sidebar-placeholder"></div>
+<div class="main-content">
+  <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold"><i class="bi bi-mortarboard me-2 text-primary"></i>Student-Led Events</h4>
+      <p class="text-muted small mb-0">Student organization collaboration proposals</p>
+    </div>
+    <button class="btn btn-primary" id="btn-add"><i class="bi bi-plus-lg me-1"></i>Add Record</button>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <div class="input-group" style="max-width:280px">
+      <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+      <input type="text" id="search-input" class="form-control" placeholder="Search company, student, org…">
+    </div>
+    <select id="filter-outcome" class="form-select" style="max-width:180px">
+      <option value="">All outcomes</option><option>Completed</option><option>Pending</option>
+    </select>
+    <input type="date" id="filter-from" class="form-control" style="max-width:155px">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:155px">
+  </div>
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th>Company</th><th>Organization</th><th>Student Name</th><th>Proposal Date</th><th>Event Title</th><th>Outcome</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="the-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-title">Add Student-Led Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="student-events-form" novalidate>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <select id="f-company" class="form-select" required><option value="">Select…</option></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <select id="f-contact" class="form-select" required><option value="">Select…</option></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Proposal Date <span class="text-danger">*</span></label>
+              <input type="date" id="f-proposal-date" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Organization Name <span class="text-danger">*</span></label>
+              <input type="text" id="f-org" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Student Name <span class="text-danger">*</span></label>
+              <input type="text" id="f-student-name" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Student Email <span class="text-danger">*</span></label>
+              <input type="email" id="f-student-email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Student Phone <span class="text-danger">*</span></label>
+              <input type="text" id="f-student-phone" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Collaboration Outcome</label>
+              <select id="f-outcome" class="form-select">
+                <option value="Pending">Pending</option><option value="Completed">Completed</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Event Date</label>
+              <input type="date" id="f-event-date" class="form-control">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Event Title</label>
+              <input type="text" id="f-event-title" class="form-control">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Comment</label>
+              <textarea id="f-comment" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-danger d-none" id="btn-delete"><i class="bi bi-trash me-1"></i>Delete</button>
+          <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/student-events.js"></script>
+</body>
+</html>

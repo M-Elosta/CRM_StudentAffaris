@@ -133,6 +133,14 @@ function injectSidebar() {
         <div class="small text-secondary">CMU-Q Employer Relations</div>
       </div>
       <ul class="nav flex-column flex-grow-1 mt-2 pb-3">${items}</ul>
+      <div class="border-top border-secondary px-3 py-2">
+        <button class="btn btn-sm btn-outline-light w-100 mb-1" id="btn-change-pw">
+          <i class="bi bi-key me-1"></i>Change Password
+        </button>
+        <button class="btn btn-sm btn-outline-danger w-100" id="btn-logout">
+          <i class="bi bi-box-arrow-right me-1"></i>Logout
+        </button>
+      </div>
     </nav>
 
     <!-- Mobile overlay -->
@@ -162,6 +170,76 @@ function injectSidebar() {
   // Close sidebar when a nav link is clicked on mobile
   sidebarNav.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', closeSidebar);
+  });
+
+  // Logout
+  document.getElementById('btn-logout')?.addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+
+  // Change password modal
+  document.getElementById('btn-change-pw')?.addEventListener('click', () => {
+    let modal = document.getElementById('change-pw-modal');
+    if (!modal) {
+      document.body.insertAdjacentHTML('beforeend', `
+        <div class="modal fade" id="change-pw-modal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header"><h5 class="modal-title">Change Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <form id="change-pw-form">
+                <div class="modal-body">
+                  <div id="pw-error" class="alert alert-danger d-none small py-2"></div>
+                  <div class="mb-3">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" id="pw-current" class="form-control" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">New Password</label>
+                    <input type="password" id="pw-new" class="form-control" required minlength="6">
+                  </div>
+                  <div class="mb-0">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" id="pw-confirm" class="form-control" required>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary" id="pw-submit">Update Password</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>`);
+      modal = document.getElementById('change-pw-modal');
+
+      document.getElementById('change-pw-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const errEl = document.getElementById('pw-error');
+        errEl.classList.add('d-none');
+        const newPw  = document.getElementById('pw-new').value;
+        const confPw = document.getElementById('pw-confirm').value;
+        if (newPw !== confPw) { errEl.textContent = 'Passwords do not match'; errEl.classList.remove('d-none'); return; }
+        const btn = document.getElementById('pw-submit');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          const res = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword: document.getElementById('pw-current').value, newPassword: newPw })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          bootstrap.Modal.getInstance(modal).hide();
+          showToast('Password updated successfully');
+        } catch (err) {
+          errEl.textContent = err.message; errEl.classList.remove('d-none');
+        } finally { btn.disabled = false; btn.textContent = 'Update Password'; }
+      });
+    }
+    new bootstrap.Modal(modal).show();
   });
 }
 

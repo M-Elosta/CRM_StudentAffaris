@@ -1,229 +1,346 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dashboard — ERO System</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-
-<!-- Sidebar -->
 <div id="sidebar-placeholder"></div>
 
-<!-- Main content -->
 <div class="main-content">
-
-  <!-- Toast container -->
   <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
 
-  <!-- Page header -->
-  <div class="mb-4">
-    <h4 class="fw-bold mb-1"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h4>
-    <p class="text-muted small mb-0">CMU-Q Employer Relations Office</p>
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h4>
+      <p class="text-muted small mb-0">CMU-Q Employer Relations Office</p>
+    </div>
+    <!-- Date range -->
+    <div class="d-flex align-items-center gap-2">
+      <label class="small fw-semibold text-muted mb-0">From</label>
+      <input type="date" id="dash-from" class="form-control form-control-sm" style="width:150px">
+      <label class="small fw-semibold text-muted mb-0">To</label>
+      <input type="date" id="dash-to"   class="form-control form-control-sm" style="width:150px">
+      <button class="btn btn-sm btn-primary" id="btn-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    </div>
   </div>
 
   <!-- Stat cards -->
-  <div class="row g-3 mb-4" id="stat-cards">
+  <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-primary" id="stat-companies">—</div>
-          <div class="small text-muted mt-1">Companies</div>
+          <div class="fs-3 fw-bold text-primary" id="stat-companies">—</div>
+          <div class="small text-muted">Companies</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-success" id="stat-contacts">—</div>
-          <div class="small text-muted mt-1">Contacts</div>
+          <div class="fs-3 fw-bold text-success" id="stat-contacts">—</div>
+          <div class="small text-muted">Total Contacts</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-info" id="stat-mailable">—</div>
-          <div class="small text-muted mt-1">Mailable</div>
+          <div class="fs-3 fw-bold text-info" id="stat-mailable">—</div>
+          <div class="small text-muted">Mailable</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-warning" id="stat-blacklisted">—</div>
-          <div class="small text-muted mt-1">Blacklisted</div>
+          <div class="fs-3 fw-bold text-warning" id="stat-outreach">—</div>
+          <div class="small text-muted">Outreach This Month</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <a href="/pages/reports.html?type=follow_up" class="card border-0 shadow-sm h-100 text-decoration-none card-hover">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-secondary" id="stat-resume">—</div>
-          <div class="small text-muted mt-1">Resume Book</div>
+          <div class="fs-3 fw-bold text-danger" id="stat-followup">—</div>
+          <div class="small text-muted">Upcoming Follow-ups <i class="bi bi-arrow-right-short"></i></div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
-          <div class="display-6 fw-bold text-danger" id="stat-event">—</div>
-          <div class="small text-muted mt-1">Event Invite</div>
+          <div class="fs-3 fw-bold text-secondary" id="stat-blacklisted">—</div>
+          <div class="small text-muted">Blacklisted</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Quick links -->
+  <!-- Row 1: Companies by Month | Companies by Sector -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">New Companies Added Per Month</span>
+          <button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2" onclick="downloadChart('chart-companies-month','companies-by-month')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body"><canvas id="chart-companies-month" height="220"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Companies by Sector</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-sector','sector')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body d-flex align-items-center justify-content-center"><canvas id="chart-sector" height="220"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Outreach by Month | Recruitment by Major -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Outreach Activity by Month</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-outreach','outreach')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body"><canvas id="chart-outreach" height="220"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Recruitment by Target Major</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-majors','majors')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body"><canvas id="chart-majors" height="220"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Event Attendance | Top 10 Engaged -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Career Event Attendance</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-events','events')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body"><canvas id="chart-events" height="260"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Top 10 Most Engaged Companies</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-top','top')"><i class="bi bi-download"></i></button>
+        </div>
+        <div class="card-body"><canvas id="chart-top" height="260"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Hiring Trends -->
   <div class="row g-3 mb-4">
     <div class="col-12">
-      <h6 class="text-muted fw-semibold text-uppercase small mb-3">Quick Access</h6>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/companies.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-primary bg-opacity-10">
-            <i class="bi bi-building fs-4 text-primary"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Companies</div>
-            <div class="text-muted" style="font-size:0.75rem">Add & manage</div>
-          </div>
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+          <span class="fw-semibold small">Hiring Trends — Students/Alumni Hired Per Month</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="downloadChart('chart-hiring','hiring')"><i class="bi bi-download"></i></button>
         </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/contacts.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-success bg-opacity-10">
-            <i class="bi bi-people fs-4 text-success"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Contacts</div>
-            <div class="text-muted" style="font-size:0.75rem">Add & manage</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/outreach.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-info bg-opacity-10">
-            <i class="bi bi-chat-dots fs-4 text-info"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Outreach</div>
-            <div class="text-muted" style="font-size:0.75rem">Log interactions</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/recruitment.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-warning bg-opacity-10">
-            <i class="bi bi-briefcase fs-4 text-warning"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Recruitment</div>
-            <div class="text-muted" style="font-size:0.75rem">Job postings</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/career-events.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-danger bg-opacity-10">
-            <i class="bi bi-calendar-event fs-4 text-danger"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Career Events</div>
-            <div class="text-muted" style="font-size:0.75rem">Attendance</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/reports.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-secondary bg-opacity-10">
-            <i class="bi bi-file-earmark-bar-graph fs-4 text-secondary"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Reports</div>
-            <div class="text-muted" style="font-size:0.75rem">Generate & export</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/import.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-primary bg-opacity-10">
-            <i class="bi bi-upload fs-4 text-primary"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Data Import</div>
-            <div class="text-muted" style="font-size:0.75rem">Bulk upload</div>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-6 col-md-4 col-lg-3">
-      <a href="/pages/collaboration.html" class="card text-decoration-none h-100 card-hover">
-        <div class="card-body d-flex align-items-center gap-3 py-3">
-          <div class="rounded-3 p-2 bg-success bg-opacity-10">
-            <i class="bi bi-diagram-3 fs-4 text-success"></i>
-          </div>
-          <div>
-            <div class="fw-semibold text-dark small">Collaboration</div>
-            <div class="text-muted" style="font-size:0.75rem">Potential partners</div>
-          </div>
-        </div>
-      </a>
+        <div class="card-body"><canvas id="chart-hiring" height="140"></canvas></div>
+      </div>
     </div>
   </div>
-
-  <!-- Charts placeholder (Phase 3) -->
-  <div class="alert alert-info d-flex align-items-center gap-2 small">
-    <i class="bi bi-info-circle-fill fs-5"></i>
-    <span>Visual charts and trend analytics will appear here in Phase 3 (Dashboard build).</span>
-  </div>
-
-</div><!-- /main-content -->
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/app.js"></script>
 <script>
+// ── Palette ────────────────────────────────────────────────────────────────────
+const PALETTE = ['#4361ee','#7209b7','#f72585','#4cc9f0','#06d6a0','#ffd166','#ef476f','#118ab2','#073b4c','#84a98c'];
+const TYPE_COLORS = { 'Call':'#4361ee', 'Meeting':'#7209b7', 'Company Visit':'#f72585' };
+
+// ── Chart instances ────────────────────────────────────────────────────────────
+const charts = {};
+
+function makeChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+function downloadChart(canvasId, name) {
+  const canvas = document.getElementById(canvasId);
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `chart-${name}-${new Date().toISOString().slice(0,10)}.png`;
+  a.click();
+}
+
+// ── Default date range: Jan 1 of current academic year → today ────────────────
+function defaultRange() {
+  const today = new Date();
+  const year  = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
+  return { from: `${year}-09-01`, to: today.toISOString().slice(0,10) };
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  const { from, to } = defaultRange();
+  document.getElementById('dash-from').value = from;
+  document.getElementById('dash-to').value   = to;
+
+  document.getElementById('btn-refresh').addEventListener('click', loadAll);
+  await loadAll();
+});
+
+async function loadAll() {
+  const from = document.getElementById('dash-from').value;
+  const to   = document.getElementById('dash-to').value;
+  const q    = `from=${from}&to=${to}`;
+
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
   try {
-    const [companies, contacts] = await Promise.all([
-      fetchAPI('/api/companies'),
-      fetchAPI('/api/contacts'),
+    const [stats, byMonth, byOutreach, bySector, byMajor, byEvent, topEngaged, hiringTrends] = await Promise.all([
+      fetchAPI('/api/dashboard/stats'),
+      fetchAPI(`/api/dashboard/companies-by-month?${q}`),
+      fetchAPI(`/api/dashboard/outreach-by-month?${q}`),
+      fetchAPI('/api/dashboard/companies-by-sector'),
+      fetchAPI(`/api/dashboard/recruitment-by-major?${q}`),
+      fetchAPI(`/api/dashboard/event-attendance?${q}`),
+      fetchAPI(`/api/dashboard/top-engaged?${q}`),
+      fetchAPI(`/api/dashboard/hiring-trends?${q}`),
     ]);
 
-    document.getElementById('stat-companies').textContent   = companies.length;
-    document.getElementById('stat-blacklisted').textContent = companies.filter(c => c.Blacklisted).length;
-    document.getElementById('stat-contacts').textContent    = contacts.length;
-    document.getElementById('stat-mailable').textContent    = contacts.filter(c => c.Status === 'Mailable' && !c.ExcludeFromMailing).length;
-    document.getElementById('stat-resume').textContent      = contacts.filter(c => c.ResumeBook && c.Status === 'Mailable').length;
-    document.getElementById('stat-event').textContent       = contacts.filter(c => c.EventInvitation && c.Status === 'Mailable').length;
+    // Stat cards
+    document.getElementById('stat-companies').textContent   = stats.totalCompanies;
+    document.getElementById('stat-contacts').textContent    = stats.totalContacts;
+    document.getElementById('stat-mailable').textContent    = stats.mailableContacts;
+    document.getElementById('stat-outreach').textContent    = stats.outreachThisMonth;
+    document.getElementById('stat-followup').textContent    = stats.upcomingFollowUps;
+
+    // Blacklisted count — fetch separately
+    const allCompanies = await fetchAPI('/api/companies');
+    document.getElementById('stat-blacklisted').textContent = allCompanies.filter(c => c.Blacklisted).length;
+
+    // Charts
+    renderCompaniesByMonth(byMonth);
+    renderSector(bySector);
+    renderOutreach(byOutreach);
+    renderMajors(byMajor);
+    renderEvents(byEvent);
+    renderTopEngaged(topEngaged);
+    renderHiring(hiringTrends);
   } catch (err) {
-    console.warn('Dashboard stats unavailable:', err.message);
+    showToast('Dashboard error: ' + err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh';
   }
-});
+}
+
+function renderCompaniesByMonth(data) {
+  makeChart('chart-companies-month', {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.month),
+      datasets: [{ label: 'Companies Added', data: data.map(d => d.count), backgroundColor: '#4361ee', borderRadius: 4 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
+function renderSector(data) {
+  makeChart('chart-sector', {
+    type: 'pie',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [{ data: data.map(d => d.count), backgroundColor: PALETTE, hoverOffset: 8 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+function renderOutreach(data) {
+  // Group by month, series per type
+  const months = [...new Set(data.map(d => d.month))].sort();
+  const types  = [...new Set(data.map(d => d.type))];
+  const datasets = types.map(type => ({
+    label: type,
+    data: months.map(m => { const r = data.find(d => d.month === m && d.type === type); return r ? r.count : 0; }),
+    borderColor: TYPE_COLORS[type] || PALETTE[0],
+    backgroundColor: (TYPE_COLORS[type] || PALETTE[0]) + '22',
+    tension: 0.3, fill: true, pointRadius: 4,
+  }));
+  makeChart('chart-outreach', {
+    type: 'line',
+    data: { labels: months, datasets },
+    options: { responsive: true, interaction: { mode: 'index' }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
+function renderMajors(data) {
+  makeChart('chart-majors', {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [{ label: 'Postings', data: data.map(d => d.count), backgroundColor: PALETTE, borderRadius: 4 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
+function renderEvents(data) {
+  const events   = [...new Set(data.map(d => d.EventName))];
+  const statuses = ['Attended', 'No-Show', 'Cancelled'];
+  const colors   = { 'Attended': '#06d6a0', 'No-Show': '#ef476f', 'Cancelled': '#adb5bd' };
+  const datasets = statuses.map(s => ({
+    label: s,
+    data: events.map(e => { const r = data.find(d => d.EventName === e && d.status === s); return r ? r.count : 0; }),
+    backgroundColor: colors[s], borderRadius: 2,
+  }));
+  makeChart('chart-events', {
+    type: 'bar',
+    data: { labels: events.map(e => e.length > 20 ? e.slice(0,20)+'…' : e), datasets },
+    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
+function renderTopEngaged(data) {
+  makeChart('chart-top', {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.company.length > 22 ? d.company.slice(0,22)+'…' : d.company),
+      datasets: [{ label: 'Total Interactions', data: data.map(d => d.total), backgroundColor: '#7209b7', borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+  });
+}
+
+function renderHiring(data) {
+  makeChart('chart-hiring', {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.month),
+      datasets: [{ label: 'Students/Alumni Hired', data: data.map(d => d.count), borderColor: '#06d6a0', backgroundColor: '#06d6a022', tension: 0.3, fill: true, pointRadius: 5 }]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
 </script>
 </body>
 </html>

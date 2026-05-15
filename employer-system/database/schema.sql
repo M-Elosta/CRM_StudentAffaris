@@ -262,3 +262,14 @@ AFTER UPDATE ON Recruitment
 BEGIN
     UPDATE Recruitment SET UpdatedAt = datetime('now') WHERE RecruitmentID = NEW.RecruitmentID;
 END;
+
+-- ============================================
+-- USERS (authentication)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS Users (
+    UserID       INTEGER PRIMARY KEY AUTOINCREMENT,
+    Username     TEXT UNIQUE NOT NULL,
+    PasswordHash TEXT NOT NULL,
+    CreatedAt    DATETIME DEFAULT (datetime('now'))
+);
