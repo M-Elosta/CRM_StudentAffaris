@@ -138,6 +138,25 @@ router.post('/validate', (req, res) => {
       }
     }
 
+    // Handle virtual __full_name__ field → split into FirstName + LastName
+    if (row.__full_name__ !== undefined && row.__full_name__ !== '') {
+      const parts = String(row.__full_name__).trim().split(/\s+/);
+      if (parts.length >= 2) {
+        row.LastName  = parts.pop();
+        row.FirstName = parts.join(' ');
+      } else {
+        row.FirstName = parts[0] || '';
+      }
+      delete row.__full_name__;
+    }
+
+    // Auto-split FirstName if it contains a space and LastName is absent
+    if (row.FirstName && String(row.FirstName).includes(' ') && !row.LastName) {
+      const parts = String(row.FirstName).trim().split(/\s+/);
+      row.LastName  = parts.pop();
+      row.FirstName = parts.join(' ');
+    }
+
     // Convert date fields from Excel serial numbers or other formats to YYYY-MM-DD
     for (const field of (def.dateFields || [])) {
       if (row[field] !== undefined && row[field] !== '') {
@@ -145,7 +164,48 @@ router.post('/validate', (req, res) => {
       }
     }
 
+    // Resolve CompanyID: if value is a name (non-numeric), look up by company name
+    if (row.CompanyID !== undefined && row.CompanyID !== '' && isNaN(Number(row.CompanyID))) {
+      try {
+        const company = db.prepare(
+          'SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName))=LOWER(TRIM(?))'
+        ).get(String(row.CompanyID));
+        if (company) {
+          row.CompanyID = company.CompanyID;
+        } else {
+          row.__companyLookupFailed = row.CompanyID;
+          row.CompanyID = null;
+        }
+      } catch (_) {}
+    }
+
+    // Resolve ContactID: if value is an email (non-numeric), look up by email
+    if (row.ContactID !== undefined && row.ContactID !== '' && isNaN(Number(row.ContactID))) {
+      try {
+        const contact = db.prepare(
+          'SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress))=LOWER(TRIM(?))'
+        ).get(String(row.ContactID));
+        if (contact) {
+          row.ContactID = contact.ContactID;
+        } else {
+          row.__contactLookupFailed = row.ContactID;
+          row.ContactID = null;
+        }
+      } catch (_) {}
+    }
+
     const errors = [];
+
+    // Report lookup failures as errors
+    if (row.__companyLookupFailed) {
+      errors.push(`Company "${row.__companyLookupFailed}" not found in database`);
+      delete row.__companyLookupFailed;
+    }
+    if (row.__contactLookupFailed) {
+      errors.push(`Contact "${row.__contactLookupFailed}" not found in database`);
+      delete row.__contactLookupFailed;
+    }
+
     // Required fields
     for (const f of def.required) {
       if (!row[f] && row[f] !== 0) errors.push(`${f} is required`);
@@ -157,7 +217,7 @@ router.post('/validate', (req, res) => {
         if (!exact) {
           const canonical = allowed.find(a => a.toLowerCase() === String(row[field]).toLowerCase());
           if (canonical) {
-            row[field] = canonical; // auto-correct to proper casing
+            row[field] = canonical;
           } else {
             errors.push(`${field} must be one of: ${allowed.join(', ')}`);
           }
@@ -210,7 +270,8 @@ router.post('/confirm', (req, res) => {
         updated++;
       } else {
         const fn = insertFns[entity];
-        if (fn) fn(db, row);
+        if (!fn) throw new Error(`Import not supported for entity "${entity}"`);
+        fn(db, row);
         imported++;
       }
     } catch (err) {
@@ -229,7 +290,10 @@ router.post('/confirm', (req, res) => {
     errorFileBase64 = buf;
   }
 
-  res.json({ imported, updated, skipped, failed, errorFileBase64 });
+  res.json({
+    imported, updated, skipped, failed, errorFileBase64,
+    failedDetails: failedRows.slice(0, 10).map((f, i) => ({ row: i + 1, error: f.error })),
+  });
 });
 
 module.exports = router;

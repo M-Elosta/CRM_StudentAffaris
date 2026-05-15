@@ -58,7 +58,7 @@ async function handleFileUpload(e) {
 // Build the entity field list (client-side subset for auto-match UX)
 const ENTITY_DB_FIELDS = {
   Company:                 ['CompanyName','DateAdded','Industry','Sector','Country','Address','Website','LinkedInURL','HandshakeURL','SignedMoU','FavoriteEmployer','Blacklisted','Comment','__ignore__'],
-  Contact:                 ['CompanyID','FirstName','LastName','DateAdded','EmailAddress','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing','__ignore__'],
+  Contact:                 ['__full_name__','CompanyID','FirstName','LastName','DateAdded','EmailAddress','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing','__ignore__'],
   Outreach:                ['CompanyID','ContactID','InteractionType','InteractionDate','DiscussionItems','ActionPlan','FollowUpDate','InteractionStatus','__ignore__'],
   Recruitment:             ['CompanyID','ContactID','DatePosted','OpportunityTitle','Duration','HiringStartDate','HiringEndDate','Country','Mode','Status','PayAmount','TargetGroup','ArabicSpeaker','HiredStudentAlumni','Comment','__ignore__'],
   'Career Event':          ['CompanyID','ContactID','EventName','EventDate','RegisteredStatus','CMUQAlumniAtBooth','Comment','__ignore__'],
@@ -71,6 +71,16 @@ const ENTITY_DB_FIELDS = {
 function autoMatch(fileCol, dbFields) {
   const norm = s => s.toLowerCase().replace(/[\s_\-]/g, '');
   const target = norm(fileCol);
+
+  // Detect full-name patterns before exact matching
+  const fullNamePatterns = ['fullname','contactname','contactfullname','name','fullcontactname'];
+  const firstLastPatterns = ['firstname','lastname'];
+  if (dbFields.includes('__full_name__') &&
+      fullNamePatterns.includes(target) &&
+      !firstLastPatterns.some(p => target === p)) {
+    return '__full_name__';
+  }
+
   return dbFields.find(f => norm(f) === target) || '__ignore__';
 }
 
@@ -81,8 +91,13 @@ function buildMappingTable(headers, entity) {
   const rows = headers.map(h => {
     const matched = autoMatch(h, dbFields);
     const isMatch = matched !== '__ignore__';
+    const fieldLabel = f => {
+      if (f === '__ignore__')    return '— Ignore —';
+      if (f === '__full_name__') return 'Full Name (→ First + Last, auto-split)';
+      return f;
+    };
     const options = dbFields.map(f =>
-      `<option value="${f}" ${f === matched ? 'selected' : ''}>${f === '__ignore__' ? '— Ignore —' : f}</option>`
+      `<option value="${f}" ${f === matched ? 'selected' : ''}>${fieldLabel(f)}</option>`
     ).join('');
     return `
       <div class="row g-2 align-items-center mb-2">
@@ -193,16 +208,25 @@ async function handleConfirm() {
     errorBase64 = result.errorFileBase64;
 
     const resultEl = document.getElementById('import-result');
-    resultEl.className = 'alert alert-success';
+    const hasFailures = result.failed > 0;
+    resultEl.className = `alert ${hasFailures ? 'alert-warning' : 'alert-success'}`;
+
+    let errorHtml = '';
+    if (hasFailures && result.failedDetails && result.failedDetails.length) {
+      const items = result.failedDetails.map(f => `<li>Row ${f.row}: ${escHtml(f.error)}</li>`).join('');
+      errorHtml = `<ul class="mb-0 mt-2 small">${items}</ul>`;
+    }
+
     resultEl.innerHTML = `
-      <i class="bi bi-check-circle-fill me-2"></i>
-      <strong>Import complete:</strong> ${result.imported} imported, ${result.updated} updated, ${result.skipped} skipped, ${result.failed} failed.`;
+      <i class="bi bi-${hasFailures ? 'exclamation-triangle-fill' : 'check-circle-fill'} me-2"></i>
+      <strong>Import complete:</strong> ${result.imported} imported, ${result.updated} updated,
+      ${result.skipped} skipped, ${result.failed} failed.${errorHtml}`;
     resultEl.classList.remove('d-none');
 
-    if (result.failed > 0 && errorBase64) {
+    if (hasFailures && errorBase64) {
       document.getElementById('btn-download-errors').classList.remove('d-none');
     }
-    showToast(`Import done: ${result.imported} imported, ${result.failed} failed`);
+    showToast(`Import done: ${result.imported} imported, ${result.failed} failed`, hasFailures ? 'warning' : 'success');
   } catch (err) {
     showToast('Import failed: ' + err.message, 'danger');
   } finally {

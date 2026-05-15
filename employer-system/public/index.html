@@ -20,11 +20,15 @@
       <p class="text-muted small mb-0">CMU-Q Employer Relations Office</p>
     </div>
     <!-- Date range -->
-    <div class="d-flex align-items-center gap-2">
-      <label class="small fw-semibold text-muted mb-0">From</label>
-      <input type="date" id="dash-from" class="form-control form-control-sm" style="width:150px">
-      <label class="small fw-semibold text-muted mb-0">To</label>
-      <input type="date" id="dash-to"   class="form-control form-control-sm" style="width:150px">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div class="form-check mb-0 me-1">
+        <input class="form-check-input" type="checkbox" id="dash-show-all" checked>
+        <label class="form-check-label small fw-semibold" for="dash-show-all">Show All</label>
+      </div>
+      <label class="small fw-semibold text-muted mb-0" id="lbl-from">From</label>
+      <input type="date" id="dash-from" class="form-control form-control-sm" style="width:150px" disabled>
+      <label class="small fw-semibold text-muted mb-0" id="lbl-to">To</label>
+      <input type="date" id="dash-to"   class="form-control form-control-sm" style="width:150px" disabled>
       <button class="btn btn-sm btn-primary" id="btn-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
     </div>
   </div>
@@ -197,29 +201,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('dash-from').value = from;
   document.getElementById('dash-to').value   = to;
 
+  const showAllCb = document.getElementById('dash-show-all');
+  function syncDateControls() {
+    const off = showAllCb.checked;
+    document.getElementById('dash-from').disabled = off;
+    document.getElementById('dash-to').disabled   = off;
+  }
+  showAllCb.addEventListener('change', () => { syncDateControls(); loadAll(); });
+  syncDateControls();
+
   document.getElementById('btn-refresh').addEventListener('click', loadAll);
   await loadAll();
 });
 
 async function loadAll() {
-  const from = document.getElementById('dash-from').value;
-  const to   = document.getElementById('dash-to').value;
-  const q    = `from=${from}&to=${to}`;
+  const showAll = document.getElementById('dash-show-all').checked;
+  const from = showAll ? '' : document.getElementById('dash-from').value;
+  const to   = showAll ? '' : document.getElementById('dash-to').value;
+  const parts = [];
+  if (from) parts.push(`from=${from}`);
+  if (to)   parts.push(`to=${to}`);
+  const q = parts.join('&');
 
   const btn = document.getElementById('btn-refresh');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
   try {
+    const qs = q ? `?${q}` : '';
     const [stats, byMonth, byOutreach, bySector, byMajor, byEvent, topEngaged, hiringTrends] = await Promise.all([
       fetchAPI('/api/dashboard/stats'),
-      fetchAPI(`/api/dashboard/companies-by-month?${q}`),
-      fetchAPI(`/api/dashboard/outreach-by-month?${q}`),
+      fetchAPI(`/api/dashboard/companies-by-month${qs}`),
+      fetchAPI(`/api/dashboard/outreach-by-month${qs}`),
       fetchAPI('/api/dashboard/companies-by-sector'),
-      fetchAPI(`/api/dashboard/recruitment-by-major?${q}`),
-      fetchAPI(`/api/dashboard/event-attendance?${q}`),
-      fetchAPI(`/api/dashboard/top-engaged?${q}`),
-      fetchAPI(`/api/dashboard/hiring-trends?${q}`),
+      fetchAPI(`/api/dashboard/recruitment-by-major${qs}`),
+      fetchAPI(`/api/dashboard/event-attendance${qs}`),
+      fetchAPI(`/api/dashboard/top-engaged${qs}`),
+      fetchAPI(`/api/dashboard/hiring-trends${qs}`),
     ]);
 
     // Stat cards
