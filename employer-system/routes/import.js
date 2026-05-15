@@ -12,46 +12,55 @@ const ENTITY_FIELDS = {
     required: ['CompanyName','Industry','Sector','Country'],
     optional: ['DateAdded','Address','Website','LinkedInURL','HandshakeURL','SignedMoU','FavoriteEmployer','Blacklisted','Comment'],
     enums: { Sector: ['Government','NGO','Private','Semi-government','Startup'] },
+    dateFields: ['DateAdded'],
   },
   Contact: {
     required: ['CompanyID','FirstName','LastName','EmailAddress'],
     optional: ['DateAdded','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing'],
     enums: { Status: ['Mailable','Non-mailable'] },
+    dateFields: ['DateAdded'],
   },
   Outreach: {
     required: ['CompanyID','ContactID','InteractionType','InteractionDate','DiscussionItems'],
     optional: ['ActionPlan','FollowUpDate','InteractionStatus'],
     enums: { InteractionType: ['Call','Meeting','Company Visit'], InteractionStatus: ['Complete','In-progress'] },
+    dateFields: ['InteractionDate','FollowUpDate'],
   },
   Recruitment: {
     required: ['CompanyID','ContactID','OpportunityTitle','Mode','Status','TargetGroup'],
     optional: ['DatePosted','Duration','HiringStartDate','HiringEndDate','Country','PayAmount','ArabicSpeaker','HiredStudentAlumni','Comment'],
     enums: { Mode: ['Onsite','Hybrid','Remote'], Status: ['Paid','Unpaid'], TargetGroup: ['Qatari only','Open to all'] },
+    dateFields: ['DatePosted','HiringStartDate','HiringEndDate'],
   },
   'Career Event': {
     required: ['CompanyID','ContactID','EventName','EventDate','RegisteredStatus'],
     optional: ['CMUQAlumniAtBooth','Comment'],
     enums: { RegisteredStatus: ['Attended','No-Show','Cancelled'] },
+    dateFields: ['EventDate'],
   },
   'Student-Led Event': {
     required: ['CompanyID','ContactID','ProposalDate','OrganizationName','StudentName','StudentEmail','StudentPhoneNumber'],
     optional: ['CollaborationOutcome','EventDate','EventTitle','Comment'],
     enums: { CollaborationOutcome: ['Completed','Pending'] },
+    dateFields: ['ProposalDate','EventDate'],
   },
   'Academic Engagement': {
     required: ['CompanyID','ContactID','EngagementType','GuestSpeakerName','GuestTitle','FacultyName','CourseNumber','CourseTitle','TopicTheme','SessionDate','SessionTime'],
     optional: ['Email','PhoneNumber','Comment'],
     enums: { EngagementType: ['Guest Lecture','Panel Discussion','Community Project Partnership','Mock Interviews','Research Collaboration','Competition/Hackathon Sponsorship','Other'] },
+    dateFields: ['SessionDate'],
   },
   'Hiring Feedback': {
     required: ['CompanyID','ContactID','FeedbackProvider','HiredStudentAlumni','DateReported'],
     optional: ['HiredStudentName','Comment'],
     enums: { FeedbackProvider: ['Company','Student/Alumni','Other'], HiredStudentAlumni: ['Yes','No'] },
+    dateFields: ['DateReported'],
   },
   'Potential Collaboration': {
     required: ['CompanyID'],
     optional: ['Comment'],
     enums: {},
+    dateFields: [],
   },
 };
 
@@ -129,15 +138,30 @@ router.post('/validate', (req, res) => {
       }
     }
 
+    // Convert date fields from Excel serial numbers or other formats to YYYY-MM-DD
+    for (const field of (def.dateFields || [])) {
+      if (row[field] !== undefined && row[field] !== '') {
+        row[field] = parseDate(row[field]) || row[field];
+      }
+    }
+
     const errors = [];
     // Required fields
     for (const f of def.required) {
       if (!row[f] && row[f] !== 0) errors.push(`${f} is required`);
     }
-    // Enum validation
+    // Enum validation — case-insensitive match with auto-correction
     for (const [field, allowed] of Object.entries(def.enums || {})) {
-      if (row[field] && !allowed.includes(row[field])) {
-        errors.push(`${field} must be one of: ${allowed.join(', ')}`);
+      if (row[field] !== undefined && row[field] !== '') {
+        const exact = allowed.includes(row[field]);
+        if (!exact) {
+          const canonical = allowed.find(a => a.toLowerCase() === String(row[field]).toLowerCase());
+          if (canonical) {
+            row[field] = canonical; // auto-correct to proper casing
+          } else {
+            errors.push(`${field} must be one of: ${allowed.join(', ')}`);
+          }
+        }
       }
     }
 

@@ -128,7 +128,7 @@ function openModal(company) {
 
 function populateForm(c) {
   document.getElementById('f-name').value         = c.CompanyName || '';
-  document.getElementById('f-date-added').value   = c.DateAdded || todayStr();
+  document.getElementById('f-date-added').value   = typeof c.DateAdded === 'string' ? c.DateAdded.slice(0,10) : todayStr();
   document.getElementById('f-industry').value     = c.Industry || '';
   document.getElementById('f-sector').value       = c.Sector || '';
   document.getElementById('f-country').value      = c.Country || '';
@@ -242,6 +242,6 @@ function todayStr() {
 }
 
 function formatDate(str) {
-  if (!str) return '—';
-  return str.slice(0, 10);
+  if (str === null || str === undefined || str === '') return '—';
+  return String(str).slice(0, 10);
 }
