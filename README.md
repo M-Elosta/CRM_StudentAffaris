@@ -1,125 +1,118 @@
-# ERO Database — Employer Relations Office
+# ERO System — CMU-Q Employer Relations Office
 
-A local web application for managing company relationships, contacts, interactions, events, and internship records at the CMU-Q Employer Relations Office.
+A web application for managing company relationships, contacts, outreach, recruitment, events, and internship records.
 
----
-
-## First-Time Setup (one time only)
-
-1. **Make sure Python 3.10+ is installed** on your computer.
-
-2. **Open a terminal**
-   - Windows: search for "Command Prompt" or "PowerShell"
-   - Mac: open the "Terminal" app
-
-3. **Navigate to this project folder:**
-   ```
-   cd path/to/CRM_StudentAffaris
-   ```
-
-4. **Create a virtual environment:**
-   ```
-   python -m venv venv
-   ```
-
-5. **Activate it:**
-   - Windows: `venv\Scripts\activate`
-   - Mac/Linux: `source venv/bin/activate`
-
-6. **Install dependencies:**
-   ```
-   pip install -r requirements.txt
-   ```
-
-7. **Set up the database:**
-   ```
-   python manage.py migrate
-   ```
-
-8. **Create your login:**
-   ```
-   python manage.py createsuperuser
-   ```
-   Follow the prompts to choose a username and password.
-
-9. **(Optional) Load sample data:**
-   ```
-   python manage.py import_csv --file data/Company.csv --type company
-   ```
+**Stack:** Node.js · Express · SQLite · Bootstrap 5 · Chart.js
 
 ---
 
-## Running the App (every time)
+## Quick Start
 
-1. Open a terminal, navigate to the project folder.
+### Prerequisites
+- Node.js 18 or later
 
-2. Activate the environment:
-   - Windows: `venv\Scripts\activate`
-   - Mac/Linux: `source venv/bin/activate`
+### First-Time Setup
 
-3. Start the server:
-   ```
-   python manage.py runserver
-   ```
+```bash
+cd employer-system
+npm install
+node database/seed.js   # optional — loads sample data
+node server.js
+```
 
-4. Open your browser to: **http://localhost:8000**
+Open your browser to **http://localhost:3000**
 
-5. Log in with the username and password you created.
+**Default login:** `admin` / `admin123` (change this after first login)
+
+### Convenience Scripts
+
+| OS | Command |
+|----|---------|
+| Mac / Linux | `bash scripts/start.sh` |
+| Windows | `scripts\start.bat` |
+
+Both scripts auto-install dependencies and seed the database on first run.
+
+---
+
+## Pages
+
+| Page | URL |
+|------|-----|
+| Dashboard | `/index.html` |
+| Companies | `/pages/companies.html` |
+| Contacts | `/pages/contacts.html` |
+| Outreach & Engagement | `/pages/outreach.html` |
+| Recruitment | `/pages/recruitment.html` |
+| Career Events | `/pages/career-events.html` |
+| Student-Led Events | `/pages/student-events.html` |
+| Academic Engagement | `/pages/academic.html` |
+| Hiring Feedback | `/pages/hiring-feedback.html` |
+| Potential Collaboration | `/pages/collaboration.html` |
+| Reports | `/pages/reports.html` |
+| Data Import | `/pages/import.html` |
 
 ---
 
 ## Importing Data
 
-### From the website:
-1. Click **Import CSV** in the navigation bar.
-2. Upload your file and select the data type.
-3. Review the preview — warnings are highlighted in yellow.
-4. Click **Confirm Import**.
+1. Go to **Data Import** in the sidebar.
+2. Select the entity type and upload an Excel (.xlsx) or CSV file.
+3. Map your columns to the system fields (auto-matched where possible).
+4. Review the validation results — duplicates and errors are flagged per row.
+5. Choose to insert, update, or skip each row, then click **Confirm Import**.
 
-### From the command line:
-```
-# Import (skip duplicates)
-python manage.py import_csv --file path/to/file.csv --type company
-
-# Preview without saving anything
-python manage.py import_csv --file path/to/file.csv --type company --dry-run
-
-# Import and update existing records if a duplicate name is found
-python manage.py import_csv --file path/to/file.csv --type company --update
-```
+**Download a blank template** for any entity from the Import page.
 
 ---
 
-## Backing Up Your Data
+## Reports & Export
 
-Your entire database is stored in a single file: **`db.sqlite3`**
+Go to **Reports**, choose a report type, optionally set a date range, then:
+- **Preview** — renders results in the page
+- **Export** — downloads an Excel (.xlsx) file
 
-To back up: copy `db.sqlite3` to a USB drive, Google Drive, or any safe location.
+Report types include: mailable contacts, event invitation list, resume book, follow-up reminders, engagement summary, recruitment activity, career events, hiring outcomes, and job outreach.
 
-To restore: replace `db.sqlite3` with your backup copy, then restart the server.
+---
 
-**Recommended:** back up weekly, or before any large import.
+## Backing Up Data
+
+The database is a single file: `employer-system/data/employer.db`
+
+**Manual backup:** copy that file to a safe location.
+
+**Automated backup (keeps last 10):**
+```bash
+node employer-system/scripts/backup.js
+```
+Backups are saved to `employer-system/data/backups/`.
+
+---
+
+## Changing Your Password
+
+Click **Change Password** at the bottom of the sidebar (available from any page after login).
 
 ---
 
 ## Troubleshooting
 
 | Problem | Solution |
-|---|---|
-| "SECRET_KEY is not set" | Make sure `.env` file exists in the project folder. Copy `.env.example` to `.env` and set a key. |
-| Can't log in | Run `python manage.py createsuperuser` to create a new account. |
-| Page won't load | Make sure the server is running (`python manage.py runserver`). |
-| Import fails | Try the `--dry-run` flag first to see what errors appear. |
-| Database seems wrong | Restore from your `db.sqlite3` backup. |
+|---------|----------|
+| Port 3000 already in use | Kill the other process or change `PORT` in `server.js` |
+| Forgot password | Delete `data/employer.db` and restart — a fresh admin account will be created |
+| Blank dashboard charts | Make sure the database has data; run `node database/seed.js` to load samples |
+| Import fails validation | Download the entity template from the Import page to see expected column names |
 
 ---
 
-## For IT Staff — Technical Notes
+## Technical Notes
 
-- **Framework:** Django 5.2, Python 3.11+
-- **Database:** SQLite (`db.sqlite3` in project root)
-- **Port:** 8000 (change with `python manage.py runserver 0.0.0.0:8080`)
-- **Static files:** All CSS/JS bundled locally — no internet required to run the app
-- **Adding a new model field:** Add to `employers/models.py`, run `makemigrations` + `migrate`
-- **Adding a CSV column mapping:** Add one entry to `COMPANY_COLUMN_MAP` in `employers/management/commands/import_csv.py`
-- **Logs:** Django logs to stdout when running with `runserver`
+- **Framework:** Express 4, Node.js
+- **Database:** SQLite via `better-sqlite3` (`data/employer.db`)
+- **Auth:** `express-session` + `bcrypt`, rate-limited to 10 login attempts per 15 min
+- **Port:** 3000 (configurable via `PORT` env var)
+- **No build step** — vanilla HTML/CSS/JS, Bootstrap 5 and Chart.js loaded from CDN
+- **Route files:** `employer-system/routes/` — one file per entity
+- **Schema:** `employer-system/database/schema.sql`
