@@ -1,0 +1,61 @@
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+body {
+  background-color: #f5f6fa;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.main-content {
+  margin-left: 240px;
+  padding: 28px 32px;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────────── */
+.sidebar .nav-link {
+  font-size: 0.875rem;
+  border-radius: 6px;
+  margin: 1px 8px;
+  transition: background 0.15s;
+}
+
+.sidebar .nav-link:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+
+.sidebar .nav-link.active {
+  background-color: rgba(255,255,255,0.18);
+  font-weight: 600;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────── */
+.card {
+  border: 1px solid #e2e6ea;
+  border-radius: 10px;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────────── */
+.table thead th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.table tbody tr:hover {
+  background-color: #f0f4ff;
+}
+
+/* ── Stat cards (dashboard) ──────────────────────────────────────────────────── */
+.stat-card {
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: #fff;
+}
+
+/* ── Responsive: collapse sidebar on small screens ───────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar { display: none !important; }
+  .main-content { margin-left: 0; padding: 16px; }
+}

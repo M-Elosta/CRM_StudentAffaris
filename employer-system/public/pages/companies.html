@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Companies — ERO System</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar-placeholder"></div>
+
+<!-- Main content -->
+<div class="main-content">
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999"></div>
+
+  <!-- Page header -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold"><i class="bi bi-building me-2 text-primary"></i>Companies</h4>
+      <p class="text-muted small mb-0">Manage employer companies</p>
+    </div>
+    <button class="btn btn-primary" id="btn-add">
+      <i class="bi bi-plus-lg me-1"></i>Add Company
+    </button>
+  </div>
+
+  <!-- Search bar -->
+  <div class="mb-3">
+    <div class="input-group" style="max-width:400px">
+      <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+      <input type="text" id="search-input" class="form-control" placeholder="Search by name, country, industry…">
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Company Name</th>
+            <th>Industry</th>
+            <th>Sector</th>
+            <th>Country</th>
+            <th>Date Added</th>
+            <th>Website</th>
+          </tr>
+        </thead>
+        <tbody id="companies-tbody">
+          <tr><td colspan="6" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add/Edit Modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="company-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-title">Add Company</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <form id="company-form" novalidate>
+        <div class="modal-body">
+          <div class="row g-3">
+
+            <!-- Company Name -->
+            <div class="col-12">
+              <label class="form-label">Company Name <span class="text-danger">*</span></label>
+              <input type="text" id="f-name" class="form-control" required>
+            </div>
+
+            <!-- Date Added -->
+            <div class="col-md-6">
+              <label class="form-label">Date Added <span class="text-danger">*</span></label>
+              <input type="date" id="f-date-added" class="form-control" required>
+            </div>
+
+            <!-- Industry -->
+            <div class="col-md-6">
+              <label class="form-label">Industry <span class="text-danger">*</span></label>
+              <input type="text" id="f-industry" class="form-control" required placeholder="e.g. Technology, Finance…">
+            </div>
+
+            <!-- Sector -->
+            <div class="col-md-6">
+              <label class="form-label">Sector <span class="text-danger">*</span></label>
+              <select id="f-sector" class="form-select" required>
+                <option value="">Select sector…</option>
+                <option>Government</option>
+                <option>NGO</option>
+                <option>Private</option>
+                <option>Semi-government</option>
+                <option>Startup</option>
+              </select>
+            </div>
+
+            <!-- Country -->
+            <div class="col-md-6">
+              <label class="form-label">Country <span class="text-danger">*</span></label>
+              <input type="text" id="f-country" class="form-control" required placeholder="e.g. Qatar">
+            </div>
+
+            <!-- Address -->
+            <div class="col-12">
+              <label class="form-label">Address</label>
+              <input type="text" id="f-address" class="form-control">
+            </div>
+
+            <!-- Website -->
+            <div class="col-md-6">
+              <label class="form-label">Website</label>
+              <input type="url" id="f-website" class="form-control" placeholder="https://…">
+            </div>
+
+            <!-- LinkedIn -->
+            <div class="col-md-6">
+              <label class="form-label">LinkedIn URL</label>
+              <input type="url" id="f-linkedin" class="form-control" placeholder="https://linkedin.com/…">
+            </div>
+
+            <!-- Handshake -->
+            <div class="col-md-6">
+              <label class="form-label">Handshake URL</label>
+              <input type="url" id="f-handshake" class="form-control" placeholder="https://app.joinhandshake.com/…">
+            </div>
+
+            <!-- Boolean flags -->
+            <div class="col-12">
+              <label class="form-label d-block">Flags</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="f-mou">
+                <label class="form-check-label" for="f-mou">Signed MoU</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="f-favorite">
+                <label class="form-check-label" for="f-favorite">
+                  <i class="bi bi-star-fill text-warning me-1"></i>Favorite Employer
+                </label>
+              </div>
+            </div>
+
+            <!-- Blacklisted toggle -->
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="f-blacklisted">
+                <label class="form-check-label fw-semibold text-danger" for="f-blacklisted">
+                  <i class="bi bi-slash-circle me-1"></i>Blacklisted
+                </label>
+              </div>
+              <div id="blacklist-warning" class="alert alert-warning py-2 mt-2 d-none small">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                Blacklisting this company will automatically set <strong>all its contacts</strong> to <strong>Non-mailable</strong>.
+              </div>
+            </div>
+
+            <!-- Comment -->
+            <div class="col-12">
+              <label class="form-label">Comment</label>
+              <textarea id="f-comment" class="form-control" rows="3"></textarea>
+            </div>
+
+          </div><!-- /row -->
+        </div><!-- /modal-body -->
+
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-danger d-none" id="btn-delete">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+          <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save">Save</button>
+          </div>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/companies.js"></script>
+</body>
+</html>
