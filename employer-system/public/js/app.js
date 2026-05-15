@@ -80,18 +80,18 @@ function showConfirmModal(title, body, onConfirm, confirmLabel = 'Delete', confi
 
 // ── Sidebar injection ──────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { href: '/index.html',               icon: 'bi-speedometer2',  label: 'Dashboard' },
-  { href: '/pages/companies.html',     icon: 'bi-building',      label: 'Companies' },
-  { href: '/pages/contacts.html',      icon: 'bi-people',        label: 'Contacts' },
-  { href: '/pages/outreach.html',      icon: 'bi-chat-dots',     label: 'Outreach & Engagement' },
-  { href: '/pages/recruitment.html',   icon: 'bi-briefcase',     label: 'Recruitment' },
-  { href: '/pages/career-events.html', icon: 'bi-calendar-event',label: 'Career Events' },
-  { href: '/pages/student-events.html',icon: 'bi-mortarboard',   label: 'Student-Led Events' },
-  { href: '/pages/academic.html',      icon: 'bi-book',          label: 'Academic Engagement' },
-  { href: '/pages/hiring-feedback.html',icon: 'bi-star',         label: 'Hiring Feedback' },
-  { href: '/pages/collaboration.html', icon: 'bi-diagram-3',     label: 'Potential Collaboration' },
-  { href: '/pages/reports.html',       icon: 'bi-file-earmark-bar-graph', label: 'Reports' },
-  { href: '/pages/import.html',        icon: 'bi-upload',        label: 'Data Import' },
+  { href: '/index.html',                icon: 'bi-speedometer2',           label: 'Dashboard' },
+  { href: '/pages/companies.html',      icon: 'bi-building',               label: 'Companies' },
+  { href: '/pages/contacts.html',       icon: 'bi-people',                 label: 'Contacts' },
+  { href: '/pages/outreach.html',       icon: 'bi-chat-dots',              label: 'Outreach & Engagement' },
+  { href: '/pages/recruitment.html',    icon: 'bi-briefcase',              label: 'Recruitment' },
+  { href: '/pages/career-events.html',  icon: 'bi-calendar-event',         label: 'Career Events' },
+  { href: '/pages/student-events.html', icon: 'bi-mortarboard',            label: 'Student-Led Events' },
+  { href: '/pages/academic.html',       icon: 'bi-book',                   label: 'Academic Engagement' },
+  { href: '/pages/hiring-feedback.html',icon: 'bi-star',                   label: 'Hiring Feedback' },
+  { href: '/pages/collaboration.html',  icon: 'bi-diagram-3',              label: 'Potential Collaboration' },
+  { href: '/pages/reports.html',        icon: 'bi-file-earmark-bar-graph', label: 'Reports' },
+  { href: '/pages/import.html',         icon: 'bi-upload',                 label: 'Data Import' },
 ];
 
 function injectSidebar() {
@@ -100,8 +100,15 @@ function injectSidebar() {
 
   const currentPath = window.location.pathname;
 
+  // Active-state: match exact filename, treating '/' and '/index.html' the same
+  function isActive(href) {
+    const page = href.replace(/^\//, '');
+    if (page === 'index.html' && (currentPath === '/' || currentPath === '/index.html')) return true;
+    return currentPath.endsWith(page);
+  }
+
   const items = NAV_ITEMS.map(item => {
-    const active = currentPath.endsWith(item.href.replace(/^\//, '')) ? 'active' : '';
+    const active = isActive(item.href) ? 'active' : '';
     return `
       <li class="nav-item">
         <a href="${item.href}" class="nav-link ${active} text-white px-3 py-2">
@@ -111,13 +118,51 @@ function injectSidebar() {
   }).join('');
 
   placeholder.innerHTML = `
-    <nav class="sidebar d-flex flex-column bg-dark text-white" style="width:240px;min-height:100vh;position:fixed;top:0;left:0;z-index:1000;overflow-y:auto;">
-      <div class="px-3 py-3 border-bottom border-secondary">
+    <!-- Mobile top bar -->
+    <div class="mobile-topbar d-md-none d-flex align-items-center justify-content-between px-3 py-2 bg-dark text-white">
+      <span class="fw-bold">ERO System</span>
+      <button class="btn btn-sm btn-outline-light" id="sidebar-toggle" aria-label="Toggle navigation">
+        <i class="bi bi-list fs-5"></i>
+      </button>
+    </div>
+
+    <!-- Sidebar nav -->
+    <nav id="sidebar-nav" class="sidebar d-flex flex-column bg-dark text-white">
+      <div class="px-3 py-3 border-bottom border-secondary d-none d-md-block">
         <div class="fw-bold fs-6 text-white">ERO System</div>
-        <div class="small text-secondary">CMU-Q</div>
+        <div class="small text-secondary">CMU-Q Employer Relations</div>
       </div>
-      <ul class="nav flex-column flex-grow-1 mt-2">${items}</ul>
-    </nav>`;
+      <ul class="nav flex-column flex-grow-1 mt-2 pb-3">${items}</ul>
+    </nav>
+
+    <!-- Mobile overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay d-none"></div>`;
+
+  // Mobile toggle behaviour
+  const toggleBtn = document.getElementById('sidebar-toggle');
+  const sidebarNav = document.getElementById('sidebar-nav');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  function openSidebar() {
+    sidebarNav.classList.add('sidebar-open');
+    overlay.classList.remove('d-none');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    sidebarNav.classList.remove('sidebar-open');
+    overlay.classList.add('d-none');
+    document.body.style.overflow = '';
+  }
+
+  toggleBtn?.addEventListener('click', () => {
+    sidebarNav.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+  });
+  overlay?.addEventListener('click', closeSidebar);
+
+  // Close sidebar when a nav link is clicked on mobile
+  sidebarNav.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', closeSidebar);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', injectSidebar);

@@ -11,6 +11,16 @@ body {
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 240px;
+  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
 .sidebar .nav-link {
   font-size: 0.875rem;
   border-radius: 6px;
@@ -25,6 +35,24 @@ body {
 .sidebar .nav-link.active {
   background-color: rgba(255,255,255,0.18);
   font-weight: 600;
+}
+
+/* ── Mobile top bar ──────────────────────────────────────────────────────────── */
+.mobile-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  height: 52px;
+}
+
+/* ── Mobile sidebar slide-in ─────────────────────────────────────────────────── */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1050;
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────────── */
@@ -47,6 +75,15 @@ body {
   background-color: #f0f4ff;
 }
 
+/* ── Quick-link hover cards ──────────────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important;
+}
+
 /* ── Stat cards (dashboard) ──────────────────────────────────────────────────── */
 .stat-card {
   border-radius: 12px;
@@ -54,8 +91,30 @@ body {
   color: #fff;
 }
 
-/* ── Responsive: collapse sidebar on small screens ───────────────────────────── */
-@media (max-width: 768px) {
-  .sidebar { display: none !important; }
-  .main-content { margin-left: 0; padding: 16px; }
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Sidebar hidden off-screen by default on mobile */
+  #sidebar-nav {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    width: 240px;
+    min-height: 100vh;
+    z-index: 1060;
+    transition: left 0.25s ease;
+    padding-top: 52px; /* clear mobile topbar */
+  }
+
+  #sidebar-nav.sidebar-open {
+    left: 0;
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding: 68px 16px 16px; /* clear mobile topbar */
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-topbar { display: none !important; }
 }
