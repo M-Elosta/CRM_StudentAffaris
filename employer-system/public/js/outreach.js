@@ -87,7 +87,7 @@ function isOverdue(row) {
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
   if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No records found. <a href="#" onclick="openModal(null);return false;">Add one</a>.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No records found. <a href="#" onclick="openModal(null);return false;">Add one</a>.</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(r => {
@@ -112,6 +112,10 @@ function renderTable(items) {
       <td>${r.InteractionDate}</td>
       <td>${statusBadge}</td>
       <td>${followUp}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.OutreachEngagementID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.OutreachEngagementID})"><i class="bi bi-trash"></i></button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -125,7 +129,12 @@ function renderTable(items) {
 
 function setLoading(on) {
   if (on) document.getElementById('tbody').innerHTML =
-    `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
+    `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
+}
+
+function openModalById(id) {
+  const item = allItems.find(r => r.OutreachEngagementID == id);
+  if (item) openModal(item);
 }
 
 function openModal(item) {
@@ -191,6 +200,16 @@ async function handleDelete() {
     try {
       bootstrap.Modal.getInstance(document.getElementById('the-modal'))?.hide();
       await fetchAPI(`/api/outreach/${editingId}`, { method: 'DELETE' });
+      showToast('Record deleted', 'danger');
+      await loadItems();
+    } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
+  });
+}
+
+async function handleDeleteById(id) {
+  showConfirmModal('Delete Record', '<p>Delete this outreach record? This cannot be undone.</p>', async () => {
+    try {
+      await fetchAPI(`/api/outreach/${id}`, { method: 'DELETE' });
       showToast('Record deleted', 'danger');
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }

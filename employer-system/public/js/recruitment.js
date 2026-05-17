@@ -103,7 +103,7 @@ function applyFilters() {
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No records found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No records found.</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(r => {
@@ -116,6 +116,10 @@ function renderTable(items) {
       <td><span class="badge ${r.Status==='Paid'?'bg-success':'bg-secondary'}">${r.Status}</span></td>
       <td>${r.TargetGroup}</td>
       <td><span class="badge ${hired}">${r.HiredStudentAlumni}</span></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
+      </td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('tr[data-id]').forEach(row =>
@@ -125,7 +129,12 @@ function renderTable(items) {
 
 function setLoading(on) {
   if (on) document.getElementById('tbody').innerHTML =
-    `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</td></tr>`;
+    `<tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</td></tr>`;
+}
+
+function openModalById(id) {
+  const item = allItems.find(r => r.RecruitmentID == id);
+  if (item) openModal(item);
 }
 
 function openModal(item) {
@@ -208,6 +217,16 @@ async function handleDelete() {
     try {
       bootstrap.Modal.getInstance(document.getElementById('the-modal'))?.hide();
       await fetchAPI(`/api/recruitment/${editingId}`, { method: 'DELETE' });
+      showToast('Record deleted', 'danger');
+      await loadItems();
+    } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
+  });
+}
+
+async function handleDeleteById(id) {
+  showConfirmModal('Delete Recruitment', '<p>Delete this recruitment record? This cannot be undone.</p>', async () => {
+    try {
+      await fetchAPI(`/api/recruitment/${id}`, { method: 'DELETE' });
       showToast('Record deleted', 'danger');
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }

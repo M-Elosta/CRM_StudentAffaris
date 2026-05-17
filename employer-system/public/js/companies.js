@@ -54,7 +54,7 @@ function renderTable(companies) {
   if (companies.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center text-muted py-4">
+        <td colspan="7" class="text-center text-muted py-4">
           No companies found. <a href="#" id="empty-add-link">Add your first company</a>.
         </td>
       </tr>`;
@@ -83,6 +83,10 @@ function renderTable(companies) {
         <td>${escHtml(c.Country)}</td>
         <td>${formatDate(c.DateAdded)}</td>
         <td>${c.Website ? `<a href="${escHtml(c.Website)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
+        </td>
       </tr>`;
   }).join('');
 
@@ -97,7 +101,7 @@ function renderTable(companies) {
 function setTableLoading(loading) {
   const tbody = document.getElementById('companies-tbody');
   if (loading) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
   }
 }
 
@@ -225,6 +229,32 @@ async function handleDelete() {
   } catch (err) {
     showToast('Could not load company details: ' + err.message, 'danger');
   }
+}
+
+async function handleDeleteById(id) {
+  try {
+    const counts = await fetchAPI(`/api/companies/${id}/related-counts`);
+    const parts = [];
+    if (counts.contacts)      parts.push(`${counts.contacts} contact(s)`);
+    if (counts.outreach)      parts.push(`${counts.outreach} outreach record(s)`);
+    if (counts.recruitment)   parts.push(`${counts.recruitment} recruitment posting(s)`);
+    if (counts.events)        parts.push(`${counts.events} career event(s)`);
+    if (counts.academic)      parts.push(`${counts.academic} academic engagement(s)`);
+    if (counts.studentEvents) parts.push(`${counts.studentEvents} student-led event(s)`);
+    const detail = parts.length
+      ? `<p class="text-danger mt-2 mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>This will also permanently delete: ${parts.join(', ')}.</p>`
+      : '';
+    showConfirmModal('Delete Company',
+      `<p>Delete <strong>${escHtml(counts.companyName)}</strong>? This action cannot be undone.</p>${detail}`,
+      async () => {
+        try {
+          await fetchAPI(`/api/companies/${id}`, { method: 'DELETE' });
+          showToast('Company deleted', 'danger');
+          await loadCompanies();
+        } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
+      }
+    );
+  } catch (err) { showToast('Could not load company details: ' + err.message, 'danger'); }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

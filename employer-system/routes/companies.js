@@ -110,6 +110,9 @@ router.put('/:id', (req, res) => {
       req.params.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Company not found' });
+    if (Blacklisted) {
+      db.prepare("UPDATE Contact SET Status='Non-mailable' WHERE CompanyID=?").run(req.params.id);
+    }
     const updated = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.params.id);
     res.json(updated);
   } catch (err) {

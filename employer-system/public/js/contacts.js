@@ -92,7 +92,7 @@ function renderTable(contacts) {
   if (contacts.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="text-center text-muted py-4">
+        <td colspan="6" class="text-center text-muted py-4">
           No contacts found. <a href="#" id="empty-add-link">Add your first contact</a>.
         </td>
       </tr>`;
@@ -123,6 +123,10 @@ function renderTable(contacts) {
         <td>${escHtml(c.EmailAddress)}</td>
         <td>${escHtml(c.JobTitle || '—')}</td>
         <td>${statusBadge}${excludeBadge}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
+        </td>
       </tr>`;
   }).join('');
 
@@ -137,11 +141,16 @@ function renderTable(contacts) {
 function setTableLoading(loading) {
   if (loading) {
     document.getElementById('contacts-tbody').innerHTML =
-      `<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
+      `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
   }
 }
 
 // ── Modal ──────────────────────────────────────────────────────────────────────
+function openModalById(id) {
+  const contact = allContacts.find(c => c.ContactID == id);
+  if (contact) openModal(contact);
+}
+
 function openModal(contact) {
   editingId = contact ? contact.ContactID : null;
 
@@ -245,6 +254,22 @@ async function handleSave(e) {
 }
 
 // ── Delete ─────────────────────────────────────────────────────────────────────
+async function handleDeleteById(id) {
+  const contact = allContacts.find(c => c.ContactID == id);
+  const name = contact ? `${contact.FirstName} ${contact.LastName}` : 'this contact';
+  showConfirmModal('Delete Contact',
+    `<p>Delete <strong>${escHtml(name)}</strong>? This will also remove all their outreach and engagement records.</p>
+     <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>This action cannot be undone.</p>`,
+    async () => {
+      try {
+        await fetchAPI(`/api/contacts/${id}`, { method: 'DELETE' });
+        showToast('Contact deleted', 'danger');
+        await loadContacts();
+      } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
+    }
+  );
+}
+
 async function handleDelete() {
   if (!editingId) return;
   const contact = allContacts.find(c => c.ContactID === editingId);
