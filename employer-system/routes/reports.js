@@ -2,185 +2,904 @@ const express = require('express');
 const router  = express.Router();
 const XLSX    = require('xlsx');
 
-// ── Query builders ─────────────────────────────────────────────────────────────
-const QUERIES = {
-  companies: (db, { from, to }) => {
-    let sql = `SELECT CompanyName AS "Company Name", Industry, Sector, Country,
-               DateAdded AS "Date Added", Website, SignedMoU AS "MoU"
-               FROM Company WHERE Blacklisted=0`;
-    const p = [];
-    if (from) { sql += ' AND DateAdded>=?'; p.push(from); }
-    if (to)   { sql += ' AND DateAdded<=?'; p.push(to); }
-    sql += ' ORDER BY CompanyName';
-    return db.prepare(sql).all(...p);
+// ── Chart colour palette (consistent with dashboard) ───────────────────────────
+const PALETTE = ['#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c','#e71d36',
+                 '#3a0ca3','#7209b7','#06d6a0','#118ab2','#ffd166','#ef476f'];
+
+// ── Month label helper ─────────────────────────────────────────────────────────
+function monthLabel(str) {
+  if (!str) return 'Unknown';
+  const d = new Date(str.slice(0, 7) + '-01');
+  return isNaN(d) ? str.slice(0, 7) : d.toLocaleString('en', { month: 'short', year: 'numeric' });
+}
+
+// ── Date range WHERE clause builder ───────────────────────────────────────────
+function dateClause(col, from, to) {
+  const parts = [], params = [];
+  if (from) { parts.push(`${col} >= ?`); params.push(from); }
+  if (to)   { parts.push(`${col} <= ?`); params.push(to); }
+  return { sql: parts.length ? ' AND ' + parts.join(' AND ') : '', params };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// QUICK REPORT DEFINITIONS
+// Each fn(db, from, to) returns { rows, chartData: { type, labels, datasets } }
+// ────────────────────────────────────────────────────────────────────────────
+const QUICK_REPORTS = {
+
+  // ── Contact Lists ──────────────────────────────────────────────────────────
+
+  'mailable-contacts': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country
+      FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
+      WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0${dc.sql}
+      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'pie', labels: sorted.map(x=>x[0]),
+      datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: PALETTE }]
+    }};
   },
 
-  mailable: (db) =>
-    db.prepare(`
-      SELECT co.FirstName||' '||co.LastName AS "Name",
-             c.CompanyName AS "Company", co.EmailAddress AS "Email",
-             co.JobTitle AS "Job Title", co.WorkPhone AS "Work Phone",
-             co.Mobile AS "Mobile"
+  'event-invitation': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0
-      ORDER BY co.LastName, co.FirstName`).all(),
+      WHERE co.EventInvitation=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0${dc.sql}
+      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Contacts', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#4361ee', borderRadius: 4 }]
+    }};
+  },
 
-  event_invitation: (db) =>
-    db.prepare(`
-      SELECT co.FirstName||' '||co.LastName AS "Name",
-             c.CompanyName AS "Company", co.EmailAddress AS "Email",
-             co.JobTitle AS "Job Title", co.WorkPhone AS "Work Phone"
+  'resume-book': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country,
+             co.Major AS "Major", co.GraduationYear AS "Grad Year"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.EventInvitation=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0
-      ORDER BY co.LastName, co.FirstName`).all(),
+      WHERE co.ResumeBook=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0${dc.sql}
+      ORDER BY co.Major, co.LastName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Contacts', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#2ec4b6', borderRadius: 4 }]
+    }};
+  },
 
-  resume_book: (db) =>
-    db.prepare(`
-      SELECT co.FirstName||' '||co.LastName AS "Name",
-             c.CompanyName AS "Company", co.EmailAddress AS "Email",
-             co.JobTitle AS "Job Title", co.Major AS "Major",
-             co.GraduationYear AS "Grad Year"
+  'non-mailable': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.EmailAddress AS "Email",
+             CASE WHEN c.Blacklisted=1 THEN 'Blacklisted Company' ELSE 'Manually Set' END AS "Reason"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.ResumeBook=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0
-      ORDER BY co.LastName, co.FirstName`).all(),
+      WHERE co.Status='Non-mailable'${dc.sql}
+      ORDER BY co.LastName`).all(...dc.params);
+    const bl = rows.filter(r => r.Reason === 'Blacklisted Company').length;
+    const mn = rows.length - bl;
+    return { rows, chartData: {
+      type: 'pie', labels: ['Blacklisted Company', 'Manually Set'],
+      datasets: [{ data: [bl, mn], backgroundColor: ['#e71d36','#adb5bd'] }]
+    }};
+  },
 
-  non_mailable: (db) =>
-    db.prepare(`
-      SELECT co.FirstName||' '||co.LastName AS "Name",
-             c.CompanyName AS "Company", co.EmailAddress AS "Email",
-             co.JobTitle AS "Job Title", co.Status AS "Status",
-             CASE WHEN c.Blacklisted=1 THEN 'Company Blacklisted' ELSE 'Manually Set' END AS "Reason"
+  'primary-contacts': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.Status='Non-mailable'
-      ORDER BY co.LastName, co.FirstName`).all(),
+      WHERE co.PrimaryContact=1 AND co.Status='Mailable'${dc.sql}
+      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Primary Contacts', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#f72585', borderRadius: 4 }]
+    }};
+  },
 
-  follow_up: (db) =>
-    db.prepare(`
-      SELECT c.CompanyName AS "Company",
-             co.FirstName||' '||co.LastName AS "Contact",
-             o.InteractionType AS "Type",
-             o.InteractionDate AS "Interaction Date",
-             o.FollowUpDate AS "Follow-up Date",
-             o.DiscussionItems AS "Discussion",
+  'alumni-contacts': (db, from, to) => {
+    const dc = dateClause('co.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
+             co.Major AS "Major", co.GraduationYear AS "Grad Year",
+             co.EmailAddress AS "Email", co.JobTitle AS "Job Title"
+      FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
+      WHERE co.CMUQGraduate=1${dc.sql}
+      ORDER BY co.GraduationYear DESC, co.LastName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Alumni', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#7209b7', borderRadius: 4 }]
+    }};
+  },
+
+  // ── Company Reports ────────────────────────────────────────────────────────
+
+  'all-companies': (db, from, to) => {
+    const dc = dateClause('DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT CompanyName AS "Name", Industry, Sector, Country,
+             DateAdded AS "Date Added", Website,
+             CASE WHEN SignedMoU=1 THEN 'Yes' ELSE 'No' END AS "Signed MoU",
+             CASE WHEN FavoriteEmployer=1 THEN 'Yes' ELSE 'No' END AS "Favorite"
+      FROM Company WHERE Blacklisted=0${dc.sql}
+      ORDER BY CompanyName`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => { agg[r.Sector] = (agg[r.Sector] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'pie', labels: sorted.map(x=>x[0]),
+      datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: PALETTE }]
+    }};
+  },
+
+  'blacklisted-companies': (db, from, to) => {
+    const rows = db.prepare(`
+      SELECT CompanyName AS "Name", Industry, Country, Comment
+      FROM Company WHERE Blacklisted=1
+      ORDER BY CompanyName`).all();
+    const agg = {};
+    rows.forEach(r => { agg[r.Industry || 'Unknown'] = (agg[r.Industry || 'Unknown'] || 0) + 1; });
+    const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Blacklisted', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#e71d36', borderRadius: 4 }]
+    }};
+  },
+
+  'companies-by-country': (db, from, to) => {
+    const dc = dateClause('DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT c.Country, COUNT(DISTINCT c.CompanyID) AS "Company Count",
+             COUNT(DISTINCT co.ContactID) AS "Contact Count"
+      FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
+      WHERE c.Blacklisted=0${dc.sql}
+      GROUP BY c.Country ORDER BY "Company Count" DESC`).all(...dc.params);
+    return { rows, chartData: {
+      type: 'bar', indexAxis: 'y', labels: rows.map(r=>r.Country),
+      datasets: [{ label: 'Companies', data: rows.map(r=>r['Company Count']),
+                   backgroundColor: '#4361ee', borderRadius: 4 }]
+    }};
+  },
+
+  'companies-by-sector': (db, from, to) => {
+    const dc = dateClause('DateAdded', from, to);
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=0${dc.sql}`).get(...dc.params).n;
+    const rows = db.prepare(`
+      SELECT Sector, COUNT(*) AS "Company Count",
+             ROUND(COUNT(*)*100.0/?, 1) AS "Percentage"
+      FROM Company WHERE Blacklisted=0${dc.sql}
+      GROUP BY Sector ORDER BY "Company Count" DESC`).all(total, ...dc.params);
+    return { rows, chartData: {
+      type: 'doughnut', labels: rows.map(r=>r.Sector),
+      datasets: [{ data: rows.map(r=>r['Company Count']), backgroundColor: PALETTE }]
+    }};
+  },
+
+  'favorite-employers': (db, from, to) => {
+    const dc = dateClause('c.DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
+             COUNT(co.ContactID) AS "Contact Count"
+      FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
+      WHERE c.FavoriteEmployer=1${dc.sql}
+      GROUP BY c.CompanyID ORDER BY "Contact Count" DESC`).all(...dc.params);
+    const bySector = {};
+    rows.forEach(r => { bySector[r.Sector] = (bySector[r.Sector] || 0) + 1; });
+    const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Favorites', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#ff9f1c', borderRadius: 4 }]
+    }};
+  },
+
+  'new-companies': (db, from, to) => {
+    const dc = dateClause('DateAdded', from, to);
+    const rows = db.prepare(`
+      SELECT CompanyName AS "Name", Industry, Sector, Country, DateAdded AS "Date Added"
+      FROM Company WHERE 1=1${dc.sql}
+      ORDER BY DateAdded DESC`).all(...dc.params);
+    const agg = {};
+    rows.forEach(r => {
+      const m = (r['Date Added'] || '').slice(0, 7);
+      if (m) agg[m] = (agg[m] || 0) + 1;
+    });
+    const months = Object.keys(agg).sort();
+    return { rows, chartData: {
+      type: 'line', labels: months.map(monthLabel),
+      datasets: [{ label: 'New Companies', data: months.map(m=>agg[m]),
+                   borderColor: '#4361ee', backgroundColor: 'rgba(67,97,238,0.1)',
+                   fill: true, tension: 0.3 }]
+    }};
+  },
+
+  'mou-partners': (db, from, to) => {
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
+             COUNT(co.ContactID) AS "Contact Count"
+      FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
+      WHERE c.SignedMoU=1
+      GROUP BY c.CompanyID ORDER BY c.CompanyName`).all();
+    const bySector = {};
+    rows.forEach(r => { bySector[r.Sector] = (bySector[r.Sector] || 0) + 1; });
+    const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'pie', labels: sorted.map(x=>x[0]),
+      datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: PALETTE }]
+    }};
+  },
+
+  // ── Engagement & Activity ──────────────────────────────────────────────────
+
+  'followup-actions': (db, from, to) => {
+    const today = new Date().toISOString().slice(0,10);
+    const weekEnd = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
+             o.InteractionType AS "Type", o.InteractionDate AS "Interaction Date",
+             o.FollowUpDate AS "Follow-Up Date", o.DiscussionItems AS "Discussion Items",
              o.ActionPlan AS "Action Plan",
-             CASE WHEN o.FollowUpDate < date('now') THEN 'OVERDUE' ELSE 'Upcoming' END AS "Urgency"
+             CAST(julianday(o.FollowUpDate) - julianday('now') AS INTEGER) AS "_days_until",
+             CASE
+               WHEN o.FollowUpDate < date('now') THEN 'overdue'
+               WHEN o.FollowUpDate <= date('now','+7 days') THEN 'this-week'
+               ELSE 'upcoming'
+             END AS "_urgency"
       FROM OutreachEngagement o
       JOIN Company c  ON o.CompanyID=c.CompanyID
       JOIN Contact co ON o.ContactID=co.ContactID
       WHERE o.InteractionStatus='In-progress' AND o.FollowUpDate IS NOT NULL
-      ORDER BY o.FollowUpDate ASC`).all(),
+      ORDER BY o.FollowUpDate ASC`).all();
+    const counts = { overdue:0, 'this-week':0, upcoming:0 };
+    rows.forEach(r => { counts[r._urgency] = (counts[r._urgency]||0)+1; });
+    return { rows, chartData: {
+      type: 'bar', labels: ['Overdue','Due This Week','Upcoming'],
+      datasets: [{ label: 'Follow-ups', data: [counts.overdue, counts['this-week'], counts.upcoming],
+                   backgroundColor: ['#e71d36','#ff9f1c','#4361ee'], borderRadius: 4 }]
+    }};
+  },
 
-  engagement_summary: (db, { from, to }) => {
-    const p1 = [], p2 = [], p3 = [], p4 = [];
-    let outreachFilter = '', recruitFilter = '', eventFilter = '', academicFilter = '';
-    if (from) { outreachFilter+=' AND InteractionDate>=?'; p1.push(from); }
-    if (to)   { outreachFilter+=' AND InteractionDate<=?'; p1.push(to); }
-    if (from) { recruitFilter+=' AND DatePosted>=?';       p2.push(from); }
-    if (to)   { recruitFilter+=' AND DatePosted<=?';       p2.push(to); }
-    if (from) { eventFilter+=' AND EventDate>=?';          p3.push(from); }
-    if (to)   { eventFilter+=' AND EventDate<=?';          p3.push(to); }
-    if (from) { academicFilter+=' AND SessionDate>=?';     p4.push(from); }
-    if (to)   { academicFilter+=' AND SessionDate<=?';     p4.push(to); }
-
-    return db.prepare(`
+  'engagement-summary': (db, from, to) => {
+    const makeFilter = (col) => {
+      const dc = dateClause(col, from, to);
+      return { f: dc.sql, p: dc.params };
+    };
+    const o = makeFilter('InteractionDate'), r2 = makeFilter('DatePosted'),
+          ce = makeFilter('EventDate'),       ac = makeFilter('SessionDate'),
+          se = makeFilter('ProposalDate'),    hf = makeFilter('DateReported');
+    const rows = db.prepare(`
       SELECT c.CompanyName AS "Company",
-        (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${outreachFilter}) AS "Outreach",
-        (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${recruitFilter}) AS "Recruitment",
-        (SELECT COUNT(*) FROM CareerEvent WHERE CompanyID=c.CompanyID${eventFilter}) AS "Career Events",
-        (SELECT COUNT(*) FROM AcademicClassroomEngagement WHERE CompanyID=c.CompanyID${academicFilter}) AS "Academic"
-      FROM Company c
-      ORDER BY ("Outreach"+"Recruitment"+"Career Events"+"Academic") DESC`
-    ).all(...p1,...p2,...p3,...p4).map(r => ({
+        (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${o.f}) AS "Outreach",
+        (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${r2.f}) AS "Recruitment",
+        (SELECT COUNT(*) FROM CareerEvent WHERE CompanyID=c.CompanyID${ce.f}) AS "Career Events",
+        (SELECT COUNT(*) FROM AcademicClassroomEngagement WHERE CompanyID=c.CompanyID${ac.f}) AS "Academic",
+        (SELECT COUNT(*) FROM StudentLedEvent WHERE CompanyID=c.CompanyID${se.f}) AS "Student Events",
+        (SELECT COUNT(*) FROM HiringFeedback WHERE CompanyID=c.CompanyID${hf.f}) AS "Hiring Feedback"
+      FROM Company c WHERE c.Blacklisted=0
+      ORDER BY c.CompanyName`
+    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p).map(r => ({
       ...r,
-      "Total": r["Outreach"]+r["Recruitment"]+r["Career Events"]+r["Academic"]
-    }));
+      "Total": r.Outreach+r.Recruitment+r['Career Events']+r.Academic+r['Student Events']+r['Hiring Feedback']
+    })).sort((a,b)=>b.Total-a.Total);
+    const top15 = rows.slice(0, 15);
+    return { rows, chartData: {
+      type: 'bar', indexAxis: 'y', labels: top15.map(r=>r.Company),
+      datasets: [{ label: 'Total Engagements', data: top15.map(r=>r.Total),
+                   backgroundColor: '#4361ee', borderRadius: 4 }]
+    }};
   },
 
-  recruitment: (db, { from, to }) => {
-    let sql = `
+  'inactive-companies': (db, from, to) => {
+    const makeFilter = (col) => {
+      const dc = dateClause(col, from, to);
+      return { f: dc.sql, p: dc.params };
+    };
+    const o = makeFilter('InteractionDate'), r2 = makeFilter('DatePosted'),
+          ce = makeFilter('EventDate'),       ac = makeFilter('SessionDate'),
+          se = makeFilter('ProposalDate'),    hf = makeFilter('DateReported');
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Name", c.Sector, c.Country,
+             c.DateAdded AS "Date Added",
+             (SELECT MAX(o.InteractionDate) FROM OutreachEngagement o WHERE o.CompanyID=c.CompanyID) AS "Last Outreach"
+      FROM Company c WHERE c.Blacklisted=0
+        AND (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${o.f})=0
+        AND (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${r2.f})=0
+        AND (SELECT COUNT(*) FROM CareerEvent WHERE CompanyID=c.CompanyID${ce.f})=0
+        AND (SELECT COUNT(*) FROM AcademicClassroomEngagement WHERE CompanyID=c.CompanyID${ac.f})=0
+        AND (SELECT COUNT(*) FROM StudentLedEvent WHERE CompanyID=c.CompanyID${se.f})=0
+        AND (SELECT COUNT(*) FROM HiringFeedback WHERE CompanyID=c.CompanyID${hf.f})=0
+      ORDER BY c.CompanyName`
+    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p);
+    const bySector = {};
+    rows.forEach(r => { bySector[r.Sector||'Unknown']=(bySector[r.Sector||'Unknown']||0)+1; });
+    const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'pie', labels: sorted.map(x=>x[0]),
+      datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: PALETTE }]
+    }};
+  },
+
+  'monthly-activity': (db, from, to) => {
+    const modules = [
+      { name: 'Outreach', table: 'OutreachEngagement', dateCol: 'InteractionDate' },
+      { name: 'Recruitment', table: 'Recruitment', dateCol: 'DatePosted' },
+      { name: 'Career Events', table: 'CareerEvent', dateCol: 'EventDate' },
+      { name: 'Academic', table: 'AcademicClassroomEngagement', dateCol: 'SessionDate' },
+      { name: 'Student Events', table: 'StudentLedEvent', dateCol: 'ProposalDate' },
+    ];
+    const monthData = {};
+    for (const mod of modules) {
+      const dc = dateClause(mod.dateCol, from, to);
+      const agg = db.prepare(
+        `SELECT strftime('%Y-%m', ${mod.dateCol}) AS m, COUNT(*) AS n FROM ${mod.table} WHERE ${mod.dateCol} IS NOT NULL${dc.sql} GROUP BY m ORDER BY m`
+      ).all(...dc.params);
+      agg.forEach(r => {
+        if (!monthData[r.m]) monthData[r.m] = {};
+        monthData[r.m][mod.name] = r.n;
+      });
+    }
+    const months = Object.keys(monthData).sort();
+    const rows = months.map(m => {
+      const entry = { Month: monthLabel(m + '-01') };
+      modules.forEach(mod => { entry[mod.name] = monthData[m][mod.name] || 0; });
+      entry['Total'] = modules.reduce((s, mod) => s + (monthData[m][mod.name] || 0), 0);
+      return entry;
+    });
+    const colors = ['#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c'];
+    return { rows, chartData: {
+      type: 'bar', labels: months.map(m => monthLabel(m + '-01')),
+      datasets: modules.map((mod, i) => ({
+        label: mod.name, data: months.map(m => monthData[m][mod.name] || 0),
+        backgroundColor: colors[i], borderRadius: 2, stack: 'stack'
+      }))
+    }};
+  },
+
+  // ── Recruitment & Hiring ───────────────────────────────────────────────────
+
+  'recruitment-postings': (db, from, to) => {
+    const dc = dateClause('r.DatePosted', from, to);
+    const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", r.OpportunityTitle AS "Title",
-             r.DatePosted AS "Date Posted", r.Mode, r.Status,
-             r.TargetGroup AS "Target", r.HiredStudentAlumni AS "Hired",
-             r.Country, r.ArabicSpeaker AS "Arabic Speaker"
-      FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE 1=1`;
-    const p = [];
-    if (from) { sql+=' AND r.DatePosted>=?'; p.push(from); }
-    if (to)   { sql+=' AND r.DatePosted<=?'; p.push(to); }
-    sql+=' ORDER BY r.DatePosted DESC';
-    return db.prepare(sql).all(...p);
+             r.DatePosted AS "Date", r.Mode, r.Status AS "Paid/Unpaid",
+             r.TargetGroup AS "Target Group", r.HiredStudentAlumni AS "Hired",
+             r.Country, r.Comment
+      FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID
+      WHERE 1=1${dc.sql} ORDER BY r.DatePosted DESC`).all(...dc.params);
+    const byMode = {};
+    rows.forEach(r => { byMode[r.Mode] = (byMode[r.Mode]||0)+1; });
+    return { rows, chartData: {
+      type: 'bar', labels: Object.keys(byMode),
+      datasets: [{ label: 'Postings', data: Object.values(byMode),
+                   backgroundColor: ['#4361ee','#f72585','#4cc9f0'], borderRadius: 4 }]
+    }};
   },
 
-  career_events: (db, { from, to }) => {
-    let sql = `
-      SELECT c.CompanyName AS "Company",
-             co.FirstName||' '||co.LastName AS "Contact",
+  'recruitment-by-major': (db, from, to) => {
+    const dc = dateClause('r.DatePosted', from, to);
+    const rows = db.prepare(`
+      SELECT tm.Major,
+             COUNT(*) AS "Posting Count",
+             SUM(CASE WHEN r.Status='Paid' THEN 1 ELSE 0 END) AS "Paid Count",
+             SUM(CASE WHEN r.Status='Unpaid' THEN 1 ELSE 0 END) AS "Unpaid Count"
+      FROM Recruitment_TargetMajors tm JOIN Recruitment r ON tm.RecruitmentID=r.RecruitmentID
+      WHERE 1=1${dc.sql}
+      GROUP BY tm.Major ORDER BY "Posting Count" DESC`).all(...dc.params);
+    return { rows, chartData: {
+      type: 'bar', labels: rows.map(r=>r.Major),
+      datasets: [
+        { label: 'Paid', data: rows.map(r=>r['Paid Count']), backgroundColor: '#2ec4b6', borderRadius: 4, stack: 's' },
+        { label: 'Unpaid', data: rows.map(r=>r['Unpaid Count']), backgroundColor: '#adb5bd', borderRadius: 4, stack: 's' }
+      ]
+    }};
+  },
+
+  'hiring-outcomes': (db, from, to) => {
+    const dc = dateClause('h.DateReported', from, to);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
+             h.FeedbackProvider AS "Provider", h.HiredStudentAlumni AS "Hired?",
+             h.HiredStudentName AS "Student Name", h.DateReported AS "Date"
+      FROM HiringFeedback h
+      JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID
+      WHERE 1=1${dc.sql} ORDER BY h.DateReported DESC`).all(...dc.params);
+    const yes = rows.filter(r=>r['Hired?']==='Yes').length;
+    const no  = rows.length - yes;
+    return { rows, chartData: {
+      type: 'pie', labels: ['Hired (Yes)','Not Hired (No)'],
+      datasets: [{ data: [yes, no], backgroundColor: ['#2ec4b6','#e71d36'] }]
+    }};
+  },
+
+  'career-event-attendance': (db, from, to) => {
+    const dc = dateClause('e.EventDate', from, to);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
              e.EventName AS "Event", e.EventDate AS "Date",
              e.RegisteredStatus AS "Status",
-             e.CMUQAlumniAtBooth AS "Alumni at Booth"
-      FROM CareerEvent e JOIN Company c ON e.CompanyID=c.CompanyID JOIN Contact co ON e.ContactID=co.ContactID
-      WHERE 1=1`;
-    const p = [];
-    if (from) { sql+=' AND e.EventDate>=?'; p.push(from); }
-    if (to)   { sql+=' AND e.EventDate<=?'; p.push(to); }
-    sql+=' ORDER BY e.EventDate DESC';
-    return db.prepare(sql).all(...p);
+             CASE WHEN e.CMUQAlumniAtBooth=1 THEN 'Yes' ELSE 'No' END AS "Alumni at Booth"
+      FROM CareerEvent e
+      JOIN Company c ON e.CompanyID=c.CompanyID JOIN Contact co ON e.ContactID=co.ContactID
+      WHERE 1=1${dc.sql} ORDER BY e.EventDate DESC`).all(...dc.params);
+    const byStatus = {};
+    rows.forEach(r => { byStatus[r.Status] = (byStatus[r.Status]||0)+1; });
+    const statuses = ['Attended','No-Show','Cancelled'];
+    return { rows, chartData: {
+      type: 'bar', labels: statuses,
+      datasets: [{ label: 'Events', data: statuses.map(s=>byStatus[s]||0),
+                   backgroundColor: ['#2ec4b6','#e71d36','#adb5bd'], borderRadius: 4 }]
+    }};
   },
 
-  hiring_feedback: (db, { from, to }) => {
-    let sql = `
-      SELECT c.CompanyName AS "Company",
-             co.FirstName||' '||co.LastName AS "Contact",
-             h.FeedbackProvider AS "Provider",
-             h.HiredStudentAlumni AS "Hired",
-             h.DateReported AS "Date", h.HiredStudentName AS "Student Name",
-             h.Comment AS "Comment"
-      FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID
-      WHERE 1=1`;
-    const p = [];
-    if (from) { sql+=' AND h.DateReported>=?'; p.push(from); }
-    if (to)   { sql+=' AND h.DateReported<=?'; p.push(to); }
-    sql+=' ORDER BY h.DateReported DESC';
-    return db.prepare(sql).all(...p);
+  'hiring-trends': (db, from, to) => {
+    const dc = dateClause('h.DateReported', from, to);
+    const agg = db.prepare(`
+      SELECT strftime('%Y-%m', h.DateReported) AS m,
+             COUNT(*) AS n,
+             GROUP_CONCAT(DISTINCT c.CompanyName) AS Companies
+      FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID
+      WHERE h.HiredStudentAlumni='Yes'${dc.sql}
+      GROUP BY m ORDER BY m`).all(...dc.params);
+    const rows = agg.map(r => ({
+      Month: monthLabel(r.m + '-01'), 'Hired Count': r.n, 'Companies': r.Companies
+    }));
+    return { rows, chartData: {
+      type: 'line', labels: rows.map(r=>r.Month),
+      datasets: [{ label: 'Hired Students/Alumni', data: rows.map(r=>r['Hired Count']),
+                   borderColor: '#2ec4b6', backgroundColor: 'rgba(46,196,182,0.1)',
+                   fill: true, tension: 0.3 }]
+    }};
   },
 
-  job_outreach: (db) =>
-    db.prepare(`
-      SELECT DISTINCT co.FirstName||' '||co.LastName AS "Name",
-             c.CompanyName AS "Company", co.EmailAddress AS "Email",
-             co.JobTitle AS "Job Title", co.WorkPhone AS "Work Phone"
-      FROM Contact co
-      JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0
-        AND c.CompanyID IN (SELECT DISTINCT CompanyID FROM Recruitment)
-      ORDER BY c.CompanyName, co.LastName`).all(),
+  // ── Academic & Student Events ──────────────────────────────────────────────
+
+  'academic-engagements': (db, from, to) => {
+    const dc = dateClause('a.SessionDate', from, to);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Company", a.EngagementType AS "Type",
+             a.GuestSpeakerName AS "Guest Speaker", a.FacultyName AS "Faculty",
+             a.CourseNumber||' – '||a.CourseTitle AS "Course", a.SessionDate AS "Date"
+      FROM AcademicClassroomEngagement a
+      JOIN Company c ON a.CompanyID=c.CompanyID
+      WHERE 1=1${dc.sql} ORDER BY a.SessionDate DESC`).all(...dc.params);
+    const byType = {};
+    rows.forEach(r => { byType[r.Type] = (byType[r.Type]||0)+1; });
+    const sorted = Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Engagements', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#7209b7', borderRadius: 4 }]
+    }};
+  },
+
+  'student-led-events': (db, from, to) => {
+    const dc = dateClause('s.ProposalDate', from, to);
+    const rows = db.prepare(`
+      SELECT c.CompanyName AS "Company", s.OrganizationName AS "Organization",
+             s.StudentName AS "Student Name", s.EventTitle AS "Event Title",
+             s.EventDate AS "Date", s.CollaborationOutcome AS "Outcome"
+      FROM StudentLedEvent s JOIN Company c ON s.CompanyID=c.CompanyID
+      WHERE 1=1${dc.sql} ORDER BY s.ProposalDate DESC`).all(...dc.params);
+    const comp = rows.filter(r=>r.Outcome==='Completed').length;
+    const pend = rows.length - comp;
+    return { rows, chartData: {
+      type: 'pie', labels: ['Completed','Pending'],
+      datasets: [{ data: [comp, pend], backgroundColor: ['#2ec4b6','#ff9f1c'] }]
+    }};
+  },
+
+  'guest-speakers': (db, from, to) => {
+    const dc = dateClause('a.SessionDate', from, to);
+    const rows = db.prepare(`
+      SELECT a.GuestSpeakerName AS "Name", a.GuestTitle AS "Title",
+             c.CompanyName AS "Company", a.CourseNumber||' – '||a.CourseTitle AS "Course",
+             a.TopicTheme AS "Topic", a.SessionDate AS "Date"
+      FROM AcademicClassroomEngagement a JOIN Company c ON a.CompanyID=c.CompanyID
+      WHERE 1=1${dc.sql} ORDER BY a.GuestSpeakerName`).all(...dc.params);
+    const byCompany = {};
+    rows.forEach(r => { byCompany[r.Company] = (byCompany[r.Company]||0)+1; });
+    const sorted = Object.entries(byCompany).sort((a,b)=>b[1]-a[1]).slice(0,15);
+    return { rows, chartData: {
+      type: 'bar', labels: sorted.map(x=>x[0]),
+      datasets: [{ label: 'Speakers', data: sorted.map(x=>x[1]),
+                   backgroundColor: '#3a0ca3', borderRadius: 4 }]
+    }};
+  },
 };
 
-// GET /api/reports/:type
-router.get('/:type', (req, res) => {
+// ── REPORT BUILDER SCHEMA ──────────────────────────────────────────────────────
+const BUILDER_SCHEMA = {
+  Companies: {
+    table: 'Company', alias: 'c', idCol: 'CompanyID',
+    joins: [],
+    columns: {
+      CompanyName: { label:'Company Name', type:'text', expr:'c.CompanyName' },
+      Industry:    { label:'Industry', type:'text', expr:'c.Industry' },
+      Sector:      { label:'Sector', type:'enum', expr:'c.Sector',
+                     values:['Government','NGO','Private','Semi-government','Startup'] },
+      Country:     { label:'Country', type:'text', expr:'c.Country' },
+      DateAdded:   { label:'Date Added', type:'date', expr:'c.DateAdded' },
+      Website:     { label:'Website', type:'text', expr:'c.Website' },
+      SignedMoU:   { label:'Signed MoU', type:'boolean', expr:'c.SignedMoU' },
+      FavoriteEmployer: { label:'Favorite Employer', type:'boolean', expr:'c.FavoriteEmployer' },
+      Blacklisted: { label:'Blacklisted', type:'boolean', expr:'c.Blacklisted' },
+      Comment:     { label:'Comment', type:'text', expr:'c.Comment' },
+    }
+  },
+  Contacts: {
+    table: 'Contact', alias: 'co', idCol: 'ContactID',
+    joins: ['JOIN Company c ON co.CompanyID=c.CompanyID'],
+    columns: {
+      'c.CompanyName':     { label:'Company', type:'text', expr:'c.CompanyName' },
+      'co.FirstName':      { label:'First Name', type:'text', expr:'co.FirstName' },
+      'co.LastName':       { label:'Last Name', type:'text', expr:'co.LastName' },
+      'co.EmailAddress':   { label:'Email', type:'text', expr:'co.EmailAddress' },
+      'co.JobTitle':       { label:'Job Title', type:'text', expr:'co.JobTitle' },
+      'co.WorkPhone':      { label:'Work Phone', type:'text', expr:'co.WorkPhone' },
+      'co.Mobile':         { label:'Mobile', type:'text', expr:'co.Mobile' },
+      'co.Country':        { label:'Country', type:'text', expr:'co.Country' },
+      'co.Status':         { label:'Status', type:'enum', expr:'co.Status',
+                             values:['Mailable','Non-mailable'] },
+      'co.PrimaryContact': { label:'Primary Contact', type:'boolean', expr:'co.PrimaryContact' },
+      'co.CMUQGraduate':   { label:'CMU-Q Graduate', type:'boolean', expr:'co.CMUQGraduate' },
+      'co.Major':          { label:'Major', type:'enum', expr:'co.Major',
+                             values:['Computer Science','Information Systems','Biological Sciences','Business Administration','Artificial Intelligence','Computational Biology'] },
+      'co.GraduationYear': { label:'Graduation Year', type:'number', expr:'co.GraduationYear' },
+      'co.ResumeBook':     { label:'Resume Book', type:'boolean', expr:'co.ResumeBook' },
+      'co.EventInvitation':{ label:'Event Invitation', type:'boolean', expr:'co.EventInvitation' },
+      'co.ExcludeFromMailing':{ label:'Exclude from Mailing', type:'boolean', expr:'co.ExcludeFromMailing' },
+      'co.DateAdded':      { label:'Date Added', type:'date', expr:'co.DateAdded' },
+    }
+  },
+  'Outreach & Engagement': {
+    table: 'OutreachEngagement', alias: 'o', idCol: 'OutreachEngagementID',
+    joins: ['JOIN Company c ON o.CompanyID=c.CompanyID','JOIN Contact co ON o.ContactID=co.ContactID'],
+    columns: {
+      'c.CompanyName':     { label:'Company', type:'text', expr:'c.CompanyName' },
+      'co.FirstName':      { label:'Contact First Name', type:'text', expr:'co.FirstName' },
+      'co.LastName':       { label:'Contact Last Name', type:'text', expr:'co.LastName' },
+      'o.InteractionType': { label:'Type', type:'enum', expr:'o.InteractionType',
+                             values:['Call','Meeting','Company Visit'] },
+      'o.InteractionDate': { label:'Date', type:'date', expr:'o.InteractionDate' },
+      'o.InteractionStatus':{ label:'Status', type:'enum', expr:'o.InteractionStatus',
+                              values:['Complete','In-progress'] },
+      'o.FollowUpDate':    { label:'Follow-Up Date', type:'date', expr:'o.FollowUpDate' },
+      'o.DiscussionItems': { label:'Discussion Items', type:'text', expr:'o.DiscussionItems' },
+      'o.ActionPlan':      { label:'Action Plan', type:'text', expr:'o.ActionPlan' },
+    }
+  },
+  Recruitment: {
+    table: 'Recruitment', alias: 'r', idCol: 'RecruitmentID',
+    joins: ['JOIN Company c ON r.CompanyID=c.CompanyID','JOIN Contact co ON r.ContactID=co.ContactID'],
+    columns: {
+      'c.CompanyName':     { label:'Company', type:'text', expr:'c.CompanyName' },
+      'co.FirstName':      { label:'Contact First Name', type:'text', expr:'co.FirstName' },
+      'co.LastName':       { label:'Contact Last Name', type:'text', expr:'co.LastName' },
+      'r.OpportunityTitle':{ label:'Title', type:'text', expr:'r.OpportunityTitle' },
+      'r.DatePosted':      { label:'Date Posted', type:'date', expr:'r.DatePosted' },
+      'r.Mode':            { label:'Mode', type:'enum', expr:'r.Mode',
+                             values:['Onsite','Hybrid','Remote'] },
+      'r.Status':          { label:'Status (Paid)', type:'enum', expr:'r.Status',
+                             values:['Paid','Unpaid'] },
+      'r.TargetGroup':     { label:'Target Group', type:'enum', expr:'r.TargetGroup',
+                             values:['Qatari only','Open to all'] },
+      'r.HiredStudentAlumni': { label:'Hired?', type:'enum', expr:'r.HiredStudentAlumni',
+                                values:['Yes','No','Not Reported'] },
+      'r.Country':         { label:'Country', type:'text', expr:'r.Country' },
+      'r.ArabicSpeaker':   { label:'Arabic Speaker', type:'boolean', expr:'r.ArabicSpeaker' },
+    }
+  },
+  'Career Events': {
+    table: 'CareerEvent', alias: 'e', idCol: 'CareerEventID',
+    joins: ['JOIN Company c ON e.CompanyID=c.CompanyID','JOIN Contact co ON e.ContactID=co.ContactID'],
+    columns: {
+      'c.CompanyName':   { label:'Company', type:'text', expr:'c.CompanyName' },
+      'co.FirstName':    { label:'Contact First Name', type:'text', expr:'co.FirstName' },
+      'co.LastName':     { label:'Contact Last Name', type:'text', expr:'co.LastName' },
+      'e.EventName':     { label:'Event Name', type:'text', expr:'e.EventName' },
+      'e.EventDate':     { label:'Event Date', type:'date', expr:'e.EventDate' },
+      'e.RegisteredStatus': { label:'Status', type:'enum', expr:'e.RegisteredStatus',
+                              values:['Attended','No-Show','Cancelled'] },
+      'e.CMUQAlumniAtBooth': { label:'Alumni at Booth', type:'boolean', expr:'e.CMUQAlumniAtBooth' },
+      'e.Comment':       { label:'Comment', type:'text', expr:'e.Comment' },
+    }
+  },
+  'Student-Led Events': {
+    table: 'StudentLedEvent', alias: 's', idCol: 'StudentLedEventID',
+    joins: ['JOIN Company c ON s.CompanyID=c.CompanyID'],
+    columns: {
+      'c.CompanyName':   { label:'Company', type:'text', expr:'c.CompanyName' },
+      's.OrganizationName': { label:'Organization', type:'text', expr:'s.OrganizationName' },
+      's.StudentName':   { label:'Student Name', type:'text', expr:'s.StudentName' },
+      's.StudentEmail':  { label:'Student Email', type:'text', expr:'s.StudentEmail' },
+      's.ProposalDate':  { label:'Proposal Date', type:'date', expr:'s.ProposalDate' },
+      's.EventDate':     { label:'Event Date', type:'date', expr:'s.EventDate' },
+      's.EventTitle':    { label:'Event Title', type:'text', expr:'s.EventTitle' },
+      's.CollaborationOutcome': { label:'Outcome', type:'enum', expr:'s.CollaborationOutcome',
+                                  values:['Completed','Pending'] },
+    }
+  },
+  'Academic Engagement': {
+    table: 'AcademicClassroomEngagement', alias: 'a', idCol: 'EngagementID',
+    joins: ['JOIN Company c ON a.CompanyID=c.CompanyID'],
+    columns: {
+      'c.CompanyName':     { label:'Company', type:'text', expr:'c.CompanyName' },
+      'a.EngagementType':  { label:'Type', type:'enum', expr:'a.EngagementType',
+                             values:['Guest Lecture','Panel Discussion','Community Project Partnership','Mock Interviews','Research Collaboration','Competition/Hackathon Sponsorship','Other'] },
+      'a.GuestSpeakerName':{ label:'Guest Speaker', type:'text', expr:'a.GuestSpeakerName' },
+      'a.GuestTitle':      { label:'Guest Title', type:'text', expr:'a.GuestTitle' },
+      'a.FacultyName':     { label:'Faculty Name', type:'text', expr:'a.FacultyName' },
+      'a.CourseNumber':    { label:'Course Number', type:'text', expr:'a.CourseNumber' },
+      'a.CourseTitle':     { label:'Course Title', type:'text', expr:'a.CourseTitle' },
+      'a.TopicTheme':      { label:'Topic/Theme', type:'text', expr:'a.TopicTheme' },
+      'a.SessionDate':     { label:'Session Date', type:'date', expr:'a.SessionDate' },
+      'a.SessionTime':     { label:'Session Time', type:'text', expr:'a.SessionTime' },
+    }
+  },
+  'Hiring Feedback': {
+    table: 'HiringFeedback', alias: 'h', idCol: 'HiringFeedbackID',
+    joins: ['JOIN Company c ON h.CompanyID=c.CompanyID','JOIN Contact co ON h.ContactID=co.ContactID'],
+    columns: {
+      'c.CompanyName':     { label:'Company', type:'text', expr:'c.CompanyName' },
+      'co.FirstName':      { label:'Contact First Name', type:'text', expr:'co.FirstName' },
+      'co.LastName':       { label:'Contact Last Name', type:'text', expr:'co.LastName' },
+      'h.FeedbackProvider':{ label:'Provider', type:'enum', expr:'h.FeedbackProvider',
+                             values:['Company','Student/Alumni','Other'] },
+      'h.HiredStudentAlumni': { label:'Hired?', type:'enum', expr:'h.HiredStudentAlumni',
+                                values:['Yes','No'] },
+      'h.DateReported':    { label:'Date Reported', type:'date', expr:'h.DateReported' },
+      'h.HiredStudentName':{ label:'Student Name', type:'text', expr:'h.HiredStudentName' },
+      'h.Comment':         { label:'Comment', type:'text', expr:'h.Comment' },
+    }
+  },
+  'Potential Collaboration': {
+    table: 'PotentialCollaboration', alias: 'p', idCol: 'PotentialCollaborationID',
+    joins: ['JOIN Company c ON p.CompanyID=c.CompanyID'],
+    columns: {
+      'c.CompanyName': { label:'Company', type:'text', expr:'c.CompanyName' },
+      'p.Comment':     { label:'Comment', type:'text', expr:'p.Comment' },
+      'p.CreatedAt':   { label:'Created At', type:'date', expr:'p.CreatedAt' },
+    }
+  },
+};
+
+// ── Builder: build WHERE clause from filter array ──────────────────────────────
+function buildFilters(filters, schema) {
+  const parts = [], params = [];
+  for (const f of (filters || [])) {
+    const colDef = schema.columns[f.field];
+    if (!colDef) continue;
+    const expr = colDef.expr;
+    switch (f.condition) {
+      case 'contains':      parts.push(`${expr} LIKE ?`);  params.push(`%${f.value}%`);  break;
+      case 'equals':        parts.push(`${expr} = ?`);     params.push(f.value);         break;
+      case 'not_equals':    parts.push(`${expr} != ?`);    params.push(f.value);         break;
+      case 'starts_with':   parts.push(`${expr} LIKE ?`);  params.push(`${f.value}%`);   break;
+      case 'is_empty':      parts.push(`(${expr} IS NULL OR ${expr}='')`);                break;
+      case 'is_not_empty':  parts.push(`(${expr} IS NOT NULL AND ${expr}!='')`);          break;
+      case 'is_before':     parts.push(`${expr} < ?`);     params.push(f.value);         break;
+      case 'is_after':      parts.push(`${expr} > ?`);     params.push(f.value);         break;
+      case 'is_between':    parts.push(`${expr} BETWEEN ? AND ?`); params.push(f.value, f.value2); break;
+      case 'in_last_days':  parts.push(`${expr} >= date('now',?)`); params.push(`-${parseInt(f.value)||7} days`); break;
+      case 'is_true':       parts.push(`${expr} = 1`);                                   break;
+      case 'is_false':      parts.push(`(${expr} = 0 OR ${expr} IS NULL)`);              break;
+      case 'gt':            parts.push(`${expr} > ?`);     params.push(f.value);         break;
+      case 'lt':            parts.push(`${expr} < ?`);     params.push(f.value);         break;
+      case 'is':            parts.push(`${expr} = ?`);     params.push(f.value);         break;
+      case 'is_not':        parts.push(`${expr} != ?`);    params.push(f.value);         break;
+    }
+  }
+  return { sql: parts.length ? ' AND ' + parts.join(' AND ') : '', params };
+}
+
+// ── Aggregate chart data from rows ─────────────────────────────────────────────
+function buildChartData(rows, groupByExpr, chartType) {
+  if (!groupByExpr || !rows.length) return null;
+  // Find matching key in rows
+  const keys = Object.keys(rows[0]);
+  const key  = keys.find(k => k === groupByExpr) || keys[0];
+  const agg  = {};
+  rows.forEach(r => {
+    const v = r[key] != null ? String(r[key]) : 'None';
+    agg[v] = (agg[v] || 0) + 1;
+  });
+  const sorted = Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  return {
+    type: chartType || 'bar',
+    labels: sorted.map(x=>x[0]),
+    datasets: [{ label: key, data: sorted.map(x=>x[1]),
+                 backgroundColor: sorted.map((_,i)=>PALETTE[i%PALETTE.length]),
+                 borderRadius: 4 }]
+  };
+}
+
+// ── Routes ─────────────────────────────────────────────────────────────────────
+
+// GET /api/reports/schema — entity schema for builder
+router.get('/schema', (req, res) => {
+  const schema = {};
+  for (const [entity, def] of Object.entries(BUILDER_SCHEMA)) {
+    schema[entity] = Object.entries(def.columns).map(([key, col]) => ({
+      key, label: col.label, type: col.type, values: col.values || null
+    }));
+  }
+  res.json(schema);
+});
+
+// GET /api/reports/quick/:type
+router.get('/quick/:type', (req, res) => {
   const db   = req.app.locals.db;
   const type = req.params.type;
   const { from, to, export: doExport } = req.query;
-
-  const fn = QUERIES[type];
+  const fn = QUICK_REPORTS[type];
   if (!fn) return res.status(404).json({ error: `Unknown report type: ${type}` });
-
   try {
-    const rows = fn(db, { from, to });
-
+    const result = fn(db, from || null, to || null);
     if (doExport === '1') {
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Report');
-      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      res.setHeader('Content-Disposition', `attachment; filename="report-${type}-${Date.now()}.xlsx"`);
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      return res.send(buf);
+      return exportXLSX(res, result.rows, `report-${type}`);
     }
-
-    res.json({ rows, count: rows.length });
+    res.json({ rows: result.rows, count: result.rows.length, chartData: result.chartData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/reports/builder
+router.post('/builder', (req, res) => {
+  const db = req.app.locals.db;
+  const { entity, columns: selCols, filters, sortBy, sortOrder, chartType, chartGroupBy, from, to } = req.body;
+
+  const schema = BUILDER_SCHEMA[entity];
+  if (!schema) return res.status(400).json({ error: 'Unknown entity' });
+
+  const allCols = schema.columns;
+
+  // Whitelist selected columns
+  const validCols = (selCols && selCols.length)
+    ? selCols.filter(k => allCols[k])
+    : Object.keys(allCols);
+
+  if (!validCols.length) return res.status(400).json({ error: 'No valid columns selected' });
+
+  // Whitelist sort column
+  const validSort = sortBy && allCols[sortBy]
+    ? allCols[sortBy].expr
+    : allCols[validCols[0]].expr;
+  const order = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+  // Build filter WHERE clause
+  const filterClause = buildFilters(filters, schema);
+
+  // Build date range clause for the primary date column (first date column)
+  let dateSql = '', dateParams = [];
+  const dateCols = Object.values(allCols).filter(c=>c.type==='date');
+  if (dateCols.length && (from || to)) {
+    const dc = dateClause(dateCols[0].expr, from, to);
+    dateSql = dc.sql; dateParams = dc.params;
+  }
+
+  // SELECT expressions
+  const selectExprs = validCols.map(k => {
+    const col = allCols[k];
+    const label = col.label.replace(/[^a-zA-Z0-9 ]/g,'');
+    return `${col.expr} AS "${label}"`;
+  });
+
+  const sql = `
+    SELECT ${selectExprs.join(', ')}
+    FROM ${schema.table} ${schema.alias}
+    ${schema.joins.join(' ')}
+    WHERE 1=1${filterClause.sql}${dateSql}
+    ORDER BY ${validSort} ${order}
+    LIMIT 5000
+  `;
+
+  try {
+    const rows = db.prepare(sql).all(...filterClause.params, ...dateParams);
+
+    // Build chart data
+    let chartData = null;
+    if (chartType && chartType !== 'none' && chartGroupBy) {
+      // chartGroupBy is a column key; find its label
+      const groupColDef = allCols[chartGroupBy];
+      if (groupColDef) {
+        const labelKey = groupColDef.label.replace(/[^a-zA-Z0-9 ]/g,'');
+        chartData = buildChartData(rows, labelKey, chartType);
+      }
+    }
+
+    if (req.query.export === '1') return exportXLSX(res, rows, 'custom-report');
+    if (req.query.export === 'csv') return exportCSV(res, rows, 'custom-report');
+    res.json({ rows, count: rows.length, chartData });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/reports/saved
+router.get('/saved', (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    res.json(db.prepare('SELECT * FROM SavedReports ORDER BY CreatedAt DESC').all());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/reports/saved
+router.post('/saved', (req, res) => {
+  const db = req.app.locals.db;
+  const { ReportName, Entity, Columns, Filters, SortBy, SortOrder, ChartType, ChartGroupBy } = req.body;
+  if (!ReportName || !Entity) return res.status(400).json({ error: 'ReportName and Entity are required' });
+  try {
+    const info = db.prepare(
+      'INSERT INTO SavedReports (ReportName,Entity,Columns,Filters,SortBy,SortOrder,ChartType,ChartGroupBy) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(ReportName, Entity,
+          JSON.stringify(Columns||[]), JSON.stringify(Filters||[]),
+          SortBy||null, SortOrder||'ASC', ChartType||null, ChartGroupBy||null);
+    res.status(201).json(db.prepare('SELECT * FROM SavedReports WHERE ReportID=?').get(info.lastInsertRowid));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/reports/saved/:id
+router.delete('/saved/:id', (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(req.params.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ message: 'Deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Export helpers ─────────────────────────────────────────────────────────────
+function exportXLSX(res, rows, name) {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Report');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', `attachment; filename="${name}-${Date.now()}.xlsx"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+}
+
+function exportCSV(res, rows, name) {
+  if (!rows.length) { res.type('text/csv').send(''); return; }
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.join(',')];
+  rows.forEach(r => lines.push(headers.map(h => {
+    const v = r[h] == null ? '' : String(r[h]);
+    return v.includes(',') || v.includes('"') || v.includes('\n')
+      ? '"' + v.replace(/"/g,'""') + '"' : v;
+  }).join(',')));
+  res.setHeader('Content-Disposition', `attachment; filename="${name}-${Date.now()}.csv"`);
+  res.type('text/csv').send(lines.join('\r\n'));
+}
 
 module.exports = router;

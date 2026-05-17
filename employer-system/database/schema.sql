@@ -273,3 +273,20 @@ CREATE TABLE IF NOT EXISTS Users (
     PasswordHash TEXT NOT NULL,
     CreatedAt    DATETIME DEFAULT (datetime('now'))
 );
+
+-- ============================================
+-- SAVED REPORTS (custom report builder configs)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS SavedReports (
+    ReportID    INTEGER PRIMARY KEY AUTOINCREMENT,
+    ReportName  TEXT NOT NULL,
+    Entity      TEXT NOT NULL,
+    Columns     TEXT NOT NULL,
+    Filters     TEXT NOT NULL,
+    SortBy      TEXT,
+    SortOrder   TEXT DEFAULT 'ASC',
+    ChartType   TEXT,
+    ChartGroupBy TEXT,
+    CreatedAt   DATETIME DEFAULT (datetime('now'))
+);
