@@ -17,7 +17,10 @@ const ENTITY_FIELDS = {
   Contact: {
     required: ['CompanyID','FirstName','LastName','EmailAddress'],
     optional: ['DateAdded','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing'],
-    enums: { Status: ['Mailable','Non-mailable'] },
+    enums: {
+      Status: ['Mailable','Non-mailable'],
+      Major: ['Computer Science','Information Systems','Biological Sciences','Business Administration','Artificial Intelligence','Computational Biology'],
+    },
     dateFields: ['DateAdded'],
   },
   Outreach: {
@@ -155,6 +158,17 @@ router.post('/validate', (req, res) => {
       const parts = String(row.FirstName).trim().split(/\s+/);
       row.LastName  = parts.pop();
       row.FirstName = parts.join(' ');
+    }
+
+    // Normalize boolean fields from "True"/"False"/"yes"/"no" strings to 1/0
+    const BOOL_FIELDS = ['CMUQGraduate','PrimaryContact','ResumeBook','EventInvitation',
+      'ExcludeFromMailing','SignedMoU','FavoriteEmployer','Blacklisted','CMUQAlumniAtBooth','ArabicSpeaker'];
+    for (const field of BOOL_FIELDS) {
+      if (row[field] !== undefined && row[field] !== '') {
+        const v = String(row[field]).trim().toLowerCase();
+        if      (v === 'true' || v === 'yes' || v === '1') row[field] = 1;
+        else if (v === 'false' || v === 'no'  || v === '0') row[field] = 0;
+      }
     }
 
     // Convert date fields from Excel serial numbers or other formats to YYYY-MM-DD

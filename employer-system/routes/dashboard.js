@@ -10,6 +10,7 @@ router.get('/stats', (req, res) => {
 
     res.json({
       totalCompanies:    db.prepare('SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=0').get().n,
+      totalBlacklisted: db.prepare('SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=1').get().n,
       totalContacts:     db.prepare('SELECT COUNT(*) AS n FROM Contact').get().n,
       mailableContacts:  db.prepare("SELECT COUNT(*) AS n FROM Contact WHERE Status='Mailable' AND ExcludeFromMailing=0").get().n,
       outreachThisMonth: db.prepare('SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=?').get(thisMonthStart).n,

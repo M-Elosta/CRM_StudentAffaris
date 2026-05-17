@@ -247,9 +247,7 @@ async function loadAll() {
     document.getElementById('stat-outreach').textContent    = stats.outreachThisMonth;
     document.getElementById('stat-followup').textContent    = stats.upcomingFollowUps;
 
-    // Blacklisted count — fetch separately
-    const allCompanies = await fetchAPI('/api/companies');
-    document.getElementById('stat-blacklisted').textContent = allCompanies.filter(c => c.Blacklisted).length;
+    document.getElementById('stat-blacklisted').textContent = stats.totalBlacklisted;
 
     // Charts
     renderCompaniesByMonth(byMonth);

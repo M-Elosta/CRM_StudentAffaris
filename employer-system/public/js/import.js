@@ -208,25 +208,33 @@ async function handleConfirm() {
     errorBase64 = result.errorFileBase64;
 
     const resultEl = document.getElementById('import-result');
-    const hasFailures = result.failed > 0;
-    resultEl.className = `alert ${hasFailures ? 'alert-warning' : 'alert-success'}`;
+    const totalSuccess = result.imported + result.updated;
+    const allFailed    = result.failed > 0 && totalSuccess === 0;
+    const partFailed   = result.failed > 0 && totalSuccess > 0;
+
+    let alertClass, icon, toastType;
+    if (allFailed)      { alertClass = 'alert-danger';  icon = 'x-circle-fill';            toastType = 'danger'; }
+    else if (partFailed){ alertClass = 'alert-warning'; icon = 'exclamation-triangle-fill'; toastType = 'warning'; }
+    else                { alertClass = 'alert-success'; icon = 'check-circle-fill';         toastType = 'success'; }
+
+    resultEl.className = `alert ${alertClass}`;
 
     let errorHtml = '';
-    if (hasFailures && result.failedDetails && result.failedDetails.length) {
+    if (result.failed > 0 && result.failedDetails && result.failedDetails.length) {
       const items = result.failedDetails.map(f => `<li>Row ${f.row}: ${escHtml(f.error)}</li>`).join('');
       errorHtml = `<ul class="mb-0 mt-2 small">${items}</ul>`;
     }
 
     resultEl.innerHTML = `
-      <i class="bi bi-${hasFailures ? 'exclamation-triangle-fill' : 'check-circle-fill'} me-2"></i>
+      <i class="bi bi-${icon} me-2"></i>
       <strong>Import complete:</strong> ${result.imported} imported, ${result.updated} updated,
       ${result.skipped} skipped, ${result.failed} failed.${errorHtml}`;
     resultEl.classList.remove('d-none');
 
-    if (hasFailures && errorBase64) {
+    if (result.failed > 0 && errorBase64) {
       document.getElementById('btn-download-errors').classList.remove('d-none');
     }
-    showToast(`Import done: ${result.imported} imported, ${result.failed} failed`, hasFailures ? 'warning' : 'success');
+    showToast(`Import done: ${result.imported} imported, ${result.failed} failed`, toastType);
   } catch (err) {
     showToast('Import failed: ' + err.message, 'danger');
   } finally {

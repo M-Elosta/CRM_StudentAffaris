@@ -1,4 +1,7 @@
 /* ── Layout ──────────────────────────────────────────────────────────────────── */
+html {
+  background-color: #f5f6fa;
+}
 body {
   background-color: #f5f6fa;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -8,6 +11,14 @@ body {
   margin-left: 240px;
   padding: 28px 32px;
   min-height: 100vh;
+}
+
+.main-content {
+  animation: fadeIn 0.12s ease-in;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────────── */
@@ -178,4 +189,10 @@ body {
 }
 .modal-footer {
   border-top-color: #e9ecef;
+}
+
+/* ── Modal scroll ────────────────────────────────────────────────────────────── */
+.modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
 }

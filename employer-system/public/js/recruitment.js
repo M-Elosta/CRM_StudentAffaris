@@ -5,7 +5,7 @@ let editingId    = null;
 
 const OPP_TYPES    = ['Internship','Part-time Job','Full-time Job','Graduate Program','Summer Research Program','Training Program','Mentorship Program','Fellowship','Competition/Hackathon','Volunteering','Others'];
 const COLLECT_CH   = ['Resume book','Handshake','Email','Other'];
-const MAJORS       = ['Computer Science','Information Systems','Biological Sciences','Business Administration'];
+const MAJORS       = ['Computer Science','Information Systems','Biological Sciences','Business Administration','Artificial Intelligence','Computational Biology'];
 const CLASS_LEVELS = ['Freshman','Sophomore','Junior','Senior','Alumni'];
 
 document.addEventListener('DOMContentLoaded', async () => {
