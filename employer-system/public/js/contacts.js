@@ -92,7 +92,7 @@ function renderTable(contacts) {
   if (contacts.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center text-muted py-4">
+        <td colspan="5" class="text-center text-muted py-4">
           No contacts found. <a href="#" id="empty-add-link">Add your first contact</a>.
         </td>
       </tr>`;
@@ -106,14 +106,14 @@ function renderTable(contacts) {
   tbody.innerHTML = contacts.map(c => {
     const statusBadge = c.Status === 'Mailable'
       ? '<span class="badge bg-success">Mailable</span>'
-      : '<span class="badge bg-secondary">Non-mailable</span>';
+      : '<span class="badge bg-danger">Non-mailable</span>';
 
     const primaryBadge = c.PrimaryContact
       ? '<i class="bi bi-star-fill text-warning ms-1" title="Primary Contact"></i>'
       : '';
 
     const excludeBadge = c.ExcludeFromMailing
-      ? '<span class="badge bg-warning text-dark ms-1" title="Excluded from mailing">No Mail</span>'
+      ? '<span class="badge bg-warning text-dark ms-1">Excluded from Mailing</span>'
       : '';
 
     return `
@@ -123,7 +123,6 @@ function renderTable(contacts) {
         <td>${escHtml(c.EmailAddress)}</td>
         <td>${escHtml(c.JobTitle || '—')}</td>
         <td>${statusBadge}${excludeBadge}</td>
-        <td>${c.PrimaryContact ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-circle text-muted"></i>'}</td>
       </tr>`;
   }).join('');
 
@@ -138,7 +137,7 @@ function renderTable(contacts) {
 function setTableLoading(loading) {
   if (loading) {
     document.getElementById('contacts-tbody').innerHTML =
-      `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
+      `<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
   }
 }
 
@@ -161,7 +160,7 @@ function openModal(contact) {
     title.textContent = 'Add Contact';
     deleteBtn.classList.add('d-none');
     document.getElementById('f-date-added').value = todayStr();
-    document.getElementById('f-status').value = 'Mailable';
+    document.getElementById('f-status').checked = true;
   }
 
   new bootstrap.Modal(document.getElementById('contact-modal')).show();
@@ -184,7 +183,7 @@ function populateForm(c) {
   document.getElementById('f-major').value       = c.Major || '';
   document.getElementById('f-gradyear').value    = c.GraduationYear || '';
   document.getElementById('f-primary').checked   = !!c.PrimaryContact;
-  document.getElementById('f-status').value      = c.Status || 'Mailable';
+  document.getElementById('f-status').checked    = (c.Status !== 'Non-mailable');
   document.getElementById('f-resumebook').checked     = !!c.ResumeBook;
   document.getElementById('f-eventinvite').checked    = !!c.EventInvitation;
   document.getElementById('f-excludemail').checked    = !!c.ExcludeFromMailing;
@@ -212,7 +211,7 @@ function formToPayload() {
     Major:              document.getElementById('f-major').value.trim(),
     GraduationYear:     document.getElementById('f-gradyear').value,
     PrimaryContact:     document.getElementById('f-primary').checked,
-    Status:             document.getElementById('f-status').value,
+    Status:             document.getElementById('f-status').checked ? 'Mailable' : 'Non-mailable',
     ResumeBook:         document.getElementById('f-resumebook').checked,
     EventInvitation:    document.getElementById('f-eventinvite').checked,
     ExcludeFromMailing: document.getElementById('f-excludemail').checked,
