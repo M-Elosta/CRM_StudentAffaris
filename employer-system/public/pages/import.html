@@ -20,7 +20,7 @@
   <!-- Step 1: Entity + Template -->
   <div class="card shadow-sm mb-3">
     <div class="card-body">
-      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">1</span>Select Entity & Upload File</h6>
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2" id="step-badge-1">1</span>Select Entity & Upload File</h6>
       <div class="row g-3 align-items-end">
         <div class="col-md-4">
           <label class="form-label">Entity Type</label>
@@ -53,7 +53,7 @@
   <!-- Step 2: Column Mapping -->
   <div class="card shadow-sm mb-3 d-none" id="step-mapping">
     <div class="card-body">
-      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">2</span>Map Columns</h6>
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2" id="step-badge-2">2</span>Map Columns</h6>
       <p class="text-muted small">Match your file's columns to the database fields. Auto-matched columns are highlighted.</p>
       <div id="mapping-table"></div>
       <button class="btn btn-primary mt-3" id="btn-validate">
@@ -65,7 +65,7 @@
   <!-- Step 3: Preview + Actions -->
   <div class="card shadow-sm mb-3 d-none" id="step-preview">
     <div class="card-body">
-      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2">3</span>Review & Import</h6>
+      <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2" id="step-badge-3">3</span>Review & Import</h6>
       <div id="summary-badges" class="mb-3 d-flex gap-2 flex-wrap"></div>
       <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
         <table class="table table-sm table-bordered mb-0 align-middle" id="preview-table">

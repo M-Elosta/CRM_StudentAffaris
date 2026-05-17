@@ -4,19 +4,29 @@ let fileHeaders    = [];
 let currentMapping = {};
 let errorBase64    = null;
 
+const COLLAB_OPPS = [
+  'Intern/Graduate Hiring','Career Events','Mentorship Programs','Mock Interviews',
+  'Guest Speakers/Panelists','Workshops/Training Sessions','Company/Site Visits',
+  'Community Project Partnership','Student-Led Events','Case Studies',
+  'Research Partnership','Competition/Hackathon Sponsorship','Student Sponsorship',
+  'MoU Signing','Other',
+];
+
 document.addEventListener('DOMContentLoaded', () => {
-  const entitySel  = document.getElementById('entity-select');
-  const fileInput  = document.getElementById('file-input');
-  const btnTmpl    = document.getElementById('btn-template');
+  const entitySel   = document.getElementById('entity-select');
+  const fileInput   = document.getElementById('file-input');
+  const btnTmpl     = document.getElementById('btn-template');
   const btnValidate = document.getElementById('btn-validate');
-  const btnConfirm = document.getElementById('btn-confirm');
-  const btnErrors  = document.getElementById('btn-download-errors');
+  const btnConfirm  = document.getElementById('btn-confirm');
+  const btnErrors   = document.getElementById('btn-download-errors');
 
   entitySel.addEventListener('change', () => {
     const hasEntity = !!entitySel.value;
-    btnTmpl.disabled  = !hasEntity;
+    btnTmpl.disabled   = !hasEntity;
     fileInput.disabled = !hasEntity;
     hide('step-mapping'); hide('step-preview');
+    resetStepBadge(2); resetStepBadge(3);
+    document.getElementById('import-result').classList.add('d-none');
   });
 
   btnTmpl.addEventListener('click', () => {
@@ -31,6 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
   btnErrors.addEventListener('click', downloadErrors);
 });
 
+// ── Step badge helpers ──────────────────────────────────────────────────────────
+function markStepDone(n) {
+  const badge = document.getElementById(`step-badge-${n}`);
+  if (!badge) return;
+  badge.className = 'badge bg-success me-2';
+  badge.innerHTML = '<i class="bi bi-check-lg"></i>';
+}
+
+function resetStepBadge(n) {
+  const badge = document.getElementById(`step-badge-${n}`);
+  if (!badge) return;
+  badge.className = 'badge bg-primary me-2';
+  badge.textContent = String(n);
+}
+
+// ── File upload ─────────────────────────────────────────────────────────────────
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -49,30 +75,31 @@ async function handleFileUpload(e) {
     buildMappingTable(fileHeaders, document.getElementById('entity-select').value);
     show('step-mapping');
     hide('step-preview');
+    resetStepBadge(2); resetStepBadge(3);
     document.getElementById('import-result').classList.add('d-none');
+    markStepDone(1);
   } catch (err) {
     showToast('Parse failed: ' + err.message, 'danger');
   }
 }
 
-// Build the entity field list (client-side subset for auto-match UX)
+// ── Entity field lists (for auto-match UX) ──────────────────────────────────────
 const ENTITY_DB_FIELDS = {
-  Company:                 ['CompanyName','DateAdded','Industry','Sector','Country','Address','Website','LinkedInURL','HandshakeURL','SignedMoU','FavoriteEmployer','Blacklisted','Comment','__ignore__'],
-  Contact:                 ['__full_name__','CompanyID','FirstName','LastName','DateAdded','EmailAddress','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing','__ignore__'],
-  Outreach:                ['CompanyID','ContactID','InteractionType','InteractionDate','DiscussionItems','ActionPlan','FollowUpDate','InteractionStatus','__ignore__'],
-  Recruitment:             ['CompanyID','ContactID','DatePosted','OpportunityTitle','Duration','HiringStartDate','HiringEndDate','Country','Mode','Status','PayAmount','TargetGroup','ArabicSpeaker','HiredStudentAlumni','Comment','__ignore__'],
-  'Career Event':          ['CompanyID','ContactID','EventName','EventDate','RegisteredStatus','CMUQAlumniAtBooth','Comment','__ignore__'],
-  'Student-Led Event':     ['CompanyID','ContactID','ProposalDate','OrganizationName','StudentName','StudentEmail','StudentPhoneNumber','CollaborationOutcome','EventDate','EventTitle','Comment','__ignore__'],
-  'Academic Engagement':   ['CompanyID','ContactID','EngagementType','GuestSpeakerName','GuestTitle','Email','PhoneNumber','FacultyName','CourseNumber','CourseTitle','TopicTheme','SessionDate','SessionTime','Comment','__ignore__'],
-  'Hiring Feedback':       ['CompanyID','ContactID','FeedbackProvider','HiredStudentAlumni','DateReported','HiredStudentName','Comment','__ignore__'],
-  'Potential Collaboration':['CompanyID','Comment','__ignore__'],
+  Company:                  ['CompanyName','DateAdded','Industry','Sector','Country','Address','Website','LinkedInURL','HandshakeURL','SignedMoU','FavoriteEmployer','Blacklisted','Comment','__ignore__'],
+  Contact:                  ['__full_name__','CompanyID','FirstName','LastName','DateAdded','EmailAddress','JobTitle','Address','Country','WorkPhone','Mobile','LinkedInURL','HandshakeURL','CMUQGraduate','Major','GraduationYear','PrimaryContact','Status','ResumeBook','EventInvitation','ExcludeFromMailing','__ignore__'],
+  Outreach:                 ['CompanyID','ContactID','InteractionType','InteractionDate','DiscussionItems','ActionPlan','FollowUpDate','InteractionStatus','__ignore__'],
+  Recruitment:              ['CompanyID','ContactID','DatePosted','OpportunityTitle','Duration','HiringStartDate','HiringEndDate','Country','Mode','Status','PayAmount','TargetGroup','ArabicSpeaker','HiredStudentAlumni','Comment','__ignore__'],
+  'Career Event':           ['CompanyID','ContactID','EventName','EventDate','RegisteredStatus','CMUQAlumniAtBooth','Comment','__ignore__'],
+  'Student-Led Event':      ['CompanyID','ContactID','ProposalDate','OrganizationName','StudentName','StudentEmail','StudentPhoneNumber','CollaborationOutcome','EventDate','EventTitle','Comment','__ignore__'],
+  'Academic Engagement':    ['CompanyID','ContactID','EngagementType','GuestSpeakerName','GuestTitle','Email','PhoneNumber','FacultyName','CourseNumber','CourseTitle','TopicTheme','SessionDate','SessionTime','Comment','__ignore__'],
+  'Hiring Feedback':        ['CompanyID','ContactID','FeedbackProvider','HiredStudentAlumni','DateReported','HiredStudentName','Comment','__ignore__'],
+  'Potential Collaboration': ['CompanyID','Comment',...COLLAB_OPPS,'__ignore__'],
 };
 
 function autoMatch(fileCol, dbFields) {
   const norm = s => s.toLowerCase().replace(/[\s_\-]/g, '');
   const target = norm(fileCol);
 
-  // Detect full-name patterns before exact matching
   const fullNamePatterns = ['fullname','contactname','contactfullname','name','fullcontactname'];
   const firstLastPatterns = ['firstname','lastname'];
   if (dbFields.includes('__full_name__') &&
@@ -88,9 +115,9 @@ function buildMappingTable(headers, entity) {
   const dbFields = ENTITY_DB_FIELDS[entity] || [];
   const container = document.getElementById('mapping-table');
 
-  const rows = headers.map(h => {
+  const rows = headers.map((h, idx) => {
     const matched = autoMatch(h, dbFields);
-    const isMatch = matched !== '__ignore__';
+    const isMapped = matched !== '__ignore__';
     const fieldLabel = f => {
       if (f === '__ignore__')    return '— Ignore —';
       if (f === '__full_name__') return 'Full Name (→ First + Last, auto-split)';
@@ -102,17 +129,28 @@ function buildMappingTable(headers, entity) {
     return `
       <div class="row g-2 align-items-center mb-2">
         <div class="col-md-4">
-          <span class="badge ${isMatch ? 'bg-success' : 'bg-secondary'} me-2"><i class="bi bi-${isMatch ? 'check' : 'x'}"></i></span>
+          <span class="badge ${isMapped ? 'bg-success' : 'bg-secondary'} me-2 map-icon" id="map-icon-${idx}"><i class="bi bi-${isMapped ? 'check' : 'x'}"></i></span>
           <span class="small fw-semibold">${escHtml(h)}</span>
         </div>
         <div class="col-auto text-muted small"><i class="bi bi-arrow-right"></i></div>
         <div class="col-md-4">
-          <select class="form-select form-select-sm mapping-sel" data-file-col="${escHtml(h)}">${options}</select>
+          <select class="form-select form-select-sm mapping-sel" data-file-col="${escHtml(h)}" data-icon-idx="${idx}">${options}</select>
         </div>
       </div>`;
   }).join('');
 
   container.innerHTML = rows;
+
+  // Live icon update when user changes a mapping
+  container.querySelectorAll('.mapping-sel').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const icon = container.querySelector(`#map-icon-${sel.dataset.iconIdx}`);
+      if (!icon) return;
+      const mapped = sel.value && sel.value !== '__ignore__';
+      icon.className = `badge ${mapped ? 'bg-success' : 'bg-secondary'} me-2 map-icon`;
+      icon.innerHTML = `<i class="bi bi-${mapped ? 'check' : 'x'}"></i>`;
+    });
+  });
 }
 
 function getMapping() {
@@ -123,6 +161,7 @@ function getMapping() {
   return result;
 }
 
+// ── Validate ────────────────────────────────────────────────────────────────────
 async function handleValidate() {
   currentMapping = getMapping();
   const entity = document.getElementById('entity-select').value;
@@ -138,6 +177,7 @@ async function handleValidate() {
     });
     renderPreview(validatedRows);
     show('step-preview');
+    markStepDone(2);
   } catch (err) {
     showToast('Validation failed: ' + err.message, 'danger');
   } finally {
@@ -184,13 +224,13 @@ function renderPreview(rows) {
   }).join('');
 }
 
+// ── Confirm ─────────────────────────────────────────────────────────────────────
 async function handleConfirm() {
   const entity = document.getElementById('entity-select').value;
 
-  // Build final rows with actions
   const rowsToSend = validatedRows
     .filter(r => r.status !== 'error')
-    .map((r, i) => {
+    .map(r => {
       let action = 'import';
       if (r.status === 'duplicate') {
         const sel = document.querySelector(`.dup-action[data-index="${r.rowIndex}"]`);
@@ -207,15 +247,18 @@ async function handleConfirm() {
     const result = await fetchAPI('/api/import/confirm', { method: 'POST', body: { entity, rows: rowsToSend } });
     errorBase64 = result.errorFileBase64;
 
-    const resultEl = document.getElementById('import-result');
+    const resultEl    = document.getElementById('import-result');
     const totalSuccess = result.imported + result.updated;
-    const allFailed    = result.failed > 0 && totalSuccess === 0;
+    const totalRows    = totalSuccess + result.skipped + result.failed;
+    const nothingDone  = totalRows === 0;
+    const allFailed    = result.failed > 0 && totalSuccess === 0 && !nothingDone;
     const partFailed   = result.failed > 0 && totalSuccess > 0;
 
     let alertClass, icon, toastType;
-    if (allFailed)      { alertClass = 'alert-danger';  icon = 'x-circle-fill';            toastType = 'danger'; }
-    else if (partFailed){ alertClass = 'alert-warning'; icon = 'exclamation-triangle-fill'; toastType = 'warning'; }
-    else                { alertClass = 'alert-success'; icon = 'check-circle-fill';         toastType = 'success'; }
+    if      (nothingDone) { alertClass = 'alert-secondary'; icon = 'info-circle';              toastType = 'secondary'; }
+    else if (allFailed)   { alertClass = 'alert-danger';    icon = 'x-circle-fill';            toastType = 'danger'; }
+    else if (partFailed)  { alertClass = 'alert-warning';   icon = 'exclamation-triangle-fill'; toastType = 'warning'; }
+    else                  { alertClass = 'alert-success';   icon = 'check-circle-fill';         toastType = 'success'; }
 
     resultEl.className = `alert ${alertClass}`;
 
@@ -225,15 +268,19 @@ async function handleConfirm() {
       errorHtml = `<ul class="mb-0 mt-2 small">${items}</ul>`;
     }
 
+    const label = nothingDone ? 'Nothing to import' : 'Import complete';
     resultEl.innerHTML = `
       <i class="bi bi-${icon} me-2"></i>
-      <strong>Import complete:</strong> ${result.imported} imported, ${result.updated} updated,
+      <strong>${label}:</strong> ${result.imported} imported, ${result.updated} updated,
       ${result.skipped} skipped, ${result.failed} failed.${errorHtml}`;
     resultEl.classList.remove('d-none');
 
     if (result.failed > 0 && errorBase64) {
       document.getElementById('btn-download-errors').classList.remove('d-none');
     }
+
+    if (!nothingDone) markStepDone(3);
+
     showToast(`Import done: ${result.imported} imported, ${result.failed} failed`, toastType);
   } catch (err) {
     showToast('Import failed: ' + err.message, 'danger');
@@ -243,6 +290,7 @@ async function handleConfirm() {
   }
 }
 
+// ── Error download ──────────────────────────────────────────────────────────────
 function downloadErrors() {
   if (!errorBase64) return;
   const binary = atob(errorBase64);
@@ -255,6 +303,7 @@ function downloadErrors() {
   URL.revokeObjectURL(url);
 }
 
+// ── Utilities ───────────────────────────────────────────────────────────────────
 function show(id) { document.getElementById(id).classList.remove('d-none'); }
 function hide(id) { document.getElementById(id).classList.add('d-none'); }
 function escHtml(s) {

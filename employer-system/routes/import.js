@@ -2,9 +2,16 @@ const express = require('express');
 const router  = express.Router();
 const multer  = require('multer');
 const XLSX    = require('xlsx');
-const path    = require('path');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const COLLAB_OPPS = [
+  'Intern/Graduate Hiring','Career Events','Mentorship Programs','Mock Interviews',
+  'Guest Speakers/Panelists','Workshops/Training Sessions','Company/Site Visits',
+  'Community Project Partnership','Student-Led Events','Case Studies',
+  'Research Partnership','Competition/Hackathon Sponsorship','Student Sponsorship',
+  'MoU Signing','Other',
+];
 
 // ── Entity field definitions ────────────────────────────────────────────────────
 const ENTITY_FIELDS = {
@@ -61,7 +68,7 @@ const ENTITY_FIELDS = {
   },
   'Potential Collaboration': {
     required: ['CompanyID'],
-    optional: ['Comment'],
+    optional: ['Comment', ...COLLAB_OPPS],
     enums: {},
     dateFields: [],
   },
@@ -71,17 +78,13 @@ const ENTITY_FIELDS = {
 function parseDate(val) {
   if (!val) return null;
   if (typeof val === 'number') {
-    // Excel serial date
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
   }
   const s = String(val).trim();
-  // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // DD/MM/YYYY or MM/DD/YYYY
   const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (slash) return `${slash[3]}-${slash[1].padStart(2,'0')}-${slash[2].padStart(2,'0')}`;
-  // DD-Mon-YYYY
   const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
   const mon = s.match(/^(\d{1,2})-([a-zA-Z]{3})-(\d{4})$/);
   if (mon) return `${mon[3]}-${months[mon[2].toLowerCase()]||'01'}-${mon[1].padStart(2,'0')}`;
@@ -90,7 +93,17 @@ function parseDate(val) {
   return null;
 }
 
-// GET /api/import/template/:entity  — download blank .xlsx template
+// ── Enum canonical lookup (case-insensitive + space/hyphen-insensitive) ─────────
+function findCanonical(value, allowed) {
+  const norm = s => s.toLowerCase().replace(/[\s\-]/g, '');
+  const v = String(value);
+  return allowed.find(a => a === v) ||
+         allowed.find(a => a.toLowerCase() === v.toLowerCase()) ||
+         allowed.find(a => norm(a) === norm(v)) ||
+         null;
+}
+
+// GET /api/import/template/:entity
 router.get('/template/:entity', (req, res) => {
   const entity = decodeURIComponent(req.params.entity);
   const def = ENTITY_FIELDS[entity];
@@ -107,7 +120,7 @@ router.get('/template/:entity', (req, res) => {
   res.send(buf);
 });
 
-// POST /api/import/parse  — parse uploaded file, return headers + rows
+// POST /api/import/parse
 router.post('/parse', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
@@ -121,7 +134,7 @@ router.post('/parse', upload.single('file'), (req, res) => {
   }
 });
 
-// POST /api/import/validate  — validate + duplicate-check
+// POST /api/import/validate
 router.post('/validate', (req, res) => {
   const db = req.app.locals.db;
   const { entity, rows, mapping } = req.body;
@@ -141,7 +154,7 @@ router.post('/validate', (req, res) => {
       }
     }
 
-    // Handle virtual __full_name__ field → split into FirstName + LastName
+    // Handle virtual __full_name__ → split into FirstName + LastName
     if (row.__full_name__ !== undefined && row.__full_name__ !== '') {
       const parts = String(row.__full_name__).trim().split(/\s+/);
       if (parts.length >= 2) {
@@ -160,9 +173,10 @@ router.post('/validate', (req, res) => {
       row.FirstName = parts.join(' ');
     }
 
-    // Normalize boolean fields from "True"/"False"/"yes"/"no" strings to 1/0
+    // Normalize boolean fields
     const BOOL_FIELDS = ['CMUQGraduate','PrimaryContact','ResumeBook','EventInvitation',
-      'ExcludeFromMailing','SignedMoU','FavoriteEmployer','Blacklisted','CMUQAlumniAtBooth','ArabicSpeaker'];
+      'ExcludeFromMailing','SignedMoU','FavoriteEmployer','Blacklisted','CMUQAlumniAtBooth',
+      'ArabicSpeaker', ...COLLAB_OPPS];
     for (const field of BOOL_FIELDS) {
       if (row[field] !== undefined && row[field] !== '') {
         const v = String(row[field]).trim().toLowerCase();
@@ -171,14 +185,14 @@ router.post('/validate', (req, res) => {
       }
     }
 
-    // Convert date fields from Excel serial numbers or other formats to YYYY-MM-DD
+    // Convert date fields
     for (const field of (def.dateFields || [])) {
       if (row[field] !== undefined && row[field] !== '') {
         row[field] = parseDate(row[field]) || row[field];
       }
     }
 
-    // Resolve CompanyID: if value is a name (non-numeric), look up by company name
+    // Resolve CompanyID: numeric → use as-is; string → lookup by CompanyName
     if (row.CompanyID !== undefined && row.CompanyID !== '' && isNaN(Number(row.CompanyID))) {
       try {
         const company = db.prepare(
@@ -193,16 +207,42 @@ router.post('/validate', (req, res) => {
       } catch (_) {}
     }
 
-    // Resolve ContactID: if value is an email (non-numeric), look up by email
+    // Resolve ContactID: numeric → use as-is; string → lookup by email, then by full name
     if (row.ContactID !== undefined && row.ContactID !== '' && isNaN(Number(row.ContactID))) {
       try {
-        const contact = db.prepare(
+        const val = String(row.ContactID).trim();
+        let contact = db.prepare(
           'SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress))=LOWER(TRIM(?))'
-        ).get(String(row.ContactID));
+        ).get(val);
+
+        if (!contact) {
+          // Try "FirstName LastName" full-name match
+          const parts = val.split(/\s+/);
+          if (parts.length >= 2) {
+            const lastName  = parts[parts.length - 1];
+            const firstName = parts.slice(0, -1).join(' ');
+            contact = db.prepare(
+              'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
+            ).get(firstName.toLowerCase(), lastName.toLowerCase());
+          }
+        }
+
+        if (!contact) {
+          // Try "LastName, FirstName" format
+          const commaIdx = val.indexOf(',');
+          if (commaIdx > -1) {
+            const ln = val.slice(0, commaIdx).trim();
+            const fn = val.slice(commaIdx + 1).trim();
+            contact = db.prepare(
+              'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
+            ).get(fn.toLowerCase(), ln.toLowerCase());
+          }
+        }
+
         if (contact) {
           row.ContactID = contact.ContactID;
         } else {
-          row.__contactLookupFailed = row.ContactID;
+          row.__contactLookupFailed = val;
           row.ContactID = null;
         }
       } catch (_) {}
@@ -210,7 +250,6 @@ router.post('/validate', (req, res) => {
 
     const errors = [];
 
-    // Report lookup failures as errors
     if (row.__companyLookupFailed) {
       errors.push(`Company "${row.__companyLookupFailed}" not found in database`);
       delete row.__companyLookupFailed;
@@ -224,17 +263,15 @@ router.post('/validate', (req, res) => {
     for (const f of def.required) {
       if (!row[f] && row[f] !== 0) errors.push(`${f} is required`);
     }
-    // Enum validation — case-insensitive match with auto-correction
+
+    // Enum validation — case-insensitive + fuzzy (space/hyphen-insensitive) with auto-correction
     for (const [field, allowed] of Object.entries(def.enums || {})) {
       if (row[field] !== undefined && row[field] !== '') {
-        const exact = allowed.includes(row[field]);
-        if (!exact) {
-          const canonical = allowed.find(a => a.toLowerCase() === String(row[field]).toLowerCase());
-          if (canonical) {
-            row[field] = canonical;
-          } else {
-            errors.push(`${field} must be one of: ${allowed.join(', ')}`);
-          }
+        const canonical = findCanonical(row[field], allowed);
+        if (canonical) {
+          row[field] = canonical;
+        } else {
+          errors.push(`${field} must be one of: ${allowed.join(', ')}`);
         }
       }
     }
@@ -258,18 +295,59 @@ router.post('/validate', (req, res) => {
   res.json(result);
 });
 
-// POST /api/import/confirm  — insert/update rows
+// POST /api/import/confirm
 router.post('/confirm', (req, res) => {
   const db = req.app.locals.db;
-  const { entity, rows } = req.body; // rows: [{ row, action: 'import'|'overwrite'|'skip' }]
+  const { entity, rows } = req.body;
   if (!entity || !rows) return res.status(400).json({ error: 'entity and rows required' });
 
   let imported = 0, updated = 0, skipped = 0, failed = 0;
   const failedRows = [];
 
   const insertFns = {
-    Company: (db, r) => db.prepare(`INSERT INTO Company (CompanyName,DateAdded,Industry,Sector,Country,Address,Website,LinkedInURL,HandshakeURL,SignedMoU,FavoriteEmployer,Blacklisted,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(r.CompanyName,r.DateAdded||new Date().toISOString().slice(0,10),r.Industry,r.Sector,r.Country,r.Address||null,r.Website||null,r.LinkedInURL||null,r.HandshakeURL||null,r.SignedMoU?1:0,r.FavoriteEmployer?1:0,r.Blacklisted?1:0,r.Comment||null),
-    Contact: (db, r) => db.prepare(`INSERT INTO Contact (CompanyID,FirstName,LastName,DateAdded,JobTitle,EmailAddress,Address,Country,WorkPhone,Mobile,Status,CMUQGraduate,Major,GraduationYear,PrimaryContact,ResumeBook,EventInvitation,ExcludeFromMailing) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(r.CompanyID,r.FirstName,r.LastName,r.DateAdded||new Date().toISOString().slice(0,10),r.JobTitle||null,r.EmailAddress,r.Address||null,r.Country||null,r.WorkPhone||null,r.Mobile||null,r.Status||'Mailable',r.CMUQGraduate?1:0,r.Major||null,r.GraduationYear||null,r.PrimaryContact?1:0,r.ResumeBook?1:0,r.EventInvitation?1:0,r.ExcludeFromMailing?1:0),
+    Company: (db, r) => db.prepare(
+      `INSERT INTO Company (CompanyName,DateAdded,Industry,Sector,Country,Address,Website,LinkedInURL,HandshakeURL,SignedMoU,FavoriteEmployer,Blacklisted,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyName,r.DateAdded||new Date().toISOString().slice(0,10),r.Industry,r.Sector,r.Country,r.Address||null,r.Website||null,r.LinkedInURL||null,r.HandshakeURL||null,r.SignedMoU?1:0,r.FavoriteEmployer?1:0,r.Blacklisted?1:0,r.Comment||null),
+
+    Contact: (db, r) => db.prepare(
+      `INSERT INTO Contact (CompanyID,FirstName,LastName,DateAdded,JobTitle,EmailAddress,Address,Country,WorkPhone,Mobile,Status,CMUQGraduate,Major,GraduationYear,PrimaryContact,ResumeBook,EventInvitation,ExcludeFromMailing) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.FirstName,r.LastName,r.DateAdded||new Date().toISOString().slice(0,10),r.JobTitle||null,r.EmailAddress,r.Address||null,r.Country||null,r.WorkPhone||null,r.Mobile||null,r.Status||'Mailable',r.CMUQGraduate?1:0,r.Major||null,r.GraduationYear||null,r.PrimaryContact?1:0,r.ResumeBook?1:0,r.EventInvitation?1:0,r.ExcludeFromMailing?1:0),
+
+    Outreach: (db, r) => db.prepare(
+      `INSERT INTO OutreachEngagement (CompanyID,ContactID,InteractionType,InteractionDate,DiscussionItems,ActionPlan,FollowUpDate,InteractionStatus) VALUES (?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.InteractionType,r.InteractionDate,r.DiscussionItems,r.ActionPlan||null,r.FollowUpDate||null,r.InteractionStatus||'In-progress'),
+
+    Recruitment: (db, r) => db.prepare(
+      `INSERT INTO Recruitment (CompanyID,ContactID,DatePosted,OpportunityTitle,Duration,HiringStartDate,HiringEndDate,Country,Mode,Status,PayAmount,TargetGroup,ArabicSpeaker,HiredStudentAlumni,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.DatePosted||new Date().toISOString().slice(0,10),r.OpportunityTitle,r.Duration||null,r.HiringStartDate||null,r.HiringEndDate||null,r.Country||null,r.Mode,r.Status,r.PayAmount||null,r.TargetGroup,r.ArabicSpeaker?1:0,r.HiredStudentAlumni||'Not Reported',r.Comment||null),
+
+    'Career Event': (db, r) => db.prepare(
+      `INSERT INTO CareerEvent (CompanyID,ContactID,EventName,EventDate,RegisteredStatus,CMUQAlumniAtBooth,Comment) VALUES (?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.EventName,r.EventDate,r.RegisteredStatus,r.CMUQAlumniAtBooth?1:0,r.Comment||null),
+
+    'Student-Led Event': (db, r) => db.prepare(
+      `INSERT INTO StudentLedEvent (CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate,EventTitle,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.ProposalDate,r.OrganizationName,r.StudentName,r.StudentEmail,r.StudentPhoneNumber,r.CollaborationOutcome||'Pending',r.EventDate||null,r.EventTitle||null,r.Comment||null),
+
+    'Academic Engagement': (db, r) => db.prepare(
+      `INSERT INTO AcademicClassroomEngagement (CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email,PhoneNumber,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.EngagementType,r.GuestSpeakerName,r.GuestTitle,r.Email||null,r.PhoneNumber||null,r.FacultyName,r.CourseNumber,r.CourseTitle,r.TopicTheme,r.SessionDate,r.SessionTime,r.Comment||null),
+
+    'Hiring Feedback': (db, r) => db.prepare(
+      `INSERT INTO HiringFeedback (CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName,Comment) VALUES (?,?,?,?,?,?,?)`
+    ).run(r.CompanyID,r.ContactID,r.FeedbackProvider,r.HiredStudentAlumni,r.DateReported,r.HiredStudentName||null,r.Comment||null),
+
+    'Potential Collaboration': (db, r) => {
+      const info = db.prepare(
+        'INSERT INTO PotentialCollaboration (CompanyID,Comment) VALUES (?,?)'
+      ).run(r.CompanyID, r.Comment||null);
+      const ins = db.prepare(
+        'INSERT INTO PotentialCollaboration_Opportunities (PotentialCollaborationID,OpportunityType) VALUES (?,?)'
+      );
+      for (const opp of COLLAB_OPPS) {
+        if (r[opp] && r[opp] !== 0) ins.run(info.lastInsertRowid, opp);
+      }
+    },
   };
 
   for (const { row, action } of rows) {
@@ -294,14 +372,12 @@ router.post('/confirm', (req, res) => {
     }
   }
 
-  // Generate error file if needed
   let errorFileBase64 = null;
   if (failedRows.length > 0) {
     const wb = XLSX.utils.book_new();
     const data = failedRows.map(f => ({ ...f.row, __error: f.error }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Errors');
-    const buf = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-    errorFileBase64 = buf;
+    errorFileBase64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   }
 
   res.json({
