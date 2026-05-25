@@ -1,18 +1,37 @@
+// ── Constants ──────────────────────────────────────────────────────────────────
+const PALETTE = [
+  '#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c',
+  '#e71d36','#3a0ca3','#7209b7','#06d6a0','#118ab2','#ffd166','#ef476f',
+];
+
+const ENTITY_ICONS = {
+  'Companies':              'bi-buildings',
+  'Contacts':               'bi-person-lines-fill',
+  'Outreach & Engagement':  'bi-chat-dots',
+  'Recruitment':            'bi-briefcase',
+  'Career Events':          'bi-calendar-event',
+  'Student-Led Events':     'bi-megaphone',
+  'Academic Engagement':    'bi-mortarboard',
+  'Hiring Feedback':        'bi-person-check',
+  'Potential Collaboration':'bi-handshake',
+};
+
 // ── State ──────────────────────────────────────────────────────────────────────
-let quickChart    = null;
-let builderChart  = null;
-let activeQuickType = null;
-let builderSchema  = {};
-let builderEntity  = null;
+let quickChart         = null;
+let builderChart       = null;
+let activeQuickType    = null;
+let builderSchema      = {};
+let builderEntity      = null;
 let lastBuilderPayload = null;
+let lastBuilderRows    = null;
 let filterRowCounter   = 0;
 
-const CONDITIONS_TEXT    = ['contains','equals','not_equals','starts_with','is_empty','is_not_empty'];
-const CONDITIONS_DATE    = ['is','is_not','is_before','is_after','is_between','is_empty','is_not_empty','in_last_days'];
-const CONDITIONS_ENUM    = ['is','is_not','is_empty','is_not_empty'];
-const CONDITIONS_BOOL    = ['is_true','is_false'];
-const CONDITIONS_NUMBER  = ['equals','not_equals','gt','lt','is_between','is_empty','is_not_empty'];
-const CONDITION_LABELS   = {
+const CONDITIONS_TEXT   = ['contains','equals','not_equals','starts_with','is_empty','is_not_empty'];
+const CONDITIONS_DATE   = ['is','is_not','is_before','is_after','is_between','is_empty','is_not_empty','in_last_days'];
+const CONDITIONS_ENUM   = ['is','is_not','is_empty','is_not_empty'];
+const CONDITIONS_BOOL   = ['is_true','is_false'];
+const CONDITIONS_NUMBER = ['equals','not_equals','gt','lt','is_between','is_empty','is_not_empty'];
+const CONDITION_LABELS  = {
   contains:'contains', equals:'equals', not_equals:'does not equal',
   starts_with:'starts with', is_empty:'is empty', is_not_empty:'is not empty',
   is_before:'is before', is_after:'is after', is_between:'is between',
@@ -68,9 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-br-png').addEventListener('click',   () => downloadChartPNG('builder-chart', 'custom-report'));
   document.getElementById('btn-save-report').addEventListener('click', openSaveModal);
   document.getElementById('btn-confirm-save').addEventListener('click', confirmSaveReport);
-  document.getElementById('builder-chart-type').addEventListener('change', e => {
-    document.getElementById('builder-group-by').disabled = (e.target.value === 'none');
+
+  document.getElementById('br-chart-type').addEventListener('change', () => {
+    const t = document.getElementById('br-chart-type').value;
+    document.getElementById('br-group-by').classList.toggle('d-none', t === 'none');
+    rerenderBuilderChart();
   });
+  document.getElementById('br-group-by').addEventListener('change', rerenderBuilderChart);
 });
 
 // ── Tab Switching ──────────────────────────────────────────────────────────────
@@ -79,7 +102,7 @@ function switchTab(tab) {
   document.getElementById('pane-builder').classList.toggle('d-none', tab !== 'builder');
   document.getElementById('tab-quick-link').classList.toggle('active', tab === 'quick');
   document.getElementById('tab-builder-link').classList.toggle('active', tab === 'builder');
-  if (tab === 'builder') loadSavedReports();
+  if (tab === 'quick') loadSavedReportsQuickTab();
 }
 
 // ── Quick Reports ──────────────────────────────────────────────────────────────
@@ -136,10 +159,14 @@ function renderQuickTable(rows) {
 
 function renderQuickChart(chartData) {
   const wrapper = document.getElementById('chart-wrapper');
+  const pngBtn  = document.getElementById('btn-download-png');
   if (!chartData || !chartData.labels || !chartData.labels.length) {
-    wrapper.classList.add('d-none'); return;
+    wrapper.classList.add('d-none');
+    pngBtn.classList.add('d-none');
+    return;
   }
   wrapper.classList.remove('d-none');
+  pngBtn.classList.remove('d-none');
   if (quickChart) { quickChart.destroy(); quickChart = null; }
   quickChart = new Chart(document.getElementById('quick-chart').getContext('2d'), buildChartConfig(chartData));
 }
@@ -159,69 +186,67 @@ async function exportQuickExcel() {
 // ── Report Builder ─────────────────────────────────────────────────────────────
 async function loadBuilderSchema() {
   try {
-    builderSchema = await fetchAPI('/api/reports/schema');
+    const raw = await fetchAPI('/api/reports/schema');
+    // Transform [{key, label, type, values}] arrays → {key: {label, type, values}} objects
+    for (const [entity, cols] of Object.entries(raw)) {
+      builderSchema[entity] = {};
+      for (const col of cols) {
+        builderSchema[entity][col.key] = { label: col.label, type: col.type, values: col.values };
+      }
+    }
     buildEntityButtons();
+    loadSavedReportsQuickTab();
   } catch (err) {
-    showToast('Failed to load schema: ' + err.message, 'danger');
+    showToast('Failed to load report schema: ' + err.message, 'danger');
   }
 }
 
 function buildEntityButtons() {
-  const icons = {
-    'Companies':              'bi-buildings',
-    'Contacts':               'bi-person-lines-fill',
-    'Outreach & Engagement':  'bi-chat-dots',
-    'Recruitment':            'bi-briefcase',
-    'Career Events':          'bi-calendar-event',
-    'Student-Led Events':     'bi-megaphone',
-    'Academic Engagement':    'bi-mortarboard',
-    'Hiring Feedback':        'bi-person-check',
-    'Potential Collaboration':'bi-handshake',
-  };
-  document.getElementById('builder-entities').innerHTML = Object.keys(builderSchema).map(entity =>
-    `<button class="btn btn-outline-secondary btn-sm" data-entity="${escHtml(entity)}" onclick="selectBuilderEntity(${JSON.stringify(entity)})">
-       <i class="bi ${icons[entity] || 'bi-table'} me-1"></i>${escHtml(entity)}
-     </button>`
-  ).join('');
+  document.getElementById('builder-entities').innerHTML = Object.keys(builderSchema).map(entity => `
+    <div class="card entity-card shadow-sm" data-entity="${escHtml(entity)}"
+         onclick="selectBuilderEntity(${JSON.stringify(entity)})">
+      <div class="card-body">
+        <i class="bi ${ENTITY_ICONS[entity] || 'bi-table'} d-block mb-1 text-primary e-icon"></i>
+        <div class="e-label">${escHtml(entity)}</div>
+      </div>
+    </div>`).join('');
 }
 
 function selectBuilderEntity(entity) {
   builderEntity = entity;
   const schema  = builderSchema[entity];
 
-  document.querySelectorAll('#builder-entities button').forEach(b => {
-    b.classList.toggle('btn-primary', b.dataset.entity === entity);
-    b.classList.toggle('btn-outline-secondary', b.dataset.entity !== entity);
+  document.querySelectorAll('.entity-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.entity === entity);
   });
 
   // Columns
-  document.getElementById('builder-columns').innerHTML = Object.entries(schema).map(([key, col]) =>
-    `<div class="col">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="col-${key.replace(/[^a-z0-9]/gi,'-')}" value="${key}" checked>
-        <label class="form-check-label small" for="col-${key.replace(/[^a-z0-9]/gi,'-')}">${escHtml(col.label)}</label>
-      </div>
-    </div>`
-  ).join('');
+  document.getElementById('builder-columns').innerHTML = Object.entries(schema).map(([key, col]) => {
+    const safeId = `col-${key.replace(/[^a-z0-9]/gi, '-')}`;
+    return `<div class="col">
+      <label class="col-check-label w-100" for="${safeId}">
+        <input type="checkbox" id="${safeId}" value="${escHtml(key)}" checked>
+        <span class="small">${escHtml(col.label)}</span>
+      </label>
+    </div>`;
+  }).join('');
 
-  // Sort
-  document.getElementById('builder-sort-col').innerHTML = '<option value="">Default</option>' +
-    Object.entries(schema).map(([k, c]) => `<option value="${k}">${escHtml(c.label)}</option>`).join('');
-
-  // Group-by
-  document.getElementById('builder-group-by').innerHTML = '<option value="">— Select column —</option>' +
-    Object.entries(schema).map(([k, c]) => `<option value="${k}">${escHtml(c.label)}</option>`).join('');
+  // Sort dropdown
+  document.getElementById('builder-sort-col').innerHTML = '<option value="">Default order</option>' +
+    Object.entries(schema).map(([k, c]) => `<option value="${escHtml(k)}">${escHtml(c.label)}</option>`).join('');
 
   // Clear filters
-  document.getElementById('builder-filters').innerHTML =
-    '<p class="text-muted small mb-0" id="no-filters-msg">No filters added. Results will include all records.</p>';
   filterRowCounter = 0;
+  document.getElementById('builder-filters').innerHTML =
+    '<p class="text-muted small mb-0 p-2" id="no-filters-msg">No filters — results include all records.</p>';
 
-  // Show config sections
-  ['builder-col-card','builder-filter-card','builder-sort-card','builder-chart-card'].forEach(id => {
-    document.getElementById(id).style.removeProperty('display');
-  });
-  document.getElementById('builder-run-wrap').classList.remove('d-none');
+  // Show steps using classList (d-none removal is reliable unlike style.removeProperty)
+  ['builder-col-card','builder-filter-card','builder-sort-card'].forEach(id =>
+    document.getElementById(id).classList.remove('d-none')
+  );
+  document.getElementById('btn-run-builder').classList.remove('d-none');
+
+  // Reset results panel
   document.getElementById('builder-results-area').classList.add('d-none');
   document.getElementById('builder-results-placeholder').classList.remove('d-none');
 }
@@ -235,7 +260,7 @@ function addFilterRow() {
 
   document.getElementById('no-filters-msg')?.remove();
 
-  const rowDiv  = document.createElement('div');
+  const rowDiv      = document.createElement('div');
   rowDiv.className  = 'filter-row mb-2';
   rowDiv.dataset.id = rowId;
   rowDiv.innerHTML  = buildFilterRowHtml(rowId, schema, firstKey, firstCol);
@@ -251,7 +276,7 @@ function buildFilterRowHtml(rowId, schema, defaultKey, defaultCol) {
   return `
     <div class="d-flex gap-1 align-items-start flex-wrap">
       <select class="form-select form-select-sm filter-field" style="max-width:150px">
-        ${Object.entries(schema).map(([k, c]) => `<option value="${k}" ${k===defaultKey?'selected':''}>${escHtml(c.label)}</option>`).join('')}
+        ${Object.entries(schema).map(([k, c]) => `<option value="${escHtml(k)}" ${k===defaultKey?'selected':''}>${escHtml(c.label)}</option>`).join('')}
       </select>
       <select class="form-select form-select-sm filter-condition" style="max-width:160px">
         ${conditions.map(c => `<option value="${c}">${CONDITION_LABELS[c]||c}</option>`).join('')}
@@ -285,7 +310,7 @@ function buildValueInput(colDef, condition) {
   }
   if (colDef.type === 'enum' && colDef.values) {
     return `<select class="form-select form-select-sm filter-val1">
-      ${colDef.values.map(v => `<option value="${v}">${v}</option>`).join('')}
+      ${colDef.values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('')}
     </select>`;
   }
   if (colDef.type === 'date')   return `<input type="date" class="form-control form-control-sm filter-val1">`;
@@ -318,7 +343,7 @@ function removeFilterRow(rowId) {
   document.querySelector(`.filter-row[data-id="${rowId}"]`)?.remove();
   if (!document.querySelector('#builder-filters .filter-row')) {
     document.getElementById('builder-filters').innerHTML =
-      '<p class="text-muted small mb-0" id="no-filters-msg">No filters added. Results will include all records.</p>';
+      '<p class="text-muted small mb-0 p-2" id="no-filters-msg">No filters — results include all records.</p>';
   }
 }
 
@@ -336,17 +361,14 @@ async function runBuilder() {
   const columns = [...document.querySelectorAll('#builder-columns input[type="checkbox"]:checked')].map(cb => cb.value);
   if (!columns.length) { showToast('Please select at least one column.', 'warning'); return; }
 
-  const chartTypeVal = document.getElementById('builder-chart-type').value;
   lastBuilderPayload = {
-    entity:       builderEntity,
+    entity:    builderEntity,
     columns,
-    filters:      collectFilters(),
-    sortBy:       document.getElementById('builder-sort-col').value || null,
-    sortOrder:    document.getElementById('builder-sort-order').value,
-    chartType:    chartTypeVal === 'none' ? null : chartTypeVal,
-    chartGroupBy: document.getElementById('builder-group-by').value || null,
-    from:         document.getElementById('builder-from').value || null,
-    to:           document.getElementById('builder-to').value   || null,
+    filters:   collectFilters(),
+    sortBy:    document.getElementById('builder-sort-col').value || null,
+    sortOrder: document.getElementById('builder-sort-order').value,
+    from:      document.getElementById('builder-from').value || null,
+    to:        document.getElementById('builder-to').value   || null,
   };
 
   document.getElementById('builder-results-placeholder').classList.add('d-none');
@@ -356,11 +378,22 @@ async function runBuilder() {
   try {
     const data = await fetchAPI('/api/reports/builder', { method: 'POST', body: lastBuilderPayload });
 
-    document.getElementById('br-title').textContent = `${builderEntity} — Custom Report`;
+    lastBuilderRows = data.rows;
     document.getElementById('br-count').textContent = `${data.count} record${data.count !== 1 ? 's' : ''}`;
 
+    // Populate group-by dropdown from result columns
+    const groupSel = document.getElementById('br-group-by');
+    groupSel.innerHTML = '<option value="">Group by…</option>' +
+      Object.keys(data.rows[0] || {}).map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`).join('');
+
+    // Reset chart controls
+    document.getElementById('br-chart-type').value = 'none';
+    document.getElementById('br-group-by').classList.add('d-none');
+    document.getElementById('builder-chart-wrapper').classList.add('d-none');
+    document.getElementById('btn-br-png').classList.add('d-none');
+    if (builderChart) { builderChart.destroy(); builderChart = null; }
+
     renderBuilderTable(data.rows);
-    renderBuilderChart(data.chartData);
     document.getElementById('builder-results-area').classList.remove('d-none');
   } catch (err) {
     showToast('Query failed: ' + err.message, 'danger');
@@ -385,20 +418,46 @@ function renderBuilderTable(rows) {
   ).join('');
 }
 
-function renderBuilderChart(chartData) {
-  const wrapper = document.getElementById('builder-chart-wrapper');
-  const pngBtn  = document.getElementById('btn-br-png');
-  if (!chartData || !chartData.labels || !chartData.labels.length) {
-    wrapper.classList.add('d-none'); pngBtn.style.display = 'none'; return;
+function rerenderBuilderChart() {
+  const chartType = document.getElementById('br-chart-type').value;
+  const groupBy   = document.getElementById('br-group-by').value;
+  const pngBtn    = document.getElementById('btn-br-png');
+  const wrapper   = document.getElementById('builder-chart-wrapper');
+
+  if (chartType === 'none' || !groupBy || !lastBuilderRows?.length) {
+    wrapper.classList.add('d-none');
+    pngBtn.classList.add('d-none');
+    return;
   }
-  wrapper.classList.remove('d-none'); pngBtn.style.display = '';
+
+  // Client-side aggregation: count occurrences per group-by value
+  const agg = {};
+  lastBuilderRows.forEach(r => {
+    const v = r[groupBy] != null ? String(r[groupBy]) : 'None';
+    agg[v] = (agg[v] || 0) + 1;
+  });
+  const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 20);
+
+  const chartData = {
+    type: chartType,
+    labels: sorted.map(x => x[0]),
+    datasets: [{
+      label: groupBy,
+      data: sorted.map(x => x[1]),
+      backgroundColor: sorted.map((_, i) => PALETTE[i % PALETTE.length]),
+      borderRadius: 4,
+    }],
+  };
+
+  wrapper.classList.remove('d-none');
+  pngBtn.classList.remove('d-none');
   if (builderChart) { builderChart.destroy(); builderChart = null; }
   builderChart = new Chart(document.getElementById('builder-chart').getContext('2d'), buildChartConfig(chartData));
 }
 
 async function exportBuilderData(fmt) {
   if (!lastBuilderPayload) return;
-  const qs  = new URLSearchParams({ export: fmt === 'csv' ? 'csv' : '1' });
+  const qs = new URLSearchParams({ export: fmt === 'csv' ? 'csv' : '1' });
   try {
     const resp = await fetch('/api/reports/builder?' + qs, {
       method:  'POST',
@@ -420,30 +479,39 @@ async function exportBuilderData(fmt) {
 }
 
 // ── Saved Reports ──────────────────────────────────────────────────────────────
-async function loadSavedReports() {
+async function loadSavedReportsQuickTab() {
   try {
     const reports = await fetchAPI('/api/reports/saved');
-    const panel   = document.getElementById('saved-reports-panel');
-    const list    = document.getElementById('saved-reports-list');
-    if (!reports.length) { panel.classList.add('d-none'); return; }
-    panel.classList.remove('d-none');
+    const section = document.getElementById('saved-reports-quick-section');
+    const list    = document.getElementById('saved-reports-quick-list');
+    if (!reports.length) { section.classList.add('d-none'); return; }
+    section.classList.remove('d-none');
     list.innerHTML = reports.map(r => `
-      <div class="d-flex align-items-center gap-1">
-        <button class="btn btn-sm btn-outline-secondary" onclick="loadSavedReport(${r.ReportID})">
-          <i class="bi bi-bookmark-check me-1"></i>${escHtml(r.ReportName)}
-        </button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteSavedReport(${r.ReportID})">
-          <i class="bi bi-x"></i>
-        </button>
+      <div class="col-auto">
+        <div class="card report-card shadow-sm" style="min-width:130px;position:relative"
+             onclick="openSavedReport(${r.ReportID})">
+          <div class="card-body text-center">
+            <i class="bi bi-bookmark-fill report-icon text-primary d-block mb-1"></i>
+            <div class="report-label">${escHtml(r.ReportName)}</div>
+            <div class="text-muted" style="font-size:.65rem">${escHtml(r.Entity)}</div>
+          </div>
+          <button class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-1 p-0"
+                  style="width:1.3rem;height:1.3rem;font-size:.65rem;line-height:1"
+                  onclick="event.stopPropagation();deleteSavedReport(${r.ReportID})"
+                  title="Delete">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
       </div>`).join('');
   } catch (_) { /* silently ignore */ }
 }
 
-async function loadSavedReport(id) {
+async function openSavedReport(id) {
   try {
     const reports = await fetchAPI('/api/reports/saved');
     const r = reports.find(x => x.ReportID === id);
     if (!r) return;
+    switchTab('builder');
     selectBuilderEntity(r.Entity);
     const cols    = JSON.parse(r.Columns || '[]');
     const filters = JSON.parse(r.Filters || '[]');
@@ -452,12 +520,9 @@ async function loadSavedReport(id) {
     });
     if (r.SortBy) document.getElementById('builder-sort-col').value = r.SortBy;
     document.getElementById('builder-sort-order').value = r.SortOrder || 'ASC';
-    document.getElementById('builder-chart-type').value = r.ChartType || 'none';
-    if (r.ChartGroupBy) document.getElementById('builder-group-by').value = r.ChartGroupBy;
-    // Restore filters
     filters.forEach(f => {
       addFilterRow();
-      const rows = document.querySelectorAll('#builder-filters .filter-row');
+      const rows    = document.querySelectorAll('#builder-filters .filter-row');
       const lastRow = rows[rows.length - 1];
       if (!lastRow) return;
       lastRow.querySelector('.filter-field').value = f.field;
@@ -466,12 +531,12 @@ async function loadSavedReport(id) {
       onFilterConditionChange(lastRow.dataset.id, f.condition);
       const v1 = lastRow.querySelector('.filter-val1');
       const v2 = lastRow.querySelector('.filter-val2');
-      if (v1) v1.value = f.value || '';
+      if (v1) v1.value = f.value  || '';
       if (v2) v2.value = f.value2 || '';
     });
-    showToast(`Loaded "${r.ReportName}"`);
+    await runBuilder();
   } catch (err) {
-    showToast('Failed to load: ' + err.message, 'danger');
+    showToast('Failed to load saved report: ' + err.message, 'danger');
   }
 }
 
@@ -487,14 +552,16 @@ async function confirmSaveReport() {
   if (!lastBuilderPayload) return;
   try {
     await fetchAPI('/api/reports/saved', { method: 'POST', body: {
-      ReportName: name, Entity: lastBuilderPayload.entity,
-      Columns: lastBuilderPayload.columns, Filters: lastBuilderPayload.filters,
-      SortBy: lastBuilderPayload.sortBy, SortOrder: lastBuilderPayload.sortOrder,
-      ChartType: lastBuilderPayload.chartType, ChartGroupBy: lastBuilderPayload.chartGroupBy,
+      ReportName: name,
+      Entity:     lastBuilderPayload.entity,
+      Columns:    lastBuilderPayload.columns,
+      Filters:    lastBuilderPayload.filters,
+      SortBy:     lastBuilderPayload.sortBy,
+      SortOrder:  lastBuilderPayload.sortOrder,
     }});
     bootstrap.Modal.getInstance(document.getElementById('save-modal')).hide();
-    showToast(`Report "${name}" saved`);
-    loadSavedReports();
+    showToast(`"${name}" saved to Quick Reports`);
+    loadSavedReportsQuickTab();
   } catch (err) {
     showToast('Save failed: ' + err.message, 'danger');
   }
@@ -505,7 +572,7 @@ async function deleteSavedReport(id) {
     try {
       await fetchAPI(`/api/reports/saved/${id}`, { method: 'DELETE' });
       showToast('Report deleted', 'danger');
-      loadSavedReports();
+      loadSavedReportsQuickTab();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
 }

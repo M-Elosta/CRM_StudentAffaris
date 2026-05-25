@@ -7,19 +7,37 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/style.css">
   <style>
+    /* ── Quick Report cards ── */
     .report-card { cursor:pointer; transition:all .15s; border:2px solid transparent; min-width:130px; }
-    .report-card:hover { border-color:#4361ee; transform:translateY(-2px); box-shadow:0 4px 12px rgba(67,97,238,.2)!important; }
+    .report-card:hover  { border-color:#4361ee; transform:translateY(-2px); box-shadow:0 4px 12px rgba(67,97,238,.2)!important; }
     .report-card.active { border-color:#4361ee; background:#eef0fd; }
-    .report-card .card-body { padding:.75rem .5rem; }
-    .report-card .report-icon { font-size:1.6rem; }
+    .report-card .card-body  { padding:.75rem .5rem; }
+    .report-card .report-icon  { font-size:1.6rem; }
     .report-card .report-label { font-size:.78rem; font-weight:600; line-height:1.2; }
+
+    /* ── Builder entity mini-cards ── */
+    .entity-card { cursor:pointer; transition:all .15s; border:2px solid #dee2e6; min-width:90px; text-align:center; }
+    .entity-card:hover  { border-color:#4361ee; transform:translateY(-2px); box-shadow:0 3px 10px rgba(67,97,238,.15)!important; }
+    .entity-card.active { border-color:#4361ee; background:#eef0fd; }
+    .entity-card .card-body { padding:.5rem .4rem; }
+    .entity-card .e-icon  { font-size:1.25rem; }
+    .entity-card .e-label { font-size:.68rem; font-weight:600; line-height:1.2; margin-top:.2rem; }
+
+    /* ── Column checkbox labels ── */
+    .col-check-label { display:flex; align-items:center; gap:.4rem; padding:.2rem .4rem; border-radius:.25rem; cursor:pointer; transition:background .1s; }
+    .col-check-label:hover { background:#f0f2ff; }
+    .col-check-label input { flex-shrink:0; width:.9rem; height:.9rem; margin:0; cursor:pointer; }
+
+    /* ── Filter rows ── */
+    .filter-row { background:#f8f9fa; border:1px solid #e9ecef; border-radius:.375rem; padding:.5rem .6rem; }
+
+    /* ── Misc ── */
     .section-label { font-size:.72rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#6c757d; }
-    #chart-wrapper canvas { max-height:320px; }
-    .filter-row { background:#f8f9fa; border-radius:.375rem; padding:.5rem .75rem; }
-    .builder-section { border-left:3px solid #4361ee; padding-left:1rem; }
-    .step-badge { width:1.6rem; height:1.6rem; font-size:.75rem; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; }
-    #results-area table th { white-space:nowrap; }
-    #results-area table td { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .step-num { display:inline-flex; align-items:center; justify-content:center; width:1.4rem; height:1.4rem; border-radius:50%; background:#4361ee; color:#fff; font-size:.7rem; font-weight:700; flex-shrink:0; }
+    #quick-chart  { max-height:300px; }
+    #builder-chart { max-height:280px; }
+    .result-table th { white-space:nowrap; }
+    .result-table td { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   </style>
 </head>
 <body>
@@ -34,8 +52,8 @@
     </div>
   </div>
 
-  <!-- Tabs -->
-  <ul class="nav nav-tabs mb-4" id="report-tabs">
+  <!-- ── Tabs ── -->
+  <ul class="nav nav-tabs mb-4">
     <li class="nav-item">
       <a class="nav-link active fw-semibold" id="tab-quick-link" href="#">
         <i class="bi bi-grid-3x3-gap me-1"></i>Quick Reports
@@ -47,6 +65,7 @@
       </a>
     </li>
   </ul>
+
 
   <!-- ══════════════════════════════════════════════════════
        TAB 1: QUICK REPORTS
@@ -63,10 +82,11 @@
             <span class="text-muted small">to</span>
             <input type="date" id="q-to"   class="form-control form-control-sm" style="width:150px">
           </div>
-          <div class="form-check mb-0">
-            <input class="form-check-input" type="checkbox" id="q-show-all">
-            <label class="form-check-label small fw-semibold" for="q-show-all">Show All (ignore date range)</label>
-          </div>
+          <!-- Problem 3 fix: explicit size, no form-check wrapper conflicts -->
+          <label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer">
+            <input type="checkbox" id="q-show-all" style="width:1rem;height:1rem;cursor:pointer;accent-color:#4361ee">
+            <span class="small fw-semibold">Show All (ignore date range)</span>
+          </label>
           <button class="btn btn-sm btn-outline-secondary" id="btn-clear-dates">
             <i class="bi bi-x-circle me-1"></i>Clear
           </button>
@@ -77,54 +97,61 @@
     <!-- Row 1: Contact Lists -->
     <p class="section-label mb-2"><i class="bi bi-people me-1"></i>Contact Lists</p>
     <div class="d-flex flex-wrap gap-3 mb-4">
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="mailable-contacts" data-label="Mailable Contacts"><div class="card-body text-center"><i class="bi bi-envelope-check report-icon text-success d-block mb-1"></i><div class="report-label">Mailable<br>Contacts</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="event-invitation" data-label="Event Invitation List"><div class="card-body text-center"><i class="bi bi-calendar-event report-icon text-primary d-block mb-1"></i><div class="report-label">Event<br>Invitation</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="resume-book" data-label="Resume Book Contacts"><div class="card-body text-center"><i class="bi bi-journal-text report-icon text-info d-block mb-1"></i><div class="report-label">Resume<br>Book</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="non-mailable" data-label="Non-Mailable Contacts"><div class="card-body text-center"><i class="bi bi-envelope-x report-icon text-danger d-block mb-1"></i><div class="report-label">Non-<br>Mailable</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="primary-contacts" data-label="Primary Contacts"><div class="card-body text-center"><i class="bi bi-star-fill report-icon text-warning d-block mb-1"></i><div class="report-label">Primary<br>Contacts</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="alumni-contacts" data-label="CMU-Q Alumni Contacts"><div class="card-body text-center"><i class="bi bi-mortarboard report-icon text-purple d-block mb-1" style="color:#7209b7"></i><div class="report-label">Alumni<br>Contacts</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="mailable-contacts"      data-label="Mailable Contacts">     <div class="card-body text-center"><i class="bi bi-envelope-check    report-icon text-success  d-block mb-1"></i><div class="report-label">Mailable<br>Contacts</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="event-invitation"       data-label="Event Invitation List">  <div class="card-body text-center"><i class="bi bi-calendar-event    report-icon text-primary  d-block mb-1"></i><div class="report-label">Event<br>Invitation</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="resume-book"            data-label="Resume Book Contacts">   <div class="card-body text-center"><i class="bi bi-journal-text      report-icon text-info     d-block mb-1"></i><div class="report-label">Resume<br>Book</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="non-mailable"           data-label="Non-Mailable Contacts">  <div class="card-body text-center"><i class="bi bi-envelope-x        report-icon text-danger   d-block mb-1"></i><div class="report-label">Non-<br>Mailable</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="primary-contacts"       data-label="Primary Contacts">       <div class="card-body text-center"><i class="bi bi-star-fill         report-icon text-warning  d-block mb-1"></i><div class="report-label">Primary<br>Contacts</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="alumni-contacts"        data-label="CMU-Q Alumni Contacts">  <div class="card-body text-center"><i class="bi bi-mortarboard       report-icon d-block mb-1" style="color:#7209b7"></i><div class="report-label">Alumni<br>Contacts</div></div></div></div>
     </div>
 
     <!-- Row 2: Company Reports -->
     <p class="section-label mb-2"><i class="bi bi-building me-1"></i>Company Reports</p>
     <div class="d-flex flex-wrap gap-3 mb-4">
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="all-companies" data-label="All Companies"><div class="card-body text-center"><i class="bi bi-buildings report-icon text-primary d-block mb-1"></i><div class="report-label">All<br>Companies</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="blacklisted-companies" data-label="Blacklisted Companies"><div class="card-body text-center"><i class="bi bi-slash-circle report-icon text-danger d-block mb-1"></i><div class="report-label">Blacklisted<br>Companies</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="companies-by-country" data-label="Companies by Country"><div class="card-body text-center"><i class="bi bi-globe report-icon text-teal d-block mb-1" style="color:#2ec4b6"></i><div class="report-label">By<br>Country</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="companies-by-sector" data-label="Companies by Sector"><div class="card-body text-center"><i class="bi bi-pie-chart report-icon text-info d-block mb-1"></i><div class="report-label">By<br>Sector</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="favorite-employers" data-label="Favourite Employers"><div class="card-body text-center"><i class="bi bi-heart-fill report-icon text-danger d-block mb-1"></i><div class="report-label">Favourite<br>Employers</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="new-companies" data-label="New Companies (Trend)"><div class="card-body text-center"><i class="bi bi-graph-up report-icon text-success d-block mb-1"></i><div class="report-label">New<br>Companies</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="mou-partners" data-label="MoU Partners"><div class="card-body text-center"><i class="bi bi-file-earmark-check report-icon text-primary d-block mb-1"></i><div class="report-label">MoU<br>Partners</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="all-companies"          data-label="All Companies">          <div class="card-body text-center"><i class="bi bi-buildings           report-icon text-primary  d-block mb-1"></i><div class="report-label">All<br>Companies</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="blacklisted-companies"  data-label="Blacklisted Companies">  <div class="card-body text-center"><i class="bi bi-slash-circle        report-icon text-danger   d-block mb-1"></i><div class="report-label">Blacklisted<br>Companies</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="companies-by-country"   data-label="Companies by Country">   <div class="card-body text-center"><i class="bi bi-globe              report-icon d-block mb-1" style="color:#2ec4b6"></i><div class="report-label">By<br>Country</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="companies-by-sector"    data-label="Companies by Sector">    <div class="card-body text-center"><i class="bi bi-pie-chart          report-icon text-info     d-block mb-1"></i><div class="report-label">By<br>Sector</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="favorite-employers"     data-label="Favourite Employers">    <div class="card-body text-center"><i class="bi bi-heart-fill         report-icon text-danger   d-block mb-1"></i><div class="report-label">Favourite<br>Employers</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="new-companies"          data-label="New Companies (Trend)">  <div class="card-body text-center"><i class="bi bi-graph-up           report-icon text-success  d-block mb-1"></i><div class="report-label">New<br>Companies</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="mou-partners"           data-label="MoU Partners">           <div class="card-body text-center"><i class="bi bi-file-earmark-check report-icon text-primary  d-block mb-1"></i><div class="report-label">MoU<br>Partners</div></div></div></div>
     </div>
 
     <!-- Row 3: Engagement & Activity -->
     <p class="section-label mb-2"><i class="bi bi-activity me-1"></i>Engagement &amp; Activity</p>
     <div class="d-flex flex-wrap gap-3 mb-4">
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="followup-actions" data-label="Follow-up Action Items"><div class="card-body text-center"><i class="bi bi-alarm report-icon text-warning d-block mb-1"></i><div class="report-label">Follow-up<br>Actions</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="engagement-summary" data-label="Employer Engagement Summary"><div class="card-body text-center"><i class="bi bi-bar-chart-steps report-icon text-primary d-block mb-1"></i><div class="report-label">Engagement<br>Summary</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="inactive-companies" data-label="Inactive Companies"><div class="card-body text-center"><i class="bi bi-pause-circle report-icon text-secondary d-block mb-1"></i><div class="report-label">Inactive<br>Companies</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="monthly-activity" data-label="Monthly Activity Overview"><div class="card-body text-center"><i class="bi bi-calendar3 report-icon text-info d-block mb-1"></i><div class="report-label">Monthly<br>Activity</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="followup-actions"       data-label="Follow-up Action Items">        <div class="card-body text-center"><i class="bi bi-alarm          report-icon text-warning   d-block mb-1"></i><div class="report-label">Follow-up<br>Actions</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="engagement-summary"     data-label="Employer Engagement Summary">    <div class="card-body text-center"><i class="bi bi-bar-chart-steps report-icon text-primary   d-block mb-1"></i><div class="report-label">Engagement<br>Summary</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="inactive-companies"     data-label="Inactive Companies">             <div class="card-body text-center"><i class="bi bi-pause-circle   report-icon text-secondary d-block mb-1"></i><div class="report-label">Inactive<br>Companies</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="monthly-activity"       data-label="Monthly Activity Overview">      <div class="card-body text-center"><i class="bi bi-calendar3      report-icon text-info      d-block mb-1"></i><div class="report-label">Monthly<br>Activity</div></div></div></div>
     </div>
 
     <!-- Row 4: Recruitment & Hiring -->
     <p class="section-label mb-2"><i class="bi bi-briefcase me-1"></i>Recruitment &amp; Hiring</p>
     <div class="d-flex flex-wrap gap-3 mb-4">
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="recruitment-postings" data-label="Recruitment Postings"><div class="card-body text-center"><i class="bi bi-briefcase report-icon text-primary d-block mb-1"></i><div class="report-label">Recruitment<br>Postings</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="recruitment-by-major" data-label="Recruitment by Major"><div class="card-body text-center"><i class="bi bi-book report-icon text-info d-block mb-1"></i><div class="report-label">By<br>Major</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="hiring-outcomes" data-label="Hiring Outcomes"><div class="card-body text-center"><i class="bi bi-person-check report-icon text-success d-block mb-1"></i><div class="report-label">Hiring<br>Outcomes</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="career-event-attendance" data-label="Career Event Attendance"><div class="card-body text-center"><i class="bi bi-people report-icon text-primary d-block mb-1"></i><div class="report-label">Event<br>Attendance</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="hiring-trends" data-label="Hiring Trends (Monthly)"><div class="card-body text-center"><i class="bi bi-graph-up-arrow report-icon text-success d-block mb-1"></i><div class="report-label">Hiring<br>Trends</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="recruitment-postings"    data-label="Recruitment Postings">      <div class="card-body text-center"><i class="bi bi-briefcase      report-icon text-primary d-block mb-1"></i><div class="report-label">Recruitment<br>Postings</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="recruitment-by-major"    data-label="Recruitment by Major">      <div class="card-body text-center"><i class="bi bi-book           report-icon text-info    d-block mb-1"></i><div class="report-label">By<br>Major</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="hiring-outcomes"         data-label="Hiring Outcomes">           <div class="card-body text-center"><i class="bi bi-person-check   report-icon text-success d-block mb-1"></i><div class="report-label">Hiring<br>Outcomes</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="career-event-attendance" data-label="Career Event Attendance">   <div class="card-body text-center"><i class="bi bi-people         report-icon text-primary d-block mb-1"></i><div class="report-label">Event<br>Attendance</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="hiring-trends"           data-label="Hiring Trends (Monthly)">   <div class="card-body text-center"><i class="bi bi-graph-up-arrow report-icon text-success d-block mb-1"></i><div class="report-label">Hiring<br>Trends</div></div></div></div>
     </div>
 
     <!-- Row 5: Academic & Student -->
     <p class="section-label mb-2"><i class="bi bi-mortarboard me-1"></i>Academic &amp; Student</p>
     <div class="d-flex flex-wrap gap-3 mb-4">
       <div class="col-auto"><div class="card report-card shadow-sm" data-type="academic-engagements" data-label="Academic Engagements"><div class="card-body text-center"><i class="bi bi-mortarboard-fill report-icon d-block mb-1" style="color:#7209b7"></i><div class="report-label">Academic<br>Engagements</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="student-led-events" data-label="Student-Led Events"><div class="card-body text-center"><i class="bi bi-megaphone report-icon text-warning d-block mb-1"></i><div class="report-label">Student-Led<br>Events</div></div></div></div>
-      <div class="col-auto"><div class="card report-card shadow-sm" data-type="guest-speakers" data-label="Guest Speakers"><div class="card-body text-center"><i class="bi bi-mic report-icon text-dark d-block mb-1"></i><div class="report-label">Guest<br>Speakers</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="student-led-events"   data-label="Student-Led Events">    <div class="card-body text-center"><i class="bi bi-megaphone report-icon text-warning d-block mb-1"></i><div class="report-label">Student-Led<br>Events</div></div></div></div>
+      <div class="col-auto"><div class="card report-card shadow-sm" data-type="guest-speakers"       data-label="Guest Speakers">        <div class="card-body text-center"><i class="bi bi-mic       report-icon text-dark    d-block mb-1"></i><div class="report-label">Guest<br>Speakers</div></div></div></div>
     </div>
 
-    <!-- Quick Report Results Area -->
+    <!-- Saved Reports section (shown when saved reports exist) -->
+    <div id="saved-reports-quick-section" class="d-none">
+      <hr class="my-2">
+      <p class="section-label mb-2 mt-3"><i class="bi bi-bookmark-fill me-1"></i>Saved Reports</p>
+      <div id="saved-reports-quick-list" class="d-flex flex-wrap gap-3 mb-4"></div>
+    </div>
+
+    <!-- Results area -->
     <div id="quick-results" class="d-none">
       <hr>
       <div class="d-flex align-items-center justify-content-between mb-3">
@@ -133,7 +160,7 @@
           <span class="text-muted small" id="qr-count"></span>
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-secondary" id="btn-download-png">
+          <button class="btn btn-sm btn-outline-secondary d-none" id="btn-download-png">
             <i class="bi bi-image me-1"></i>Chart PNG
           </button>
           <button class="btn btn-sm btn-success" id="btn-quick-export">
@@ -144,18 +171,12 @@
           </button>
         </div>
       </div>
-
-      <!-- Chart -->
       <div id="chart-wrapper" class="card shadow-sm mb-3 d-none">
-        <div class="card-body">
-          <canvas id="quick-chart"></canvas>
-        </div>
+        <div class="card-body"><canvas id="quick-chart"></canvas></div>
       </div>
-
-      <!-- Table -->
       <div class="card shadow-sm">
         <div class="table-responsive">
-          <table class="table table-hover table-sm mb-0 align-middle" id="quick-table">
+          <table class="table table-hover table-sm mb-0 align-middle result-table">
             <thead class="table-light" id="quick-thead"></thead>
             <tbody id="quick-tbody"></tbody>
           </table>
@@ -163,17 +184,15 @@
       </div>
     </div>
 
-    <!-- Empty state -->
     <div id="quick-empty" class="text-center text-muted py-5">
       <i class="bi bi-bar-chart-line fs-1 d-block mb-2 text-primary opacity-50"></i>
       <p class="mb-0">Click a report card above to generate results.</p>
     </div>
-
-    <!-- Loading -->
     <div id="quick-loading" class="text-center py-5 d-none">
       <div class="spinner-border text-primary"></div>
       <p class="mt-2 text-muted">Loading report…</p>
     </div>
+
   </div><!-- /pane-quick -->
 
 
@@ -181,56 +200,58 @@
        TAB 2: REPORT BUILDER
   ══════════════════════════════════════════════════════ -->
   <div id="pane-builder" class="d-none">
+    <div class="row g-0">
 
-    <div class="row g-4">
-      <!-- Left: Builder Config -->
-      <div class="col-lg-5 col-xl-4">
+      <!-- ── LEFT: Config panel ── -->
+      <div class="col-lg-4 pe-lg-4" style="border-right:2px solid #e9ecef">
 
         <!-- Step 1: Entity -->
         <div class="card shadow-sm mb-3">
-          <div class="card-header bg-white py-2">
-            <span class="step-badge bg-primary text-white me-2">1</span>
+          <div class="card-header bg-white border-bottom-0 py-2 d-flex align-items-center gap-2">
+            <span class="step-num">1</span>
             <span class="fw-semibold">Select Data Source</span>
           </div>
-          <div class="card-body p-3">
+          <div class="card-body pt-0 px-3 pb-3">
+            <!-- Entity mini-cards built by JS -->
             <div id="builder-entities" class="d-flex flex-wrap gap-2"></div>
           </div>
         </div>
 
-        <!-- Step 2: Columns -->
-        <div class="card shadow-sm mb-3" id="builder-col-card" style="display:none!important">
-          <div class="card-header bg-white py-2">
-            <span class="step-badge bg-primary text-white me-2">2</span>
-            <span class="fw-semibold">Select Columns</span>
-            <button class="btn btn-link btn-sm float-end py-0 px-1" id="btn-select-all-cols">All</button>
-            <button class="btn btn-link btn-sm float-end py-0 px-1 text-muted" id="btn-clear-all-cols">None</button>
+        <!-- Step 2: Columns (hidden until entity selected) -->
+        <div class="card shadow-sm mb-3 d-none" id="builder-col-card">
+          <div class="card-header bg-white py-2 d-flex align-items-center gap-2">
+            <span class="step-num">2</span>
+            <span class="fw-semibold me-auto">Select Columns</span>
+            <button class="btn btn-link btn-sm py-0 px-1 text-primary text-decoration-none" id="btn-select-all-cols">All</button>
+            <span class="text-muted" style="font-size:.8rem">|</span>
+            <button class="btn btn-link btn-sm py-0 px-1 text-muted text-decoration-none" id="btn-clear-all-cols">None</button>
           </div>
-          <div class="card-body p-3">
-            <div id="builder-columns" class="row row-cols-1 g-1"></div>
+          <div class="card-body p-2">
+            <div id="builder-columns" class="row row-cols-2 g-0"></div>
           </div>
         </div>
 
-        <!-- Step 3: Filters -->
-        <div class="card shadow-sm mb-3" id="builder-filter-card" style="display:none!important">
-          <div class="card-header bg-white py-2">
-            <span class="step-badge bg-primary text-white me-2">3</span>
-            <span class="fw-semibold">Filters</span>
-            <button class="btn btn-sm btn-outline-primary float-end py-0" id="btn-add-filter">
+        <!-- Step 3: Filters (hidden until entity selected) -->
+        <div class="card shadow-sm mb-3 d-none" id="builder-filter-card">
+          <div class="card-header bg-white py-2 d-flex align-items-center gap-2">
+            <span class="step-num">3</span>
+            <span class="fw-semibold me-auto">Filters</span>
+            <button class="btn btn-outline-primary btn-sm py-0 px-2" id="btn-add-filter">
               <i class="bi bi-plus"></i> Add Filter
             </button>
           </div>
-          <div class="card-body p-3">
+          <div class="card-body p-2">
             <div id="builder-filters">
-              <p class="text-muted small mb-0" id="no-filters-msg">No filters added. Results will include all records.</p>
+              <p class="text-muted small mb-0 p-2" id="no-filters-msg">No filters — results include all records.</p>
             </div>
           </div>
         </div>
 
-        <!-- Step 4: Sort -->
-        <div class="card shadow-sm mb-3" id="builder-sort-card" style="display:none!important">
-          <div class="card-header bg-white py-2">
-            <span class="step-badge bg-primary text-white me-2">4</span>
-            <span class="fw-semibold">Sort</span>
+        <!-- Step 4: Sort & Date Range (hidden until entity selected) -->
+        <div class="card shadow-sm mb-3 d-none" id="builder-sort-card">
+          <div class="card-header bg-white py-2 d-flex align-items-center gap-2">
+            <span class="step-num">4</span>
+            <span class="fw-semibold">Sort &amp; Date Range</span>
           </div>
           <div class="card-body p-3">
             <div class="row g-2">
@@ -245,8 +266,6 @@
                   <option value="DESC">Z → A</option>
                 </select>
               </div>
-            </div>
-            <div class="row g-2 mt-1">
               <div class="col-6">
                 <label class="form-label small fw-semibold mb-1">Date from</label>
                 <input type="date" id="builder-from" class="form-control form-control-sm">
@@ -259,100 +278,83 @@
           </div>
         </div>
 
-        <!-- Step 5: Visualise -->
-        <div class="card shadow-sm mb-3" id="builder-chart-card" style="display:none!important">
-          <div class="card-header bg-white py-2">
-            <span class="step-badge bg-primary text-white me-2">5</span>
-            <span class="fw-semibold">Visualise (optional)</span>
-          </div>
-          <div class="card-body p-3">
-            <div class="row g-2">
-              <div class="col-6">
-                <label class="form-label small fw-semibold mb-1">Chart type</label>
-                <select id="builder-chart-type" class="form-select form-select-sm">
-                  <option value="none">— No chart —</option>
-                  <option value="bar">Bar</option>
-                  <option value="pie">Pie</option>
-                  <option value="doughnut">Doughnut</option>
-                  <option value="line">Line</option>
-                </select>
-              </div>
-              <div class="col-6">
-                <label class="form-label small fw-semibold mb-1">Group by</label>
-                <select id="builder-group-by" class="form-select form-select-sm"></select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Run button -->
-        <div id="builder-run-wrap" class="d-none">
-          <button class="btn btn-primary w-100 py-2 fw-semibold" id="btn-run-builder">
-            <i class="bi bi-play-fill me-1"></i>Run Report
-          </button>
-        </div>
+        <!-- Run button (hidden until entity selected) -->
+        <button class="btn btn-primary w-100 py-2 fw-semibold d-none" id="btn-run-builder">
+          <i class="bi bi-play-fill me-1"></i>Run Report
+        </button>
 
       </div><!-- /col config -->
 
-      <!-- Right: Builder Results -->
-      <div class="col-lg-7 col-xl-8">
+      <!-- ── RIGHT: Results panel ── -->
+      <div class="col-lg ps-lg-4 mt-4 mt-lg-0">
+
+        <!-- Placeholder -->
         <div id="builder-results-placeholder" class="text-center text-muted py-5">
           <i class="bi bi-sliders fs-1 d-block mb-2 text-primary opacity-50"></i>
-          <p class="mb-0">Configure your report on the left, then click <strong>Run Report</strong>.</p>
+          <p class="mb-1 fw-semibold">No report running yet</p>
+          <p class="mb-0 small">Select a data source and click <strong>Run Report</strong>.</p>
         </div>
+
+        <!-- Loading spinner -->
         <div id="builder-results-loading" class="text-center py-5 d-none">
-          <div class="spinner-border text-primary"></div>
-          <p class="mt-2 text-muted">Running query…</p>
+          <div class="spinner-border text-primary mb-2"></div>
+          <p class="text-muted mb-0">Running query…</p>
         </div>
+
+        <!-- Results -->
         <div id="builder-results-area" class="d-none">
-          <div class="d-flex align-items-center justify-content-between mb-3">
-            <div>
-              <h5 class="fw-bold mb-0" id="br-title">Query Results</h5>
-              <span class="text-muted small" id="br-count"></span>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-              <button class="btn btn-sm btn-outline-secondary" id="btn-br-png" style="display:none">
-                <i class="bi bi-image me-1"></i>Chart PNG
-              </button>
-              <button class="btn btn-sm btn-success" id="btn-br-excel">
-                <i class="bi bi-file-earmark-excel me-1"></i>Excel
-              </button>
-              <button class="btn btn-sm btn-outline-secondary" id="btn-br-csv">
-                <i class="bi bi-filetype-csv me-1"></i>CSV
-              </button>
-              <button class="btn btn-sm btn-outline-primary" id="btn-save-report">
-                <i class="bi bi-bookmark-plus me-1"></i>Save Report
-              </button>
-            </div>
+
+          <!-- Header: count + chart controls -->
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span class="fw-semibold me-auto" id="br-count"></span>
+            <select id="br-chart-type" class="form-select form-select-sm" style="width:auto">
+              <option value="none">No chart</option>
+              <option value="bar">Bar chart</option>
+              <option value="pie">Pie chart</option>
+              <option value="doughnut">Doughnut</option>
+              <option value="line">Line chart</option>
+            </select>
+            <select id="br-group-by" class="form-select form-select-sm d-none" style="width:auto">
+              <option value="">Group by…</option>
+            </select>
           </div>
 
-          <!-- Builder chart -->
+          <!-- Chart -->
           <div id="builder-chart-wrapper" class="card shadow-sm mb-3 d-none">
-            <div class="card-body">
+            <div class="card-body p-3">
               <canvas id="builder-chart"></canvas>
             </div>
           </div>
 
-          <!-- Builder table -->
-          <div class="card shadow-sm">
-            <div class="table-responsive" style="max-height:480px;overflow-y:auto">
-              <table class="table table-hover table-sm mb-0 align-middle" id="builder-table">
+          <!-- Table -->
+          <div class="card shadow-sm mb-3">
+            <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+              <table class="table table-hover table-sm mb-0 align-middle result-table">
                 <thead class="table-light sticky-top" id="builder-thead"></thead>
                 <tbody id="builder-tbody"></tbody>
               </table>
             </div>
           </div>
-        </div>
 
-        <!-- Saved Reports panel (shown in builder tab) -->
-        <div id="saved-reports-panel" class="mt-4 d-none">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <p class="section-label mb-0"><i class="bi bi-bookmark me-1"></i>Saved Reports</p>
+          <!-- Action buttons -->
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-success btn-sm" id="btn-br-excel">
+              <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-br-csv">
+              <i class="bi bi-filetype-csv me-1"></i>Export CSV
+            </button>
+            <button class="btn btn-outline-secondary btn-sm d-none" id="btn-br-png">
+              <i class="bi bi-image me-1"></i>Download Chart PNG
+            </button>
+            <button class="btn btn-outline-primary btn-sm" id="btn-save-report">
+              <i class="bi bi-bookmark-plus me-1"></i>Save as Quick Report
+            </button>
           </div>
-          <div id="saved-reports-list" class="d-flex flex-wrap gap-2"></div>
-        </div>
+
+        </div><!-- /builder-results-area -->
       </div><!-- /col results -->
-    </div>
+    </div><!-- /row -->
   </div><!-- /pane-builder -->
 
 </div><!-- /main-content -->
@@ -362,22 +364,23 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Save Report</h5>
+        <h5 class="modal-title fw-bold">Save as Quick Report</h5>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <label class="form-label fw-semibold">Report Name</label>
         <input type="text" id="save-report-name" class="form-control" placeholder="e.g. Active CS Students 2025">
+        <div class="form-text">This will appear as a card in the Quick Reports tab.</div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-primary" id="btn-confirm-save">Save</button>
+        <button class="btn btn-primary" id="btn-confirm-save"><i class="bi bi-bookmark-check me-1"></i>Save</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Confirm modal (shared) -->
+<!-- Confirm modal (shared utility) -->
 <div class="modal fade" id="confirm-modal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
