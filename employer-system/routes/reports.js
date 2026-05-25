@@ -147,7 +147,7 @@ const QUICK_REPORTS = {
     const dc = dateClause('DateAdded', from, to);
     const rows = db.prepare(`
       SELECT CompanyName AS "Name", Industry, Sector, Country,
-             DateAdded AS "Date Added", Website,
+             date(DateAdded) AS "Date Added", Website,
              CASE WHEN SignedMoU=1 THEN 'Yes' ELSE 'No' END AS "Signed MoU",
              CASE WHEN FavoriteEmployer=1 THEN 'Yes' ELSE 'No' END AS "Favorite"
       FROM Company WHERE Blacklisted=0${dc.sql}
@@ -226,7 +226,7 @@ const QUICK_REPORTS = {
   'new-companies': (db, from, to) => {
     const dc = dateClause('DateAdded', from, to);
     const rows = db.prepare(`
-      SELECT CompanyName AS "Name", Industry, Sector, Country, DateAdded AS "Date Added"
+      SELECT CompanyName AS "Name", Industry, Sector, Country, date(DateAdded) AS "Date Added"
       FROM Company WHERE 1=1${dc.sql}
       ORDER BY DateAdded DESC`).all(...dc.params);
     const agg = {};
@@ -266,8 +266,8 @@ const QUICK_REPORTS = {
     const weekEnd = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
-             o.InteractionType AS "Type", o.InteractionDate AS "Interaction Date",
-             o.FollowUpDate AS "Follow-Up Date", o.DiscussionItems AS "Discussion Items",
+             o.InteractionType AS "Type", date(o.InteractionDate) AS "Interaction Date",
+             date(o.FollowUpDate) AS "Follow-Up Date", o.DiscussionItems AS "Discussion Items",
              o.ActionPlan AS "Action Plan",
              CAST(julianday(o.FollowUpDate) - julianday('now') AS INTEGER) AS "_days_until",
              CASE
@@ -329,8 +329,8 @@ const QUICK_REPORTS = {
           se = makeFilter('ProposalDate'),    hf = makeFilter('DateReported');
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Name", c.Sector, c.Country,
-             c.DateAdded AS "Date Added",
-             (SELECT MAX(o.InteractionDate) FROM OutreachEngagement o WHERE o.CompanyID=c.CompanyID) AS "Last Outreach"
+             date(c.DateAdded) AS "Date Added",
+             date((SELECT MAX(o.InteractionDate) FROM OutreachEngagement o WHERE o.CompanyID=c.CompanyID)) AS "Last Outreach"
       FROM Company c WHERE c.Blacklisted=0
         AND (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${o.f})=0
         AND (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${r2.f})=0
@@ -391,7 +391,7 @@ const QUICK_REPORTS = {
     const dc = dateClause('r.DatePosted', from, to);
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", r.OpportunityTitle AS "Title",
-             r.DatePosted AS "Date", r.Mode, r.Status AS "Paid/Unpaid",
+             date(r.DatePosted) AS "Date", r.Mode, r.Status AS "Paid/Unpaid",
              r.TargetGroup AS "Target Group", r.HiredStudentAlumni AS "Hired",
              r.Country, r.Comment
       FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID
@@ -429,7 +429,7 @@ const QUICK_REPORTS = {
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
              h.FeedbackProvider AS "Provider", h.HiredStudentAlumni AS "Hired?",
-             h.HiredStudentName AS "Student Name", h.DateReported AS "Date"
+             h.HiredStudentName AS "Student Name", date(h.DateReported) AS "Date"
       FROM HiringFeedback h
       JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID
       WHERE 1=1${dc.sql} ORDER BY h.DateReported DESC`).all(...dc.params);
@@ -445,7 +445,7 @@ const QUICK_REPORTS = {
     const dc = dateClause('e.EventDate', from, to);
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
-             e.EventName AS "Event", e.EventDate AS "Date",
+             e.EventName AS "Event", date(e.EventDate) AS "Date",
              e.RegisteredStatus AS "Status",
              CASE WHEN e.CMUQAlumniAtBooth=1 THEN 'Yes' ELSE 'No' END AS "Alumni at Booth"
       FROM CareerEvent e
@@ -488,7 +488,7 @@ const QUICK_REPORTS = {
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", a.EngagementType AS "Type",
              a.GuestSpeakerName AS "Guest Speaker", a.FacultyName AS "Faculty",
-             a.CourseNumber||' – '||a.CourseTitle AS "Course", a.SessionDate AS "Date"
+             a.CourseNumber||' – '||a.CourseTitle AS "Course", date(a.SessionDate) AS "Date"
       FROM AcademicClassroomEngagement a
       JOIN Company c ON a.CompanyID=c.CompanyID
       WHERE 1=1${dc.sql} ORDER BY a.SessionDate DESC`).all(...dc.params);
@@ -507,7 +507,7 @@ const QUICK_REPORTS = {
     const rows = db.prepare(`
       SELECT c.CompanyName AS "Company", s.OrganizationName AS "Organization",
              s.StudentName AS "Student Name", s.EventTitle AS "Event Title",
-             s.EventDate AS "Date", s.CollaborationOutcome AS "Outcome"
+             date(s.EventDate) AS "Date", s.CollaborationOutcome AS "Outcome"
       FROM StudentLedEvent s JOIN Company c ON s.CompanyID=c.CompanyID
       WHERE 1=1${dc.sql} ORDER BY s.ProposalDate DESC`).all(...dc.params);
     const comp = rows.filter(r=>r.Outcome==='Completed').length;
@@ -523,7 +523,7 @@ const QUICK_REPORTS = {
     const rows = db.prepare(`
       SELECT a.GuestSpeakerName AS "Name", a.GuestTitle AS "Title",
              c.CompanyName AS "Company", a.CourseNumber||' – '||a.CourseTitle AS "Course",
-             a.TopicTheme AS "Topic", a.SessionDate AS "Date"
+             a.TopicTheme AS "Topic", date(a.SessionDate) AS "Date"
       FROM AcademicClassroomEngagement a JOIN Company c ON a.CompanyID=c.CompanyID
       WHERE 1=1${dc.sql} ORDER BY a.GuestSpeakerName`).all(...dc.params);
     const byCompany = {};
