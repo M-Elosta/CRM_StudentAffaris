@@ -19,6 +19,151 @@ async function fetchAPI(url, options = {}) {
   return data;
 }
 
+// ── Semester utilities (CMU-Q academic calendar) ──────────────────────────────
+// Fall:   Aug 1 – Dec 31   |   Spring: Jan 1 – May 31   |   Summer: Jun 1 – Jul 31
+function getSemester(date) {
+  const d = (date instanceof Date) ? date : new Date(date);
+  if (isNaN(d)) return null;
+  const m = d.getMonth() + 1, y = d.getFullYear();
+  if (m >= 8) return `Fall ${y}`;
+  if (m <= 5) return `Spring ${y}`;
+  return `Summer ${y}`;
+}
+
+function semesterRange(sem, year) {
+  year = Number(year);
+  if (sem === 'Fall')   return { from: `${year}-08-01`, to: `${year}-12-31` };
+  if (sem === 'Spring') return { from: `${year}-01-01`, to: `${year}-05-31` };
+  return { from: `${year}-06-01`, to: `${year}-07-31` }; // Summer
+}
+
+// Previous semester in chronological order: …Fall 2024 → Spring 2025 → Summer 2025 → Fall 2025…
+function prevSemester(sem, year) {
+  year = Number(year);
+  if (sem === 'Fall')   return { sem: 'Summer', year };
+  if (sem === 'Summer') return { sem: 'Spring', year };
+  return { sem: 'Fall', year: year - 1 }; // before Spring Y is Fall Y-1
+}
+
+// Academic year runs Aug 1 (startYear) – Jul 31 (startYear+1)
+function academicYearRange(startYear) {
+  startYear = Number(startYear);
+  return { from: `${startYear}-08-01`, to: `${startYear + 1}-07-31` };
+}
+
+// Semester containing today
+function currentSemester() {
+  const today = new Date();
+  const label = getSemester(today);
+  const [sem, year] = label.split(' ');
+  return { sem, year: Number(year) };
+}
+
+// ── Period filter widget ───────────────────────────────────────────────────────
+// Renders a 3-mode filter bar (Semester / Academic Year / Custom + Show All)
+// into containerEl. Calls onChange(range) whenever the selection changes.
+// range = { from, to, label, compare: {from, to, label} | null, showAll }
+function initPeriodFilter(containerEl, onChange, opts = {}) {
+  const cur = currentSemester();
+  const thisYear = new Date().getFullYear();
+  const years = [];
+  for (let y = thisYear + 1; y >= 2018; y--) years.push(y);
+
+  const yearOpts = years.map(y => `<option value="${y}" ${y === cur.year ? 'selected' : ''}>${y}</option>`).join('');
+  const ayStart  = cur.sem === 'Fall' ? cur.year : cur.year - 1;
+  const ayOpts   = years.filter(y => y <= thisYear).map(y =>
+    `<option value="${y}" ${y === ayStart ? 'selected' : ''}>${y}–${y + 1}</option>`).join('');
+
+  containerEl.innerHTML = `
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Period mode">
+        <button type="button" class="btn btn-primary pf-mode" data-mode="semester">Semester</button>
+        <button type="button" class="btn btn-outline-primary pf-mode" data-mode="ay">Academic Year</button>
+        <button type="button" class="btn btn-outline-primary pf-mode" data-mode="custom">Custom</button>
+      </div>
+
+      <!-- Semester mode -->
+      <div class="d-flex align-items-center gap-2 pf-pane" data-pane="semester">
+        <select class="form-select form-select-sm" id="pf-sem" style="width:auto">
+          <option ${cur.sem === 'Fall' ? 'selected' : ''}>Fall</option>
+          <option ${cur.sem === 'Spring' ? 'selected' : ''}>Spring</option>
+          <option ${cur.sem === 'Summer' ? 'selected' : ''}>Summer</option>
+        </select>
+        <select class="form-select form-select-sm" id="pf-year" style="width:auto">${yearOpts}</select>
+        <div class="form-check mb-0 ms-1">
+          <input class="form-check-input" type="checkbox" id="pf-compare">
+          <label class="form-check-label small fw-semibold text-nowrap" for="pf-compare">Compare to previous</label>
+        </div>
+      </div>
+
+      <!-- Academic year mode -->
+      <div class="d-flex align-items-center gap-2 pf-pane d-none" data-pane="ay">
+        <select class="form-select form-select-sm" id="pf-ay" style="width:auto">${ayOpts}</select>
+      </div>
+
+      <!-- Custom mode -->
+      <div class="d-flex align-items-center gap-2 pf-pane d-none" data-pane="custom">
+        <input type="date" id="pf-from" class="form-control form-control-sm" style="width:150px" title="From date">
+        <span class="text-muted small">to</span>
+        <input type="date" id="pf-to" class="form-control form-control-sm" style="width:150px" title="To date">
+      </div>
+
+      <div class="vr d-none d-sm-block" style="height:1.5rem"></div>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="pf-show-all" role="switch" ${opts.showAllDefault ? 'checked' : ''}>
+        <label class="form-check-label fw-semibold small" for="pf-show-all">Show All</label>
+      </div>
+    </div>`;
+
+  let mode = 'semester';
+
+  function getRange() {
+    const showAll = containerEl.querySelector('#pf-show-all').checked;
+    if (showAll) return { from: null, to: null, label: 'All time', compare: null, showAll: true };
+
+    if (mode === 'semester') {
+      const sem  = containerEl.querySelector('#pf-sem').value;
+      const year = Number(containerEl.querySelector('#pf-year').value);
+      const r    = semesterRange(sem, year);
+      let compare = null;
+      if (containerEl.querySelector('#pf-compare').checked) {
+        const p = prevSemester(sem, year);
+        compare = { ...semesterRange(p.sem, p.year), label: `${p.sem} ${p.year}` };
+      }
+      return { ...r, label: `${sem} ${year}`, compare, showAll: false };
+    }
+    if (mode === 'ay') {
+      const y = Number(containerEl.querySelector('#pf-ay').value);
+      return { ...academicYearRange(y), label: `AY ${y}–${y + 1}`, compare: null, showAll: false };
+    }
+    // custom
+    const from = containerEl.querySelector('#pf-from').value || null;
+    const to   = containerEl.querySelector('#pf-to').value || null;
+    return { from, to, label: 'Custom range', compare: null, showAll: false };
+  }
+
+  function fire() { onChange(getRange()); }
+
+  containerEl.querySelectorAll('.pf-mode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mode = btn.dataset.mode;
+      containerEl.querySelectorAll('.pf-mode').forEach(b => {
+        b.classList.toggle('btn-primary', b === btn);
+        b.classList.toggle('btn-outline-primary', b !== btn);
+      });
+      containerEl.querySelectorAll('.pf-pane').forEach(p =>
+        p.classList.toggle('d-none', p.dataset.pane !== mode));
+      fire();
+    });
+  });
+
+  ['#pf-sem', '#pf-year', '#pf-compare', '#pf-ay', '#pf-from', '#pf-to', '#pf-show-all'].forEach(sel => {
+    containerEl.querySelector(sel).addEventListener('change', fire);
+  });
+
+  return { getRange };
+}
+
 // ── Form validation ────────────────────────────────────────────────────────────
 // Marks every [required] field in the form invalid if empty; returns true if all
 // pass. Clears the red border automatically when the user edits the field.

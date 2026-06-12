@@ -20,19 +20,16 @@
       <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h4>
       <p class="text-muted small mb-0">CMU-Q Employer Relations Office</p>
     </div>
-    <!-- Date range -->
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <div class="form-check mb-0 me-1">
-        <input class="form-check-input" type="checkbox" id="dash-show-all" checked>
-        <label class="form-check-label small fw-semibold" for="dash-show-all">Show All</label>
-      </div>
-      <label class="small fw-semibold text-muted mb-0" id="lbl-from">From</label>
-      <input type="date" id="dash-from" class="form-control form-control-sm" style="width:150px" disabled>
-      <label class="small fw-semibold text-muted mb-0" id="lbl-to">To</label>
-      <input type="date" id="dash-to"   class="form-control form-control-sm" style="width:150px" disabled>
-      <button class="btn btn-sm btn-primary" id="btn-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
-    </div>
+    <button class="btn btn-sm btn-primary" id="btn-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
   </div>
+
+  <!-- Period filter: semester / academic year / custom -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body py-2 px-3" id="period-filter"></div>
+  </div>
+
+  <!-- Comparison strip (shown when "Compare to previous" is checked) -->
+  <div id="compare-strip" class="alert alert-light border shadow-sm py-2 px-3 d-none mb-3"></div>
 
   <!-- Stat cards -->
   <div class="row g-3 mb-4">
@@ -190,39 +187,84 @@ function downloadChart(canvasId, name) {
   a.click();
 }
 
-// ── Default date range: Jan 1 of current academic year → today ────────────────
-function defaultRange() {
-  const today = new Date();
-  const year  = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
-  return { from: `${year}-09-01`, to: today.toISOString().slice(0,10) };
-}
+let periodFilter = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const { from, to } = defaultRange();
-  document.getElementById('dash-from').value = from;
-  document.getElementById('dash-to').value   = to;
-
-  const showAllCb = document.getElementById('dash-show-all');
-  function syncDateControls() {
-    const off = showAllCb.checked;
-    document.getElementById('dash-from').disabled = off;
-    document.getElementById('dash-to').disabled   = off;
-  }
-  showAllCb.addEventListener('change', () => { syncDateControls(); loadAll(); });
-  syncDateControls();
-
+  periodFilter = initPeriodFilter(
+    document.getElementById('period-filter'),
+    () => loadAll(),
+    { showAllDefault: true }
+  );
   document.getElementById('btn-refresh').addEventListener('click', loadAll);
   await loadAll();
 });
 
+function rangeToQs(from, to) {
+  const parts = [];
+  if (from) parts.push(`from=${from}`);
+  if (to)   parts.push(`to=${to}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
+// Compare strip: totals for current vs previous semester across key activities
+async function loadCompareStrip(range) {
+  const strip = document.getElementById('compare-strip');
+  if (!range.compare) { strip.classList.add('d-none'); return; }
+
+  const sum = arr => arr.reduce((a, r) => a + (r.count || 0), 0);
+  const fetchTotals = async (from, to) => {
+    const qs = rangeToQs(from, to);
+    const [companies, outreach, events, hires] = await Promise.all([
+      fetchAPI(`/api/dashboard/companies-by-month${qs}`),
+      fetchAPI(`/api/dashboard/outreach-by-month${qs}`),
+      fetchAPI(`/api/dashboard/event-attendance${qs}`),
+      fetchAPI(`/api/dashboard/hiring-trends${qs}`),
+    ]);
+    return {
+      'Companies added':  sum(companies),
+      'Outreach':         sum(outreach),
+      'Event attendance': sum(events),
+      'Students hired':   sum(hires),
+    };
+  };
+
+  try {
+    const [cur, prev] = await Promise.all([
+      fetchTotals(range.from, range.to),
+      fetchTotals(range.compare.from, range.compare.to),
+    ]);
+    const cells = Object.keys(cur).map(k => {
+      const diff = cur[k] - prev[k];
+      const arrow = diff > 0 ? '<span class="text-success">▲</span>'
+                  : diff < 0 ? '<span class="text-danger">▼</span>'
+                  : '<span class="text-muted">—</span>';
+      const sign = diff > 0 ? '+' : '';
+      return `<div class="text-center px-3">
+        <div class="small text-muted">${k}</div>
+        <div class="fw-bold">${cur[k]} <span class="small fw-normal text-muted">vs ${prev[k]}</span> ${arrow} <span class="small">${sign}${diff}</span></div>
+      </div>`;
+    }).join('<div class="vr"></div>');
+    strip.innerHTML = `
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="badge bg-primary me-1">${range.label} vs ${range.compare.label}</span>
+        ${cells}
+      </div>`;
+    strip.classList.remove('d-none');
+  } catch (_) {
+    strip.classList.add('d-none');
+  }
+}
+
 async function loadAll() {
-  const showAll = document.getElementById('dash-show-all').checked;
-  const from = showAll ? '' : document.getElementById('dash-from').value;
-  const to   = showAll ? '' : document.getElementById('dash-to').value;
+  const range = periodFilter ? periodFilter.getRange() : { from: null, to: null, compare: null };
+  const from = range.from || '';
+  const to   = range.to   || '';
   const parts = [];
   if (from) parts.push(`from=${from}`);
   if (to)   parts.push(`to=${to}`);
   const q = parts.join('&');
+
+  loadCompareStrip(range);
 
   const btn = document.getElementById('btn-refresh');
   btn.disabled = true;

@@ -65,33 +65,26 @@ const REPORT_SECTIONS = [
 // ── State ──────────────────────────────────────────────────────────────────────
 let quickChart      = null;
 let activeQuickType = null;
+let periodFilter    = null;
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderReportSections();
 
-  document.getElementById('q-show-all').addEventListener('change', e => {
-    document.getElementById('q-from').disabled = e.target.checked;
-    document.getElementById('q-to').disabled   = e.target.checked;
-    if (activeQuickType) rerunActive();
-  });
-
-  document.getElementById('btn-clear-dates').addEventListener('click', () => {
-    document.getElementById('q-from').value = '';
-    document.getElementById('q-to').value   = '';
-    if (activeQuickType) rerunActive();
-  });
-
-  ['q-from', 'q-to'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => {
-      if (activeQuickType) rerunActive();
-    });
-  });
+  periodFilter = initPeriodFilter(
+    document.getElementById('period-filter'),
+    () => { if (activeQuickType) rerunActive(); },
+    { showAllDefault: true }
+  );
 
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
   document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
   document.getElementById('btn-print-quick').addEventListener('click', () => window.print());
 });
+
+function currentRange() {
+  return periodFilter ? periodFilter.getRange() : { from: null, to: null, compare: null, showAll: true };
+}
 
 function rerunActive() {
   const card = document.querySelector('.report-card.active');
@@ -147,9 +140,9 @@ function hexToRgba(hex, alpha) {
 // ── Quick Reports ──────────────────────────────────────────────────────────────
 async function runQuickReport(type, label) {
   activeQuickType = type;
-  const showAll = document.getElementById('q-show-all').checked;
-  const from    = showAll ? '' : (document.getElementById('q-from').value || '');
-  const to      = showAll ? '' : (document.getElementById('q-to').value   || '');
+  const range = currentRange();
+  const from  = range.from || '';
+  const to    = range.to   || '';
 
   // Show results panel immediately (with loading state)
   const section = document.getElementById('results-section');
@@ -172,7 +165,28 @@ async function runQuickReport(type, label) {
     if (to)   qs.set('to',   to);
     const data = await fetchAPI(`/api/reports/quick/${type}?${qs}`);
 
-    document.getElementById('qr-count').textContent = `${data.count} record${data.count !== 1 ? 's' : ''}`;
+    let countText = `${data.count} record${data.count !== 1 ? 's' : ''}`;
+    if (!range.showAll && range.label !== 'Custom range') countText += ` · ${range.label}`;
+
+    // "Compare to previous" — run the same report for the previous semester and show the delta
+    if (range.compare) {
+      try {
+        const cqs = new URLSearchParams();
+        if (range.compare.from) cqs.set('from', range.compare.from);
+        if (range.compare.to)   cqs.set('to',   range.compare.to);
+        const prev = await fetchAPI(`/api/reports/quick/${type}?${cqs}`);
+        const diff = data.count - prev.count;
+        const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '—';
+        const cls   = diff > 0 ? 'text-success' : diff < 0 ? 'text-danger' : 'text-muted';
+        const pct   = prev.count ? ` (${diff > 0 ? '+' : ''}${Math.round(diff / prev.count * 100)}%)` : '';
+        document.getElementById('qr-count').innerHTML =
+          `${countText} <span class="${cls} fw-semibold ms-1">${arrow} ${diff > 0 ? '+' : ''}${diff}${pct} vs ${escHtml(range.compare.label)} (${prev.count})</span>`;
+      } catch (_) {
+        document.getElementById('qr-count').textContent = countText;
+      }
+    } else {
+      document.getElementById('qr-count').textContent = countText;
+    }
 
     renderQuickTable(data.rows);
     renderQuickChart(data.chartData);
@@ -225,9 +239,9 @@ function renderQuickChart(chartData) {
 
 async function exportQuickExcel() {
   if (!activeQuickType) return;
-  const showAll = document.getElementById('q-show-all').checked;
-  const from    = showAll ? '' : (document.getElementById('q-from').value || '');
-  const to      = showAll ? '' : (document.getElementById('q-to').value   || '');
+  const range = currentRange();
+  const from  = range.from || '';
+  const to    = range.to   || '';
   const qs = new URLSearchParams({ export: '1' });
   if (from) qs.set('from', from);
   if (to)   qs.set('to',   to);
