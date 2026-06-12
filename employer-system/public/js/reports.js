@@ -79,12 +79,14 @@ const REPORT_SECTIONS = [
 let quickChart      = null;
 let activeQuickType = null;
 
+let repFilter = null;
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderReportSections();
 
-  ['rep-from', 'rep-to', 'rep-show-all'].forEach(id =>
-    document.getElementById(id).addEventListener('change', () => { if (activeQuickType) rerunActive(); }));
+  repFilter = initDateFilter('rep-from', 'rep-to', 'rep-show-all',
+    () => { if (activeQuickType) rerunActive(); });
 
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
   document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
@@ -92,11 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function currentRange() {
-  const showAll = document.getElementById('rep-show-all').checked;
-  return {
-    from: showAll ? null : (document.getElementById('rep-from').value || null),
-    to:   showAll ? null : (document.getElementById('rep-to').value   || null),
-  };
+  const r = repFilter ? repFilter.getRange() : { from: '', to: '' };
+  return { from: r.from || null, to: r.to || null };
 }
 
 function rerunActive() {

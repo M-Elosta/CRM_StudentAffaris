@@ -133,21 +133,106 @@ function showConfirmModal(title, body, onConfirm, confirmLabel = 'Delete', confi
   bsModal.show();
 }
 
-// ── Sidebar injection ──────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { href: '/index.html',                icon: 'bi-speedometer2',           label: 'Dashboard' },
-  { href: '/pages/companies.html',      icon: 'bi-building',               label: 'Companies' },
-  { href: '/pages/contacts.html',       icon: 'bi-people',                 label: 'Contacts' },
-  { href: '/pages/outreach.html',       icon: 'bi-chat-dots',              label: 'Outreach & Engagement' },
-  { href: '/pages/recruitment.html',    icon: 'bi-briefcase',              label: 'Recruitment' },
-  { href: '/pages/career-events.html',  icon: 'bi-calendar-event',         label: 'Career Events' },
-  { href: '/pages/student-events.html', icon: 'bi-mortarboard',            label: 'Student-Led Events' },
-  { href: '/pages/academic.html',       icon: 'bi-book',                   label: 'Academic Engagement' },
-  { href: '/pages/hiring-feedback.html',icon: 'bi-star',                   label: 'Hiring Feedback' },
-  { href: '/pages/collaboration.html',  icon: 'bi-diagram-3',              label: 'Potential Collaboration' },
-  { href: '/pages/reports.html',        icon: 'bi-file-earmark-bar-graph', label: 'Reports' },
-  { href: '/pages/import.html',         icon: 'bi-upload',                 label: 'Data Import',    adminOnly: true },
-  { href: '/pages/users.html',          icon: 'bi-people-fill',            label: 'Manage Users',   adminOnly: true },
+// ── Date utility ──────────────────────────────────────────────────────────────
+function formatRelativeDate(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (isNaN(d)) return null;
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dd    = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff  = Math.round((today - dd) / 86400000);
+  const time  = d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
+  if (diff === 0) return `today at ${time}`;
+  if (diff === 1) return `yesterday at ${time}`;
+  return d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Meta / last-updated cache ──────────────────────────────────────────────────
+let _metaCache = null;
+async function fetchLastUpdated() {
+  if (_metaCache) return _metaCache;
+  try { _metaCache = await fetchAPI('/api/meta/last-updated'); }
+  catch (_) { _metaCache = {}; }
+  return _metaCache;
+}
+
+// ── Show-All date filter helper ────────────────────────────────────────────────
+// fromId/toId = IDs of the date inputs, showAllId = ID of the toggle
+// Returns { getRange() }
+function initDateFilter(fromId, toId, showAllId, onChange) {
+  const fromEl    = document.getElementById(fromId);
+  const toEl      = document.getElementById(toId);
+  const showAllEl = document.getElementById(showAllId);
+  if (!fromEl || !toEl || !showAllEl) return null;
+
+  function applyState() {
+    const on = showAllEl.checked;
+    fromEl.disabled = on;
+    toEl.disabled   = on;
+  }
+
+  function defaultToCurrentSemester() {
+    const m = new Date().getMonth() + 1, y = new Date().getFullYear();
+    fromEl.value = m >= 8 ? `${y}-08-01` : m <= 5 ? `${y}-01-01` : `${y}-06-01`;
+    toEl.value   = m >= 8 ? `${y}-12-31` : m <= 5 ? `${y}-05-31` : `${y}-07-31`;
+  }
+
+  function getRange() {
+    if (showAllEl.checked) return { from: '', to: '' };
+    return { from: fromEl.value || '', to: toEl.value || '' };
+  }
+
+  showAllEl.addEventListener('change', () => {
+    if (!showAllEl.checked && !fromEl.value && !toEl.value) defaultToCurrentSemester();
+    applyState();
+    onChange(getRange());
+  });
+  [fromEl, toEl].forEach(el => el.addEventListener('change', () => {
+    if (!fromEl.value && !toEl.value) { showAllEl.checked = true; applyState(); }
+    onChange(getRange());
+  }));
+
+  applyState(); // initial — disable pickers since Show All is ON by default
+  return { getRange };
+}
+
+// ── Sidebar navigation sections ────────────────────────────────────────────────
+const NAV_SECTIONS = [
+  {
+    label: null,
+    items: [
+      { href: '/index.html', icon: 'bi-speedometer2', label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'RECORDS',
+    items: [
+      { href: '/pages/companies.html',       icon: 'bi-building',               label: 'Companies' },
+      { href: '/pages/contacts.html',        icon: 'bi-people',                 label: 'Contacts' },
+      { href: '/pages/outreach.html',        icon: 'bi-chat-dots',              label: 'Outreach & Engagement' },
+      { href: '/pages/recruitment.html',     icon: 'bi-briefcase',              label: 'Recruitment' },
+      { href: '/pages/career-events.html',   icon: 'bi-calendar-event',         label: 'Career Events' },
+      { href: '/pages/student-events.html',  icon: 'bi-mortarboard',            label: 'Student-Led Events' },
+      { href: '/pages/academic.html',        icon: 'bi-book',                   label: 'Academic Engagement' },
+      { href: '/pages/hiring-feedback.html', icon: 'bi-star',                   label: 'Hiring Feedback' },
+      { href: '/pages/collaboration.html',   icon: 'bi-diagram-3',              label: 'Potential Collaboration' },
+    ],
+  },
+  {
+    label: 'TOOLS',
+    items: [
+      { href: '/pages/reports.html', icon: 'bi-file-earmark-bar-graph', label: 'Reports' },
+      { href: '/pages/import.html',  icon: 'bi-upload',                 label: 'Data Import', adminOnly: true },
+    ],
+  },
+  {
+    label: 'ADMIN',
+    adminOnly: true,
+    items: [
+      { href: '/pages/users.html', icon: 'bi-people-fill', label: 'Manage Users' },
+    ],
+  },
 ];
 
 function injectSidebar() {
@@ -163,15 +248,24 @@ function injectSidebar() {
     return currentPath.endsWith(page);
   }
 
-  const items = NAV_ITEMS.map(item => {
-    const active = isActive(item.href) ? 'active' : '';
-    const adminCls = item.adminOnly ? ' admin-only' : '';
-    return `
-      <li class="nav-item${adminCls}">
+  // Build nav sections with divider labels
+  const navHtml = NAV_SECTIONS.map(section => {
+    const sectionAdminCls = section.adminOnly ? ' admin-only' : '';
+    const labelHtml = section.label
+      ? `<li class="nav-item px-3 pt-3 pb-1${sectionAdminCls}">
+           <span style="font-size:10px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.4);text-transform:uppercase">${section.label}</span>
+         </li>`
+      : '';
+    const itemsHtml = section.items.map(item => {
+      const active  = isActive(item.href) ? 'active' : '';
+      const itemCls = (item.adminOnly || section.adminOnly) ? ' admin-only' : '';
+      return `<li class="nav-item${itemCls}">
         <a href="${item.href}" class="nav-link ${active} text-white px-3 py-2">
           <i class="bi ${item.icon} me-2"></i>${item.label}
         </a>
       </li>`;
+    }).join('');
+    return labelHtml + itemsHtml;
   }).join('');
 
   placeholder.innerHTML = `
@@ -189,7 +283,7 @@ function injectSidebar() {
         <div class="fw-bold fs-6 text-white">ERO System</div>
         <div class="small text-secondary">CMU-Q Employer Relations</div>
       </div>
-      <ul class="nav flex-column flex-grow-1 mt-2 pb-3">${items}</ul>
+      <ul class="nav flex-column flex-grow-1 mt-2 pb-3">${navHtml}</ul>
       <div class="border-top border-secondary px-3 py-2">
         <div class="small text-secondary mb-2 text-truncate d-none" id="sidebar-username">
           <i class="bi bi-person-circle me-1"></i><span></span>
@@ -232,20 +326,57 @@ function injectSidebar() {
     link.addEventListener('click', closeSidebar);
   });
 
-  // Show who is signed in and apply role restrictions
-  fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(data => {
+  // Show who is signed in, apply role, populate last-updated indicators
+  fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(async data => {
     if (!data) return;
-    window.appRole = data.role || 'admin';
+    window.appRole   = data.role   || 'admin';
+    window.appUserId = data.userId || null;
     if (data.username) {
       const el = document.getElementById('sidebar-username');
       const roleLabel = window.appRole === 'viewer' ? ' (viewer)' : '';
       el.querySelector('span').textContent = `Signed in as ${data.username}${roleLabel}`;
       el.classList.remove('d-none');
     }
-    if (window.appRole === 'viewer') {
-      document.body.classList.add('role-viewer');
-    }
+    if (window.appRole === 'viewer') document.body.classList.add('role-viewer');
     document.dispatchEvent(new CustomEvent('approleready', { detail: { role: window.appRole } }));
+
+    // Populate any last-updated indicator on this page
+    const luEl = document.getElementById('page-last-updated');
+    if (luEl) {
+      const meta   = await fetchLastUpdated();
+      const entity = luEl.dataset.entity;
+      const ts     = meta[entity];
+      luEl.textContent = ts ? `Last updated: ${formatRelativeDate(ts)}` : 'No records yet.';
+    }
+
+    // Dashboard freshness strip
+    const freshEl = document.getElementById('data-freshness');
+    if (freshEl) {
+      const meta = await fetchLastUpdated();
+      const PAGE = {
+        companies: '/pages/companies.html', contacts: '/pages/contacts.html',
+        outreach: '/pages/outreach.html', recruitment: '/pages/recruitment.html',
+        careerEvents: '/pages/career-events.html', studentEvents: '/pages/student-events.html',
+        academic: '/pages/academic.html', hiringFeedback: '/pages/hiring-feedback.html',
+        collaboration: '/pages/collaboration.html',
+      };
+      const LABEL = {
+        companies: 'Companies', contacts: 'Contacts', outreach: 'Outreach',
+        recruitment: 'Recruitment', careerEvents: 'Career Events',
+        studentEvents: 'Student Events', academic: 'Academic', hiringFeedback: 'Hiring Feedback',
+        collaboration: 'Collaboration',
+      };
+      const sorted = Object.entries(meta)
+        .filter(([, ts]) => ts)
+        .sort((a, b) => new Date(b[1]) - new Date(a[1]))
+        .slice(0, 3);
+      if (sorted.length) {
+        const parts = sorted.map(([key, ts]) =>
+          `<a href="${PAGE[key]}" class="text-decoration-none text-reset">${LABEL[key]}</a> <span class="text-muted">(${formatRelativeDate(ts)})</span>`
+        ).join(' &middot; ');
+        freshEl.innerHTML = `<i class="bi bi-clock-history me-1 text-muted"></i><span class="text-muted small">Recently updated: </span>${parts}`;
+      }
+    }
   }).catch(() => {});
 
   // Logout

@@ -30,7 +30,7 @@ router.post('/logout', (req, res) => {
 // GET /api/auth/check
 router.get('/check', (req, res) => {
   if (req.session?.userId) {
-    res.json({ authenticated: true, username: req.session.username, role: req.session.role || 'admin' });
+    res.json({ authenticated: true, username: req.session.username, role: req.session.role || 'admin', userId: req.session.userId });
   } else {
     res.status(401).json({ authenticated: false });
   }

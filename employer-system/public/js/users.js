@@ -65,28 +65,37 @@ async function loadUsers() {
 }
 
 function renderUsers(users) {
-  const tbody = document.getElementById('users-tbody');
+  const tbody   = document.getElementById('users-tbody');
+  const selfId  = window.appUserId;
   if (!users.length) {
     tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">No users found.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = users.map(u => {
+    const isSelf = u.UserID === selfId;
     const roleBadge = u.Role === 'admin'
       ? `<span class="badge bg-primary">Admin</span>`
       : `<span class="badge bg-secondary">Viewer</span>`;
 
-    const roleSwitch = u.Role === 'admin'
-      ? `<button class="btn btn-sm btn-outline-secondary" onclick="changeRole(${u.UserID}, 'viewer')" title="Demote to Viewer"><i class="bi bi-arrow-down-circle me-1"></i>Set Viewer</button>`
-      : `<button class="btn btn-sm btn-outline-primary" onclick="changeRole(${u.UserID}, 'admin')" title="Promote to Admin"><i class="bi bi-arrow-up-circle me-1"></i>Set Admin</button>`;
+    const roleSwitch = isSelf
+      ? `<span class="badge bg-light text-muted border" title="You cannot change your own role">You</span>`
+      : u.Role === 'admin'
+        ? `<button class="btn btn-sm btn-outline-secondary" onclick="changeRole(${u.UserID}, 'viewer')" title="Demote to Viewer"><i class="bi bi-arrow-down-circle me-1"></i>Set Viewer</button>`
+        : `<button class="btn btn-sm btn-outline-primary"   onclick="changeRole(${u.UserID}, 'admin')"  title="Promote to Admin"><i class="bi bi-arrow-up-circle me-1"></i>Set Admin</button>`;
 
-    const deleteBtn = `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID}, '${escHtml(u.Username)}')" title="Delete"><i class="bi bi-trash"></i></button>`;
+    const deleteBtn = isSelf
+      ? ``
+      : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID}, '${escHtml(u.Username)}')" title="Delete"><i class="bi bi-trash"></i></button>`;
 
     const created = u.CreatedAt ? new Date(u.CreatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
     return `
-      <tr>
-        <td class="px-3 fw-semibold"><i class="bi bi-person-circle me-2 text-muted"></i>${escHtml(u.Username)}</td>
+      <tr${isSelf ? ' class="table-active"' : ''}>
+        <td class="px-3 fw-semibold">
+          <i class="bi bi-person-circle me-2 text-muted"></i>${escHtml(u.Username)}
+          ${isSelf ? '<span class="badge bg-light text-muted border ms-1 small">you</span>' : ''}
+        </td>
         <td>${roleBadge}</td>
         <td class="text-muted small">${created}</td>
         <td class="text-end px-3">${roleSwitch}${deleteBtn}</td>

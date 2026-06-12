@@ -190,15 +190,41 @@ body {
 }
 
 /* ── Role-based access: viewer mode ─────────────────────────────────────────── */
-/* Hide admin-only elements when user has viewer role */
-.role-viewer .admin-only { display: none !important; }
-/* Hide Add buttons (all pages use id="btn-add") */
-.role-viewer #btn-add { display: none !important; }
-/* Hide inline Edit / Delete buttons in table rows */
+.role-viewer .admin-only,
+.role-viewer #btn-add,
 .role-viewer button[title="Edit"],
 .role-viewer button[title="Delete"],
-.role-viewer button[title="Remove"] { display: none !important; }
-/* Hide the btn-delete in company/contact detail modals */
-.role-viewer #btn-delete { display: none !important; }
-/* Hide bulk import / data import page actions */
+.role-viewer button[title="Remove"],
+.role-viewer #btn-delete,
 .role-viewer #import-actions { display: none !important; }
+
+/* ── Sidebar section labels ──────────────────────────────────────────────────── */
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: rgba(255,255,255,.4);
+  text-transform: uppercase;
+  padding: 12px 12px 4px;
+  display: block;
+  pointer-events: none;
+}
+
+/* ── Import bulk-action toolbar ──────────────────────────────────────────────── */
+#bulk-toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#bulk-toolbar.visible { display: flex; }
+#bulk-toolbar .bulk-left  { display: flex; align-items: center; gap: 8px; }
+#bulk-toolbar .bulk-right { display: flex; align-items: center; gap: 6px; }

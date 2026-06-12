@@ -96,6 +96,7 @@ app.use('/api/reports',          require('./routes/reports'));
 app.use('/api/dashboard',        require('./routes/dashboard'));
 app.use('/api/import',           requireAdmin, require('./routes/import'));
 app.use('/api/users',            require('./routes/users'));
+app.use('/api/meta',             require('./routes/meta'));
 
 // Root redirect
 app.get('/', (req, res) => res.redirect('/index.html'));

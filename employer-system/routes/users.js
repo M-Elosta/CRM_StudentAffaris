@@ -9,52 +9,65 @@ function requireAdminSession(req, res, next) {
   next();
 }
 
-// GET /api/users — list all users (admin only)
+function adminCount(db) {
+  return db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Role='admin'").get().n;
+}
+
+// GET /api/users
 router.get('/', requireAdminSession, (req, res) => {
-  const db = req.app.locals.db;
-  const rows = db.prepare(
+  const rows = req.app.locals.db.prepare(
     "SELECT UserID, Username, Role, CreatedAt FROM Users ORDER BY CreatedAt"
   ).all();
   res.json(rows);
 });
 
-// POST /api/users — create user (admin only)
+// POST /api/users — create user
 router.post('/', requireAdminSession, async (req, res) => {
   const db = req.app.locals.db;
   const { username, password, role } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
-  if (password.length < 6)    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-  if (!['admin', 'viewer'].includes(role)) return res.status(400).json({ error: 'Role must be admin or viewer.' });
-
-  const existing = db.prepare('SELECT UserID FROM Users WHERE Username = ?').get(username.trim());
-  if (existing) return res.status(409).json({ error: 'Username already exists.' });
-
-  const hash = await bcrypt.hash(password, 12);
-  const result = db.prepare(
-    "INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, ?)"
-  ).run(username.trim(), hash, role);
+  if (!username || !password)                      return res.status(400).json({ error: 'Username and password are required.' });
+  if (password.length < 6)                         return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  if (!['admin', 'viewer'].includes(role))          return res.status(400).json({ error: 'Role must be admin or viewer.' });
+  if (db.prepare('SELECT UserID FROM Users WHERE Username=?').get(username.trim()))
+                                                    return res.status(409).json({ error: 'Username already exists.' });
+  const hash   = await bcrypt.hash(password, 12);
+  const result = db.prepare("INSERT INTO Users (Username,PasswordHash,Role) VALUES (?,?,?)").run(username.trim(), hash, role);
   res.status(201).json({ UserID: result.lastInsertRowid, Username: username.trim(), Role: role });
 });
 
-// PATCH /api/users/:id/role — change role (admin only, cannot change own role)
+// PATCH /api/users/:id/role — change role
 router.patch('/:id/role', requireAdminSession, (req, res) => {
-  const db  = req.app.locals.db;
-  const id  = Number(req.params.id);
+  const db   = req.app.locals.db;
+  const id   = Number(req.params.id);
   const { role } = req.body;
-  if (!['admin', 'viewer'].includes(role)) return res.status(400).json({ error: 'Role must be admin or viewer.' });
-  if (id === req.session.userId) return res.status(403).json({ error: 'Cannot change your own role.' });
-  const result = db.prepare('UPDATE Users SET Role = ? WHERE UserID = ?').run(role, id);
-  if (!result.changes) return res.status(404).json({ error: 'User not found.' });
+  if (!['admin', 'viewer'].includes(role))    return res.status(400).json({ error: 'Role must be admin or viewer.' });
+  if (id === req.session.userId)              return res.status(403).json({ error: 'Cannot change your own role.' });
+
+  // Block demoting the last admin
+  if (role === 'viewer') {
+    const target = db.prepare('SELECT Role FROM Users WHERE UserID=?').get(id);
+    if (!target)                              return res.status(404).json({ error: 'User not found.' });
+    if (target.Role === 'admin' && adminCount(db) <= 1)
+                                              return res.status(403).json({ error: 'Cannot remove the last admin account.' });
+  }
+  const result = db.prepare('UPDATE Users SET Role=? WHERE UserID=?').run(role, id);
+  if (!result.changes)                        return res.status(404).json({ error: 'User not found.' });
   res.json({ success: true });
 });
 
-// DELETE /api/users/:id — delete user (admin only, cannot delete self)
+// DELETE /api/users/:id — delete user
 router.delete('/:id', requireAdminSession, (req, res) => {
   const db = req.app.locals.db;
   const id = Number(req.params.id);
-  if (id === req.session.userId) return res.status(403).json({ error: 'Cannot delete your own account.' });
-  const result = db.prepare('DELETE FROM Users WHERE UserID = ?').run(id);
-  if (!result.changes) return res.status(404).json({ error: 'User not found.' });
+  if (id === req.session.userId)             return res.status(403).json({ error: 'Cannot delete your own account.' });
+
+  // Block deleting the last admin
+  const target = db.prepare('SELECT Role FROM Users WHERE UserID=?').get(id);
+  if (!target)                               return res.status(404).json({ error: 'User not found.' });
+  if (target.Role === 'admin' && adminCount(db) <= 1)
+                                             return res.status(403).json({ error: 'Cannot remove the last admin account.' });
+
+  db.prepare('DELETE FROM Users WHERE UserID=?').run(id);
   res.json({ success: true });
 });
 
