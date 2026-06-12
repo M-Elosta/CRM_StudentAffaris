@@ -39,6 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
   btnValidate.addEventListener('click', handleValidate);
   btnConfirm.addEventListener('click', handleConfirm);
   btnErrors.addEventListener('click', downloadErrors);
+
+  // Bulk action toolbar
+  document.getElementById('btn-bulk-skip').addEventListener('click',      () => applyBulkAction('skip'));
+  document.getElementById('btn-bulk-overwrite').addEventListener('click',  () => applyBulkAction('overwrite'));
+  document.getElementById('btn-bulk-create').addEventListener('click',    () => applyBulkAction('create_new'));
+  document.getElementById('btn-bulk-clear').addEventListener('click',     clearBulkSelection);
 });
 
 // ── Step badge helpers ──────────────────────────────────────────────────────────
@@ -200,11 +206,23 @@ function renderPreview(rows) {
   document.getElementById('summary-badges').innerHTML = `
     <span class="badge bg-success fs-6">${valid} ready</span>
     <span class="badge bg-warning text-dark fs-6">${dups} duplicate${dups !== 1 ? 's' : ''}</span>
-    <span class="badge bg-danger fs-6">${errors} error${errors !== 1 ? 's' : ''}</span>`;
+    <span class="badge bg-danger fs-6">${errors} error${errors !== 1 ? 's' : ''}</span>
+    ${dups > 0 ? '<span class="text-muted small ms-1 align-self-center"><i class="bi bi-info-circle me-1"></i>Check rows to apply a bulk action to duplicates</span>' : ''}`;
+
+  // Reset bulk toolbar
+  clearBulkSelection();
 
   const cols = rows.length ? Object.keys(rows[0].row).filter(k => !k.startsWith('__')) : [];
+
+  // Header: checkbox column only shown if there are duplicates
+  const checkboxTh = dups > 0
+    ? `<th style="width:36px" title="Select all duplicates">
+         <input type="checkbox" class="dup-check" id="check-all-dups" title="Select all duplicates">
+       </th>`
+    : '<th></th>';
+
   document.getElementById('preview-thead').innerHTML =
-    '<tr>' + ['#','Status',...cols,'Action'].map(c => `<th>${escHtml(c)}</th>`).join('') + '</tr>';
+    `<tr>${checkboxTh}` + ['#','Status',...cols,'Action'].map(c => `<th>${escHtml(c)}</th>`).join('') + '</tr>';
 
   document.getElementById('preview-tbody').innerHTML = rows.map((r, i) => {
     const rowClass = r.status === 'error' ? 'table-danger' : r.status === 'duplicate' ? 'table-warning' : '';
@@ -216,6 +234,10 @@ function renderPreview(rows) {
 
     const cells = cols.map(c => `<td class="small">${escHtml(String(r.row[c] ?? ''))}</td>`).join('');
 
+    const checkboxCell = r.status === 'duplicate'
+      ? `<td class="text-center"><input type="checkbox" class="dup-check row-select" data-index="${r.rowIndex ?? i}" title="Select this row"></td>`
+      : '<td></td>';
+
     const actionCell = r.status === 'duplicate'
       ? `<td><select class="form-select form-select-sm dup-action" data-index="${r.rowIndex ?? i}">
            <option value="skip">Skip</option>
@@ -226,8 +248,57 @@ function renderPreview(rows) {
         ? `<td><span class="text-danger small">${escHtml(r.errors.join(', '))}</span></td>`
         : '<td>—</td>';
 
-    return `<tr class="${rowClass}"><td>${i+1}</td><td>${statusBadge}</td>${cells}${actionCell}</tr>`;
+    return `<tr class="${rowClass}">${checkboxCell}<td>${i+1}</td><td>${statusBadge}</td>${cells}${actionCell}</tr>`;
   }).join('');
+
+  // Wire up select-all checkbox
+  const checkAll = document.getElementById('check-all-dups');
+  if (checkAll) {
+    checkAll.addEventListener('change', () => {
+      document.querySelectorAll('.row-select').forEach(cb => { cb.checked = checkAll.checked; });
+      updateBulkToolbar();
+    });
+  }
+
+  // Wire up individual row checkboxes
+  document.querySelectorAll('.row-select').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const all = document.querySelectorAll('.row-select');
+      const checked = document.querySelectorAll('.row-select:checked');
+      if (checkAll) checkAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      if (checkAll) checkAll.checked = checked.length === all.length;
+      updateBulkToolbar();
+    });
+  });
+}
+
+// ── Bulk selection helpers ──────────────────────────────────────────────────────
+function updateBulkToolbar() {
+  const checked = document.querySelectorAll('.row-select:checked');
+  const toolbar = document.getElementById('bulk-toolbar');
+  const countEl = document.getElementById('bulk-count');
+  const n = checked.length;
+  countEl.textContent = `${n} duplicate${n !== 1 ? 's' : ''} selected`;
+  toolbar.classList.toggle('visible', n > 0);
+}
+
+function applyBulkAction(action) {
+  const checked = document.querySelectorAll('.row-select:checked');
+  if (!checked.length) return;
+  checked.forEach(cb => {
+    const sel = document.querySelector(`.dup-action[data-index="${cb.dataset.index}"]`);
+    if (sel) sel.value = action;
+  });
+  const label = { skip: 'Skip', overwrite: 'Overwrite', create_new: 'Create New' }[action];
+  showToast(`${checked.length} row${checked.length !== 1 ? 's' : ''} set to "${label}"`);
+}
+
+function clearBulkSelection() {
+  document.querySelectorAll('.row-select').forEach(cb => { cb.checked = false; });
+  const checkAll = document.getElementById('check-all-dups');
+  if (checkAll) { checkAll.checked = false; checkAll.indeterminate = false; }
+  const toolbar = document.getElementById('bulk-toolbar');
+  if (toolbar) toolbar.classList.remove('visible');
 }
 
 // ── Confirm ─────────────────────────────────────────────────────────────────────
