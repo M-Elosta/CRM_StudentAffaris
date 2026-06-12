@@ -196,3 +196,17 @@ body {
   max-height: 70vh;
   overflow-y: auto;
 }
+
+/* ── Role-based access: viewer mode ─────────────────────────────────────────── */
+/* Hide admin-only elements when user has viewer role */
+.role-viewer .admin-only { display: none !important; }
+/* Hide Add buttons (all pages use id="btn-add") */
+.role-viewer #btn-add { display: none !important; }
+/* Hide inline Edit / Delete buttons in table rows */
+.role-viewer button[title="Edit"],
+.role-viewer button[title="Delete"],
+.role-viewer button[title="Remove"] { display: none !important; }
+/* Hide the btn-delete in company/contact detail modals */
+.role-viewer #btn-delete { display: none !important; }
+/* Hide bulk import / data import page actions */
+.role-viewer #import-actions { display: none !important; }

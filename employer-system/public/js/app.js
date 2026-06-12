@@ -291,7 +291,8 @@ const NAV_ITEMS = [
   { href: '/pages/hiring-feedback.html',icon: 'bi-star',                   label: 'Hiring Feedback' },
   { href: '/pages/collaboration.html',  icon: 'bi-diagram-3',              label: 'Potential Collaboration' },
   { href: '/pages/reports.html',        icon: 'bi-file-earmark-bar-graph', label: 'Reports' },
-  { href: '/pages/import.html',         icon: 'bi-upload',                 label: 'Data Import' },
+  { href: '/pages/import.html',         icon: 'bi-upload',                 label: 'Data Import',    adminOnly: true },
+  { href: '/pages/users.html',          icon: 'bi-people-fill',            label: 'Manage Users',   adminOnly: true },
 ];
 
 function injectSidebar() {
@@ -309,8 +310,9 @@ function injectSidebar() {
 
   const items = NAV_ITEMS.map(item => {
     const active = isActive(item.href) ? 'active' : '';
+    const adminCls = item.adminOnly ? ' admin-only' : '';
     return `
-      <li class="nav-item">
+      <li class="nav-item${adminCls}">
         <a href="${item.href}" class="nav-link ${active} text-white px-3 py-2">
           <i class="bi ${item.icon} me-2"></i>${item.label}
         </a>
@@ -375,13 +377,20 @@ function injectSidebar() {
     link.addEventListener('click', closeSidebar);
   });
 
-  // Show who is signed in
+  // Show who is signed in and apply role restrictions
   fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(data => {
-    if (data?.username) {
+    if (!data) return;
+    window.appRole = data.role || 'admin';
+    if (data.username) {
       const el = document.getElementById('sidebar-username');
-      el.querySelector('span').textContent = `Signed in as ${data.username}`;
+      const roleLabel = window.appRole === 'viewer' ? ' (viewer)' : '';
+      el.querySelector('span').textContent = `Signed in as ${data.username}${roleLabel}`;
       el.classList.remove('d-none');
     }
+    if (window.appRole === 'viewer') {
+      document.body.classList.add('role-viewer');
+    }
+    document.dispatchEvent(new CustomEvent('approleready', { detail: { role: window.appRole } }));
   }).catch(() => {});
 
   // Logout

@@ -18,12 +18,15 @@ const schema = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), '
 db.exec(schema);
 app.locals.db = db;
 
+// ── Schema migrations for existing databases ───────────────────────────────────
+try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
+
 // ── Seed default admin user on first run ───────────────────────────────────────
 (async () => {
   const count = db.prepare('SELECT COUNT(*) AS n FROM Users').get().n;
   if (count === 0) {
     const hash = await bcrypt.hash('admin123', 12);
-    db.prepare("INSERT INTO Users (Username, PasswordHash) VALUES ('admin', ?)").run(hash);
+    db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES ('admin', ?, 'admin')").run(hash);
     console.log('Default user created — username: admin, password: admin123');
   }
 })();
@@ -66,21 +69,33 @@ function requireAuth(req, res, next) {
 app.use(requireAuth);
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── Viewer role: block all state-changing requests ────────────────────────────
+function requireAdmin(req, res, next) {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const role = req.session?.role || 'admin';
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
+    }
+  }
+  next();
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
 app.use('/api/auth/login',       loginRateLimiter);
 app.use('/api/auth',             require('./routes/auth'));
-app.use('/api/companies',        require('./routes/companies'));
-app.use('/api/contacts',         require('./routes/contacts'));
-app.use('/api/outreach',         require('./routes/outreach'));
-app.use('/api/recruitment',      require('./routes/recruitment'));
-app.use('/api/career-events',    require('./routes/career-events'));
-app.use('/api/collaboration',    require('./routes/collaboration'));
-app.use('/api/academic',         require('./routes/academic'));
-app.use('/api/student-events',   require('./routes/student-events'));
-app.use('/api/hiring-feedback',  require('./routes/hiring-feedback'));
+app.use('/api/companies',        requireAdmin, require('./routes/companies'));
+app.use('/api/contacts',         requireAdmin, require('./routes/contacts'));
+app.use('/api/outreach',         requireAdmin, require('./routes/outreach'));
+app.use('/api/recruitment',      requireAdmin, require('./routes/recruitment'));
+app.use('/api/career-events',    requireAdmin, require('./routes/career-events'));
+app.use('/api/collaboration',    requireAdmin, require('./routes/collaboration'));
+app.use('/api/academic',         requireAdmin, require('./routes/academic'));
+app.use('/api/student-events',   requireAdmin, require('./routes/student-events'));
+app.use('/api/hiring-feedback',  requireAdmin, require('./routes/hiring-feedback'));
 app.use('/api/reports',          require('./routes/reports'));
 app.use('/api/dashboard',        require('./routes/dashboard'));
-app.use('/api/import',           require('./routes/import'));
+app.use('/api/import',           requireAdmin, require('./routes/import'));
+app.use('/api/users',            require('./routes/users'));
 
 // Root redirect
 app.get('/', (req, res) => res.redirect('/index.html'));

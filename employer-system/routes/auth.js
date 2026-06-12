@@ -18,7 +18,8 @@ router.post('/login', async (req, res) => {
 
   req.session.userId   = user.UserID;
   req.session.username = user.Username;
-  res.json({ success: true, username: user.Username });
+  req.session.role     = user.Role || 'admin';
+  res.json({ success: true, username: user.Username, role: req.session.role });
 });
 
 // POST /api/auth/logout
@@ -29,7 +30,7 @@ router.post('/logout', (req, res) => {
 // GET /api/auth/check
 router.get('/check', (req, res) => {
   if (req.session?.userId) {
-    res.json({ authenticated: true, username: req.session.username });
+    res.json({ authenticated: true, username: req.session.username, role: req.session.role || 'admin' });
   } else {
     res.status(401).json({ authenticated: false });
   }

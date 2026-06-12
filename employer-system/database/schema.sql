@@ -271,6 +271,7 @@ CREATE TABLE IF NOT EXISTS Users (
     UserID       INTEGER PRIMARY KEY AUTOINCREMENT,
     Username     TEXT UNIQUE NOT NULL,
     PasswordHash TEXT NOT NULL,
+    Role         TEXT NOT NULL DEFAULT 'admin',
     CreatedAt    DATETIME DEFAULT (datetime('now'))
 );
 
