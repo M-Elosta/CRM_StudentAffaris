@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>/* FOUC guard: paint app bg before external CSS loads */html,body{background-color:#f5f6fa}</style>
+  <style>/* FOUC guard: paint app bg + sidebar before external CSS loads */html,body{background-color:#f5f6fa}@media(min-width:768px){body::before{content:"";position:fixed;top:0;left:0;bottom:0;width:240px;background:#212529;z-index:-1}}</style>
   <title>Reports — ERO System</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -109,7 +109,17 @@
   <!-- ── Filter Bar ── -->
   <div class="card mb-4" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e9ecef">
     <div class="card-body py-3 px-4">
-      <div id="period-filter"></div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <label class="small fw-semibold text-muted mb-0" for="rep-from">From</label>
+        <input type="date" id="rep-from" class="form-control form-control-sm" style="width:150px">
+        <label class="small fw-semibold text-muted mb-0" for="rep-to">To</label>
+        <input type="date" id="rep-to" class="form-control form-control-sm" style="width:150px">
+        <div class="vr d-none d-sm-block" style="height:1.5rem"></div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="rep-show-all" role="switch" checked>
+          <label class="form-check-label fw-semibold small" for="rep-show-all">Show All</label>
+        </div>
+      </div>
     </div>
   </div>
 

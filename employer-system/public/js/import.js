@@ -229,7 +229,7 @@ function renderPreview(rows) {
     const statusBadge = r.status === 'error'
       ? `<span class="badge bg-danger" title="${escHtml(r.errors.join('; '))}">Error <i class="bi bi-info-circle"></i></span>`
       : r.status === 'duplicate'
-        ? '<span class="badge bg-warning text-dark">Duplicate</span>'
+        ? `<span class="badge bg-warning text-dark" title="${escHtml(r.dupReason || 'Already exists in the database')}">Duplicate <i class="bi bi-info-circle"></i></span>`
         : '<span class="badge bg-success">Valid</span>';
 
     const cells = cols.map(c => `<td class="small">${escHtml(String(r.row[c] ?? ''))}</td>`).join('');

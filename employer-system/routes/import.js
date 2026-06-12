@@ -103,6 +103,82 @@ function findCanonical(value, allowed) {
          null;
 }
 
+// ── Duplicate detection ─────────────────────────────────────────────────────────
+// Returns { id, reason } when a matching record already exists in the database.
+function findExistingDuplicate(db, entity, row) {
+  const lc = v => String(v ?? '').trim().toLowerCase();
+  try {
+    switch (entity) {
+      case 'Company':
+        if (!row.CompanyName) return null;
+        { const r = db.prepare('SELECT CompanyID AS id FROM Company WHERE LOWER(TRIM(CompanyName))=?').get(lc(row.CompanyName));
+          if (r) return { id: r.id, reason: `Company "${row.CompanyName}" already exists` }; }
+        return null;
+      case 'Contact':
+        if (!row.EmailAddress || !row.CompanyID) return null;
+        { const r = db.prepare('SELECT ContactID AS id FROM Contact WHERE LOWER(TRIM(EmailAddress))=? AND CompanyID=?').get(lc(row.EmailAddress), row.CompanyID);
+          if (r) return { id: r.id, reason: `Contact with email "${row.EmailAddress}" already exists at this company` }; }
+        return null;
+      case 'Outreach':
+        if (!row.CompanyID || !row.ContactID || !row.InteractionDate) return null;
+        { const r = db.prepare('SELECT OutreachEngagementID AS id FROM OutreachEngagement WHERE CompanyID=? AND ContactID=? AND InteractionDate=? AND InteractionType=?')
+            .get(row.CompanyID, row.ContactID, row.InteractionDate, row.InteractionType || '');
+          if (r) return { id: r.id, reason: `Same contact, date and interaction type already recorded` }; }
+        return null;
+      case 'Recruitment':
+        if (!row.CompanyID || !row.OpportunityTitle) return null;
+        { const r = row.DatePosted
+            ? db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=? AND DatePosted=?').get(row.CompanyID, lc(row.OpportunityTitle), row.DatePosted)
+            : db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=?').get(row.CompanyID, lc(row.OpportunityTitle));
+          if (r) return { id: r.id, reason: `Posting "${row.OpportunityTitle}" already exists for this company` }; }
+        return null;
+      case 'Career Event':
+        if (!row.CompanyID || !row.EventName || !row.EventDate) return null;
+        { const r = db.prepare('SELECT CareerEventID AS id FROM CareerEvent WHERE CompanyID=? AND LOWER(TRIM(EventName))=? AND EventDate=?').get(row.CompanyID, lc(row.EventName), row.EventDate);
+          if (r) return { id: r.id, reason: `This company is already registered for "${row.EventName}" on ${row.EventDate}` }; }
+        return null;
+      case 'Student-Led Event':
+        if (!row.CompanyID || !row.ProposalDate || !row.StudentEmail) return null;
+        { const r = db.prepare('SELECT StudentLedEventID AS id FROM StudentLedEvent WHERE CompanyID=? AND ProposalDate=? AND LOWER(TRIM(StudentEmail))=?').get(row.CompanyID, row.ProposalDate, lc(row.StudentEmail));
+          if (r) return { id: r.id, reason: `Same student proposal for this company on ${row.ProposalDate} already exists` }; }
+        return null;
+      case 'Academic Engagement':
+        if (!row.CompanyID || !row.SessionDate || !row.GuestSpeakerName) return null;
+        { const r = db.prepare('SELECT EngagementID AS id FROM AcademicClassroomEngagement WHERE CompanyID=? AND SessionDate=? AND LOWER(TRIM(GuestSpeakerName))=?').get(row.CompanyID, row.SessionDate, lc(row.GuestSpeakerName));
+          if (r) return { id: r.id, reason: `${row.GuestSpeakerName} already has a session on ${row.SessionDate}` }; }
+        return null;
+      case 'Hiring Feedback':
+        if (!row.CompanyID || !row.ContactID || !row.DateReported) return null;
+        { const r = db.prepare('SELECT HiringFeedbackID AS id FROM HiringFeedback WHERE CompanyID=? AND ContactID=? AND DateReported=?').get(row.CompanyID, row.ContactID, row.DateReported);
+          if (r) return { id: r.id, reason: `Feedback from this contact on ${row.DateReported} already exists` }; }
+        return null;
+      case 'Potential Collaboration':
+        if (!row.CompanyID) return null;
+        { const r = db.prepare('SELECT PotentialCollaborationID AS id FROM PotentialCollaboration WHERE CompanyID=?').get(row.CompanyID);
+          if (r) return { id: r.id, reason: `A collaboration record already exists for this company` }; }
+        return null;
+      default: return null;
+    }
+  } catch (_) { return null; }
+}
+
+// Key used to spot duplicate rows *within the same uploaded file*
+function inFileDupKey(entity, row) {
+  const lc = v => String(v ?? '').trim().toLowerCase();
+  switch (entity) {
+    case 'Company':                 return row.CompanyName ? `c|${lc(row.CompanyName)}` : null;
+    case 'Contact':                 return row.EmailAddress && row.CompanyID ? `ct|${row.CompanyID}|${lc(row.EmailAddress)}` : null;
+    case 'Outreach':                return row.CompanyID && row.ContactID && row.InteractionDate ? `o|${row.CompanyID}|${row.ContactID}|${row.InteractionDate}|${lc(row.InteractionType)}` : null;
+    case 'Recruitment':             return row.CompanyID && row.OpportunityTitle ? `r|${row.CompanyID}|${lc(row.OpportunityTitle)}|${row.DatePosted || ''}` : null;
+    case 'Career Event':            return row.CompanyID && row.EventName && row.EventDate ? `ce|${row.CompanyID}|${lc(row.EventName)}|${row.EventDate}` : null;
+    case 'Student-Led Event':       return row.CompanyID && row.ProposalDate && row.StudentEmail ? `se|${row.CompanyID}|${row.ProposalDate}|${lc(row.StudentEmail)}` : null;
+    case 'Academic Engagement':     return row.CompanyID && row.SessionDate && row.GuestSpeakerName ? `ae|${row.CompanyID}|${row.SessionDate}|${lc(row.GuestSpeakerName)}` : null;
+    case 'Hiring Feedback':         return row.CompanyID && row.ContactID && row.DateReported ? `hf|${row.CompanyID}|${row.ContactID}|${row.DateReported}` : null;
+    case 'Potential Collaboration': return row.CompanyID ? `pc|${row.CompanyID}` : null;
+    default: return null;
+  }
+}
+
 // GET /api/import/template/:entity
 router.get('/template/:entity', (req, res) => {
   const entity = decodeURIComponent(req.params.entity);
@@ -142,6 +218,8 @@ router.post('/validate', (req, res) => {
 
   const def = ENTITY_FIELDS[entity];
   if (!def) return res.status(400).json({ error: 'Unknown entity' });
+
+  const seenKeys = new Map(); // in-file duplicate tracking: key → first row number
 
   const result = rows.map((raw, idx) => {
     // Apply mapping
@@ -276,20 +354,27 @@ router.post('/validate', (req, res) => {
       }
     }
 
-    // Duplicate detection
-    let duplicate = false;
-    try {
-      if (entity === 'Company' && row.CompanyName) {
-        const existing = db.prepare('SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName))=LOWER(TRIM(?))').get(row.CompanyName);
-        if (existing) { duplicate = true; row.__existingId = existing.CompanyID; }
-      }
-      if (entity === 'Contact' && row.EmailAddress && row.CompanyID) {
-        const existing = db.prepare('SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress))=LOWER(TRIM(?)) AND CompanyID=?').get(row.EmailAddress, row.CompanyID);
-        if (existing) { duplicate = true; row.__existingId = existing.ContactID; }
-      }
-    } catch (_) {}
+    // Duplicate detection — against the database (all entities)
+    let duplicate = false, dupReason = null;
+    const existing = findExistingDuplicate(db, entity, row);
+    if (existing) {
+      duplicate = true;
+      row.__existingId = existing.id;
+      dupReason = existing.reason;
+    }
 
-    return { rowIndex: idx, row, errors, duplicate, status: errors.length > 0 ? 'error' : (duplicate ? 'duplicate' : 'valid') };
+    // Duplicate detection — within the uploaded file itself
+    const key = inFileDupKey(entity, row);
+    if (key) {
+      if (seenKeys.has(key) && !duplicate) {
+        duplicate = true;
+        dupReason = `Duplicate of row ${seenKeys.get(key)} in this file`;
+      } else if (!seenKeys.has(key)) {
+        seenKeys.set(key, idx + 1);
+      }
+    }
+
+    return { rowIndex: idx, row, errors, duplicate, dupReason, status: errors.length > 0 ? 'error' : (duplicate ? 'duplicate' : 'valid') };
   });
 
   res.json(result);
@@ -350,6 +435,18 @@ router.post('/confirm', (req, res) => {
     },
   };
 
+  // Overwrite for non-Company/Contact entities = delete existing + insert fresh
+  // (child rows cascade via ON DELETE CASCADE)
+  const DELETE_BY_PK = {
+    Outreach:                  'DELETE FROM OutreachEngagement WHERE OutreachEngagementID=?',
+    Recruitment:               'DELETE FROM Recruitment WHERE RecruitmentID=?',
+    'Career Event':            'DELETE FROM CareerEvent WHERE CareerEventID=?',
+    'Student-Led Event':       'DELETE FROM StudentLedEvent WHERE StudentLedEventID=?',
+    'Academic Engagement':     'DELETE FROM AcademicClassroomEngagement WHERE EngagementID=?',
+    'Hiring Feedback':         'DELETE FROM HiringFeedback WHERE HiringFeedbackID=?',
+    'Potential Collaboration': 'DELETE FROM PotentialCollaboration WHERE PotentialCollaborationID=?',
+  };
+
   for (const { row, action } of rows) {
     if (action === 'skip') { skipped++; continue; }
     try {
@@ -358,6 +455,9 @@ router.post('/confirm', (req, res) => {
           db.prepare(`UPDATE Company SET CompanyName=?,Industry=?,Sector=?,Country=?,Address=?,Website=?,Comment=? WHERE CompanyID=?`).run(row.CompanyName,row.Industry,row.Sector,row.Country,row.Address||null,row.Website||null,row.Comment||null,row.__existingId);
         } else if (entity === 'Contact') {
           db.prepare(`UPDATE Contact SET FirstName=?,LastName=?,JobTitle=?,WorkPhone=?,Mobile=?,Status=? WHERE ContactID=?`).run(row.FirstName,row.LastName,row.JobTitle||null,row.WorkPhone||null,row.Mobile||null,row.Status||'Mailable',row.__existingId);
+        } else if (DELETE_BY_PK[entity]) {
+          db.prepare(DELETE_BY_PK[entity]).run(row.__existingId);
+          insertFns[entity](db, row);
         }
         updated++;
       } else {

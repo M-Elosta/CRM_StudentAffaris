@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>/* FOUC guard: paint app bg before external CSS loads */html,body{background-color:#f5f6fa}</style>
+  <style>/* FOUC guard: paint app bg + sidebar before external CSS loads */html,body{background-color:#f5f6fa}@media(min-width:768px){body::before{content:"";position:fixed;top:0;left:0;bottom:0;width:240px;background:#212529;z-index:-1}}</style>
   <title>Dashboard — ERO System</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -23,13 +23,22 @@
     <button class="btn btn-sm btn-primary" id="btn-refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
   </div>
 
-  <!-- Period filter: semester / academic year / custom -->
+  <!-- Date range filter -->
   <div class="card shadow-sm mb-3">
-    <div class="card-body py-2 px-3" id="period-filter"></div>
+    <div class="card-body py-2 px-3">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <label class="small fw-semibold text-muted mb-0" for="dash-from">From</label>
+        <input type="date" id="dash-from" class="form-control form-control-sm" style="width:150px">
+        <label class="small fw-semibold text-muted mb-0" for="dash-to">To</label>
+        <input type="date" id="dash-to" class="form-control form-control-sm" style="width:150px">
+        <div class="vr d-none d-sm-block" style="height:1.5rem"></div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="dash-show-all" role="switch" checked>
+          <label class="form-check-label fw-semibold small" for="dash-show-all">Show All</label>
+        </div>
+      </div>
+    </div>
   </div>
-
-  <!-- Comparison strip (shown when "Compare to previous" is checked) -->
-  <div id="compare-strip" class="alert alert-light border shadow-sm py-2 px-3 d-none mb-3"></div>
 
   <!-- Stat cards -->
   <div class="row g-3 mb-4">
@@ -187,84 +196,21 @@ function downloadChart(canvasId, name) {
   a.click();
 }
 
-let periodFilter = null;
-
 document.addEventListener('DOMContentLoaded', async () => {
-  periodFilter = initPeriodFilter(
-    document.getElementById('period-filter'),
-    () => loadAll(),
-    { showAllDefault: true }
-  );
+  ['dash-from', 'dash-to', 'dash-show-all'].forEach(id =>
+    document.getElementById(id).addEventListener('change', loadAll));
   document.getElementById('btn-refresh').addEventListener('click', loadAll);
   await loadAll();
 });
 
-function rangeToQs(from, to) {
-  const parts = [];
-  if (from) parts.push(`from=${from}`);
-  if (to)   parts.push(`to=${to}`);
-  return parts.length ? `?${parts.join('&')}` : '';
-}
-
-// Compare strip: totals for current vs previous semester across key activities
-async function loadCompareStrip(range) {
-  const strip = document.getElementById('compare-strip');
-  if (!range.compare) { strip.classList.add('d-none'); return; }
-
-  const sum = arr => arr.reduce((a, r) => a + (r.count || 0), 0);
-  const fetchTotals = async (from, to) => {
-    const qs = rangeToQs(from, to);
-    const [companies, outreach, events, hires] = await Promise.all([
-      fetchAPI(`/api/dashboard/companies-by-month${qs}`),
-      fetchAPI(`/api/dashboard/outreach-by-month${qs}`),
-      fetchAPI(`/api/dashboard/event-attendance${qs}`),
-      fetchAPI(`/api/dashboard/hiring-trends${qs}`),
-    ]);
-    return {
-      'Companies added':  sum(companies),
-      'Outreach':         sum(outreach),
-      'Event attendance': sum(events),
-      'Students hired':   sum(hires),
-    };
-  };
-
-  try {
-    const [cur, prev] = await Promise.all([
-      fetchTotals(range.from, range.to),
-      fetchTotals(range.compare.from, range.compare.to),
-    ]);
-    const cells = Object.keys(cur).map(k => {
-      const diff = cur[k] - prev[k];
-      const arrow = diff > 0 ? '<span class="text-success">▲</span>'
-                  : diff < 0 ? '<span class="text-danger">▼</span>'
-                  : '<span class="text-muted">—</span>';
-      const sign = diff > 0 ? '+' : '';
-      return `<div class="text-center px-3">
-        <div class="small text-muted">${k}</div>
-        <div class="fw-bold">${cur[k]} <span class="small fw-normal text-muted">vs ${prev[k]}</span> ${arrow} <span class="small">${sign}${diff}</span></div>
-      </div>`;
-    }).join('<div class="vr"></div>');
-    strip.innerHTML = `
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <span class="badge bg-primary me-1">${range.label} vs ${range.compare.label}</span>
-        ${cells}
-      </div>`;
-    strip.classList.remove('d-none');
-  } catch (_) {
-    strip.classList.add('d-none');
-  }
-}
-
 async function loadAll() {
-  const range = periodFilter ? periodFilter.getRange() : { from: null, to: null, compare: null };
-  const from = range.from || '';
-  const to   = range.to   || '';
+  const showAll = document.getElementById('dash-show-all').checked;
+  const from = showAll ? '' : document.getElementById('dash-from').value;
+  const to   = showAll ? '' : document.getElementById('dash-to').value;
   const parts = [];
   if (from) parts.push(`from=${from}`);
   if (to)   parts.push(`to=${to}`);
   const q = parts.join('&');
-
-  loadCompareStrip(range);
 
   const btn = document.getElementById('btn-refresh');
   btn.disabled = true;

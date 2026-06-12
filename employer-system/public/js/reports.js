@@ -78,17 +78,13 @@ const REPORT_SECTIONS = [
 // ── State ──────────────────────────────────────────────────────────────────────
 let quickChart      = null;
 let activeQuickType = null;
-let periodFilter    = null;
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderReportSections();
 
-  periodFilter = initPeriodFilter(
-    document.getElementById('period-filter'),
-    () => { if (activeQuickType) rerunActive(); },
-    { showAllDefault: true }
-  );
+  ['rep-from', 'rep-to', 'rep-show-all'].forEach(id =>
+    document.getElementById(id).addEventListener('change', () => { if (activeQuickType) rerunActive(); }));
 
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
   document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
@@ -96,7 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function currentRange() {
-  return periodFilter ? periodFilter.getRange() : { from: null, to: null, compare: null, showAll: true };
+  const showAll = document.getElementById('rep-show-all').checked;
+  return {
+    from: showAll ? null : (document.getElementById('rep-from').value || null),
+    to:   showAll ? null : (document.getElementById('rep-to').value   || null),
+  };
 }
 
 function rerunActive() {
@@ -178,28 +178,8 @@ async function runQuickReport(type, label) {
     if (to)   qs.set('to',   to);
     const data = await fetchAPI(`/api/reports/quick/${type}?${qs}`);
 
-    let countText = `${data.count} record${data.count !== 1 ? 's' : ''}`;
-    if (!range.showAll && range.label !== 'Custom range') countText += ` · ${range.label}`;
-
-    // "Compare to previous" — run the same report for the previous semester and show the delta
-    if (range.compare) {
-      try {
-        const cqs = new URLSearchParams();
-        if (range.compare.from) cqs.set('from', range.compare.from);
-        if (range.compare.to)   cqs.set('to',   range.compare.to);
-        const prev = await fetchAPI(`/api/reports/quick/${type}?${cqs}`);
-        const diff = data.count - prev.count;
-        const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '—';
-        const cls   = diff > 0 ? 'text-success' : diff < 0 ? 'text-danger' : 'text-muted';
-        const pct   = prev.count ? ` (${diff > 0 ? '+' : ''}${Math.round(diff / prev.count * 100)}%)` : '';
-        document.getElementById('qr-count').innerHTML =
-          `${countText} <span class="${cls} fw-semibold ms-1">${arrow} ${diff > 0 ? '+' : ''}${diff}${pct} vs ${escHtml(range.compare.label)} (${prev.count})</span>`;
-      } catch (_) {
-        document.getElementById('qr-count').textContent = countText;
-      }
-    } else {
-      document.getElementById('qr-count').textContent = countText;
-    }
+    document.getElementById('qr-count').textContent =
+      `${data.count} record${data.count !== 1 ? 's' : ''}`;
 
     renderQuickTable(data.rows);
     renderQuickChart(data.chartData);
