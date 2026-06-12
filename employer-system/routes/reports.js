@@ -535,7 +535,275 @@ const QUICK_REPORTS = {
                    backgroundColor: '#3a0ca3', borderRadius: 4 }]
     }};
   },
+
+  // ── Trends & Insights ─────────────────────────────────────────────────────
+
+  'industry-trends': (db, from, to) => {
+    // Engagement counts per semester per industry, across three activity types
+    const collect = (sql, col, kind, params) => db.prepare(sql).all(...params)
+      .map(r => ({ sem: semesterOf(r.d), industry: r.industry || 'Unknown', kind }))
+      .filter(r => r.sem);
+
+    const dcR = dateClause('r.DatePosted', from, to);
+    const dcE = dateClause('e.EventDate', from, to);
+    const dcO = dateClause('o.InteractionDate', from, to);
+
+    const events = [
+      ...collect(`SELECT r.DatePosted AS d, c.Industry AS industry FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE 1=1${dcR.sql}`, 'd', 'recruitment', dcR.params),
+      ...collect(`SELECT e.EventDate AS d, c.Industry AS industry FROM CareerEvent e JOIN Company c ON e.CompanyID=c.CompanyID WHERE e.RegisteredStatus='Attended'${dcE.sql}`, 'd', 'events', dcE.params),
+      ...collect(`SELECT o.InteractionDate AS d, c.Industry AS industry FROM OutreachEngagement o JOIN Company c ON o.CompanyID=c.CompanyID WHERE 1=1${dcO.sql}`, 'd', 'outreach', dcO.params),
+    ];
+
+    // bucket: sem → industry → {recruitment, events, outreach}
+    const buckets = {};
+    events.forEach(ev => {
+      const key = ev.sem.label;
+      buckets[key] = buckets[key] || { order: ev.sem.order, industries: {} };
+      const ind = buckets[key].industries[ev.industry] =
+        buckets[key].industries[ev.industry] || { recruitment: 0, events: 0, outreach: 0 };
+      ind[ev.kind]++;
+    });
+
+    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
+    const rows = [];
+    semesters.forEach(([sem, data]) => {
+      Object.entries(data.industries)
+        .sort((a, b) => (b[1].recruitment + b[1].events + b[1].outreach) - (a[1].recruitment + a[1].events + a[1].outreach))
+        .forEach(([industry, c]) => rows.push({
+          'Semester': sem, 'Industry': industry,
+          'Recruitment Count': c.recruitment, 'Events Count': c.events,
+          'Outreach Count': c.outreach, 'Total': c.recruitment + c.events + c.outreach,
+        }));
+    });
+
+    // stacked bar: one bar per semester, segments per industry (top 8 industries overall)
+    const indTotals = {};
+    rows.forEach(r => { indTotals[r.Industry] = (indTotals[r.Industry] || 0) + r.Total; });
+    const topInds = Object.entries(indTotals).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => x[0]);
+    const labels = semesters.map(([sem]) => sem);
+    const datasets = topInds.map((ind, i) => ({
+      label: ind,
+      data: labels.map(sem => {
+        const r = rows.find(x => x.Semester === sem && x.Industry === ind);
+        return r ? r.Total : 0;
+      }),
+      backgroundColor: PALETTE[i % PALETTE.length],
+    }));
+    return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
+  },
+
+  'top-recruiters': (db, from, to) => {
+    // Target semester = semester containing `from` (or current semester)
+    const anchor = from || new Date().toISOString().slice(0, 10);
+    const cur  = semesterOf(anchor);
+    const prev = prevSemesterOf(cur);
+
+    const countBy = (sql, range, params0 = []) => {
+      const out = {};
+      db.prepare(sql).all(...params0, range.from, range.to)
+        .forEach(r => { out[r.company] = (out[r.company] || 0) + r.n; });
+      return out;
+    };
+    const postSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE r.DatePosted>=? AND r.DatePosted<=? GROUP BY c.CompanyName`;
+    const hireSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID WHERE h.HiredStudentAlumni='Yes' AND h.DateReported>=? AND h.DateReported<=? GROUP BY c.CompanyName`;
+
+    const curPost = countBy(postSql, cur),  curHire = countBy(hireSql, cur);
+    const prePost = countBy(postSql, prev), preHire = countBy(hireSql, prev);
+
+    const companies = [...new Set([...Object.keys(curPost), ...Object.keys(curHire)])];
+    const rows = companies.map(co => {
+      const postings = curPost[co] || 0, hires = curHire[co] || 0;
+      const total    = postings + hires;
+      const prevTot  = (prePost[co] || 0) + (preHire[co] || 0);
+      const diff     = total - prevTot;
+      return {
+        'Company': co, 'Postings': postings, 'Hires': hires, 'Total': total,
+        [`${prev.label}`]: prevTot,
+        'Change': diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—',
+      };
+    }).sort((a, b) => b.Total - a.Total);
+
+    const top = rows.slice(0, 15);
+    return { rows, chartData: {
+      type: 'bar', indexAxis: 'y',
+      labels: top.map(r => r.Company),
+      datasets: [
+        { label: `Postings (${cur.label})`, data: top.map(r => r.Postings), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: `Hires (${cur.label})`,    data: top.map(r => r.Hires),    backgroundColor: '#2ec4b6', borderRadius: 4 },
+      ],
+    }};
+  },
+
+  'top-roles-by-program': (db, from, to) => {
+    const dc = dateClause('r.DatePosted', from, to);
+    const raw = db.prepare(`
+      SELECT m.Major AS major, r.OpportunityTitle AS title, r.Status AS payStatus,
+             r.HiredStudentAlumni AS hired
+      FROM Recruitment_TargetMajors m
+      JOIN Recruitment r ON m.RecruitmentID = r.RecruitmentID
+      WHERE 1=1${dc.sql}`).all(...dc.params);
+
+    const byMajor = {};
+    raw.forEach(r => {
+      const m = byMajor[r.major] = byMajor[r.major] || { titles: {}, postings: 0, paid: 0, hired: 0 };
+      m.postings++;
+      if (r.payStatus === 'Paid')  m.paid++;
+      if (r.hired === 'Yes')       m.hired++;
+      const t = (r.title || '').trim();
+      if (t) m.titles[t] = (m.titles[t] || 0) + 1;
+    });
+
+    const rows = Object.entries(byMajor)
+      .sort((a, b) => b[1].postings - a[1].postings)
+      .map(([major, m]) => ({
+        'Major': major,
+        'Top Opportunity Titles': Object.entries(m.titles).sort((a, b) => b[1] - a[1]).slice(0, 3)
+          .map(([t, n]) => `${t} (${n})`).join(', ') || '—',
+        'Posting Count': m.postings,
+        'Paid %': m.postings ? Math.round(m.paid / m.postings * 100) + '%' : '0%',
+        'Hired Count': m.hired,
+      }));
+
+    return { rows, chartData: {
+      type: 'bar',
+      labels: rows.map(r => r.Major),
+      datasets: [
+        { label: 'Postings', data: rows.map(r => r['Posting Count']), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: 'Hired',    data: rows.map(r => r['Hired Count']),   backgroundColor: '#2ec4b6', borderRadius: 4 },
+      ],
+    }};
+  },
+
+  'sector-engagement': (db, from, to) => {
+    // One engagement event per activity record, joined to company sector
+    const sources = [
+      ['OutreachEngagement o', 'o.InteractionDate', 'o.CompanyID'],
+      ['Recruitment r',        'r.DatePosted',      'r.CompanyID'],
+      ['CareerEvent e',        'e.EventDate',       'e.CompanyID'],
+      ['AcademicClassroomEngagement a', 'a.SessionDate', 'a.CompanyID'],
+      ['StudentLedEvent s',    's.ProposalDate',    's.CompanyID'],
+      ['HiringFeedback h',     'h.DateReported',    'h.CompanyID'],
+    ];
+    const events = [];
+    sources.forEach(([tbl, dateCol, idCol]) => {
+      const dc = dateClause(dateCol, from, to);
+      db.prepare(`SELECT ${dateCol} AS d, c.Sector AS sector FROM ${tbl} JOIN Company c ON ${idCol}=c.CompanyID WHERE 1=1${dc.sql}`)
+        .all(...dc.params)
+        .forEach(r => { const s = semesterOf(r.d); if (s) events.push({ sem: s, sector: r.sector || 'Unknown' }); });
+    });
+
+    const buckets = {}; // semLabel → {order, sectors:{}}
+    events.forEach(ev => {
+      const b = buckets[ev.sem.label] = buckets[ev.sem.label] || { order: ev.sem.order, sectors: {} };
+      b.sectors[ev.sector] = (b.sectors[ev.sector] || 0) + 1;
+    });
+    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
+    const labels    = semesters.map(([l]) => l);
+    const SECTORS   = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
+
+    const rows = [];
+    semesters.forEach(([sem, b]) => SECTORS.forEach(sec => {
+      const n = b.sectors[sec] || 0;
+      if (n) rows.push({ 'Semester': sem, 'Sector': sec, 'Engagements': n });
+    }));
+
+    const datasets = SECTORS.map((sec, i) => ({
+      label: sec,
+      data: labels.map(l => buckets[l].sectors[sec] || 0),
+      borderColor: PALETTE[i], backgroundColor: PALETTE[i], fill: false, tension: 0.3,
+    }));
+    return { rows, chartData: { type: 'line', labels, datasets } };
+  },
+
+  'hiring-conversion': (db, from, to) => {
+    const dcR = dateClause('DatePosted', from, to);
+    const dcH = dateClause('DateReported', from, to);
+    const postings = db.prepare(`SELECT DatePosted AS d FROM Recruitment WHERE 1=1${dcR.sql}`).all(...dcR.params);
+    const hires    = db.prepare(`SELECT DateReported AS d FROM HiringFeedback WHERE HiredStudentAlumni='Yes'${dcH.sql}`).all(...dcH.params);
+
+    const buckets = {};
+    const add = (list, key) => list.forEach(r => {
+      const s = semesterOf(r.d); if (!s) return;
+      const b = buckets[s.label] = buckets[s.label] || { order: s.order, posted: 0, hired: 0 };
+      b[key]++;
+    });
+    add(postings, 'posted'); add(hires, 'hired');
+
+    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
+    const rows = semesters.map(([sem, b]) => ({
+      'Semester': sem, 'Postings': b.posted, 'Hires': b.hired,
+      'Conversion': b.posted ? Math.round(b.hired / b.posted * 100) + '%' : '—',
+    }));
+    return { rows, chartData: {
+      type: 'bar', labels: semesters.map(([l]) => l),
+      datasets: [
+        { label: 'Postings', data: semesters.map(([, b]) => b.posted), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: 'Hires',    data: semesters.map(([, b]) => b.hired),  backgroundColor: '#2ec4b6', borderRadius: 4 },
+      ],
+    }};
+  },
+
+  'semester-comparison': (db, from, to) => {
+    // Semester A = semester containing `from` (or current); B = the one before it
+    const anchor = from || new Date().toISOString().slice(0, 10);
+    const A = semesterOf(anchor);
+    const B = prevSemesterOf(A);
+
+    const metrics = (r) => ({
+      'Companies Engaged': db.prepare(`
+        SELECT COUNT(DISTINCT CompanyID) AS n FROM (
+          SELECT CompanyID, InteractionDate AS d FROM OutreachEngagement
+          UNION ALL SELECT CompanyID, DatePosted FROM Recruitment
+          UNION ALL SELECT CompanyID, EventDate FROM CareerEvent
+          UNION ALL SELECT CompanyID, SessionDate FROM AcademicClassroomEngagement
+        ) WHERE d >= ? AND d <= ?`).get(r.from, r.to).n,
+      'New Companies Added':    db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE DateAdded>=? AND DateAdded<=?`).get(r.from, r.to).n,
+      'Recruitment Postings':   db.prepare(`SELECT COUNT(*) AS n FROM Recruitment WHERE DatePosted>=? AND DatePosted<=?`).get(r.from, r.to).n,
+      'Career Events Attended': db.prepare(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate>=? AND EventDate<=?`).get(r.from, r.to).n,
+      'Students Hired':         db.prepare(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes' AND DateReported>=? AND DateReported<=?`).get(r.from, r.to).n,
+      'Academic Engagements':   db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to).n,
+      'Outreach Interactions':  db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to).n,
+    });
+
+    const a = metrics(A), b = metrics(B);
+    const rows = Object.keys(a).map(k => {
+      const diff = a[k] - b[k];
+      return {
+        'Metric': k, [A.label]: a[k], [B.label]: b[k],
+        'Change': diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—',
+        'Trend': diff > 0 ? 'Improved' : diff < 0 ? 'Declined' : 'Unchanged',
+      };
+    });
+
+    return { rows, chartData: {
+      type: 'bar', labels: Object.keys(a),
+      datasets: [
+        { label: A.label, data: Object.values(a), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: B.label, data: Object.values(b), backgroundColor: '#adb5bd', borderRadius: 4 },
+      ],
+    }};
+  },
 };
+
+// ── Semester helpers (CMU-Q calendar) ──────────────────────────────────────────
+// Fall: Aug 1 – Dec 31 | Spring: Jan 1 – May 31 | Summer: Jun 1 – Jul 31
+// order = sortable integer; from/to = date range of that semester
+function semesterOf(dateStr) {
+  if (!dateStr) return null;
+  const m = Number(String(dateStr).slice(5, 7));
+  const y = Number(String(dateStr).slice(0, 4));
+  if (!m || !y) return null;
+  if (m >= 8) return { label: `Fall ${y}`,   order: y * 3 + 2, from: `${y}-08-01`, to: `${y}-12-31` };
+  if (m <= 5) return { label: `Spring ${y}`, order: y * 3 + 0, from: `${y}-01-01`, to: `${y}-05-31` };
+  return { label: `Summer ${y}`, order: y * 3 + 1, from: `${y}-06-01`, to: `${y}-07-31` };
+}
+
+function prevSemesterOf(sem) {
+  // step back via the day before this semester starts
+  const d = new Date(sem.from);
+  d.setDate(d.getDate() - 1);
+  return semesterOf(d.toISOString().slice(0, 10));
+}
 
 // ── REPORT BUILDER SCHEMA ──────────────────────────────────────────────────────
 const BUILDER_SCHEMA = {

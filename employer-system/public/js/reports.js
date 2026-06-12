@@ -60,6 +60,19 @@ const REPORT_SECTIONS = [
       { type: 'guest-speakers',       label: 'Guest Speakers',       desc: 'Industry speaker sessions',        icon: 'bi-mic',              color: '#343a40' },
     ],
   },
+  {
+    id: 'trends',
+    icon: 'bi-graph-up-arrow',
+    label: 'Trends & Insights',
+    cards: [
+      { type: 'industry-trends',     label: 'Industry Trends',       desc: 'Engagement by industry per semester',   icon: 'bi-bar-chart-steps',  color: '#4361ee' },
+      { type: 'top-recruiters',      label: 'Top Recruiters',        desc: 'Companies ranked, vs last semester',    icon: 'bi-trophy',           color: '#e9a823' },
+      { type: 'top-roles-by-program',label: 'Top Roles by Program',  desc: 'Job roles grouped by target major',     icon: 'bi-diagram-3',        color: '#7209b7' },
+      { type: 'sector-engagement',   label: 'Sector Engagement',     desc: 'Sector activity over semesters',        icon: 'bi-graph-up',         color: '#2ec4b6' },
+      { type: 'hiring-conversion',   label: 'Hiring Conversion',     desc: 'Postings vs actual hires per semester', icon: 'bi-funnel',           color: '#198754' },
+      { type: 'semester-comparison', label: 'Semester Comparison',   desc: 'Side-by-side semester metrics',         icon: 'bi-arrow-left-right', color: '#f72585' },
+    ],
+  },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -276,8 +289,8 @@ function buildChartConfig(chartData) {
         },
       },
       scales: isPie ? {} : {
-        x: { ticks: { maxRotation: 45 } },
-        y: { beginAtZero: true },
+        x: { ticks: { maxRotation: 45 }, stacked: chartData.stacked || false },
+        y: { beginAtZero: true,          stacked: chartData.stacked || false },
       },
       indexAxis: chartData.indexAxis || 'x',
     },
