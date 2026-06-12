@@ -1,13 +1,16 @@
 // ── State ──────────────────────────────────────────────────────────────────────
 let allCompanies = [];
 let editingId    = null;
+let displayItems   = [];
+let currentPage    = 1;
+const PAGE_SIZE    = 25;
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCompanies();
 
   document.getElementById('search-input').addEventListener('input', e => {
-    renderTable(filterCompanies(e.target.value.trim()));
+    displayItems = filterCompanies(e.target.value.trim()); currentPage = 1; renderCurrentPage();
   });
 
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
@@ -28,7 +31,7 @@ async function loadCompanies() {
   setTableLoading(true);
   try {
     allCompanies = await fetchAPI('/api/companies');
-    renderTable(allCompanies);
+    displayItems = allCompanies; renderCurrentPage();
   } catch (err) {
     showToast('Failed to load companies: ' + err.message, 'danger');
   } finally {
@@ -48,6 +51,33 @@ function filterCompanies(q) {
 }
 
 // ── Table rendering ────────────────────────────────────────────────────────────
+function renderCurrentPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  renderTable(displayItems.slice(start, start + PAGE_SIZE));
+
+  let pEl = document.getElementById('pagination-controls');
+  if (!pEl) {
+    pEl = document.createElement('div');
+    pEl.id = 'pagination-controls';
+    pEl.className = 'mt-3';
+    document.querySelector('.table-responsive')?.closest('.card')
+      ?.insertAdjacentElement('afterend', pEl);
+  }
+  if (!pEl) return;
+  const totalPages = Math.ceil(displayItems.length / PAGE_SIZE);
+  pEl.innerHTML = totalPages > 1
+    ? buildPaginationHtml(currentPage, totalPages, displayItems.length, PAGE_SIZE)
+    : '';
+  pEl.querySelectorAll('[data-page]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      currentPage = +a.dataset.page;
+      renderCurrentPage();
+      document.querySelector('.table-responsive')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+}
 function renderTable(companies) {
   const tbody = document.getElementById('companies-tbody');
 
@@ -111,6 +141,7 @@ function openModal(company) {
 
   const form = document.getElementById('company-form');
   form.reset();
+  document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('blacklist-warning').classList.add('d-none');
 
   const title = document.getElementById('modal-title');
@@ -171,6 +202,7 @@ function formToPayload() {
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(e) {
   e.preventDefault();
+  if (!validateForm(document.getElementById('company-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
 

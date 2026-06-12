@@ -19,6 +19,54 @@ async function fetchAPI(url, options = {}) {
   return data;
 }
 
+// ── Form validation ────────────────────────────────────────────────────────────
+// Marks every [required] field in the form invalid if empty; returns true if all
+// pass. Clears the red border automatically when the user edits the field.
+function validateForm(formEl) {
+  let valid = true;
+  formEl.querySelectorAll('[required]').forEach(el => {
+    const empty = el.tagName === 'SELECT' ? !el.value : !(el.value || '').trim();
+    el.classList.toggle('is-invalid', empty);
+    if (empty) {
+      valid = false;
+      const clear = () => el.classList.remove('is-invalid');
+      el.addEventListener('input',  clear, { once: true });
+      el.addEventListener('change', clear, { once: true });
+    }
+  });
+  if (!valid) showToast('Please fill in all highlighted fields.', 'warning');
+  return valid;
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────────
+// Returns inner HTML for a Bootstrap pagination nav.
+function buildPaginationHtml(page, totalPages, total, perPage) {
+  const start = (page - 1) * perPage + 1;
+  const end   = Math.min(page * perPage, total);
+
+  const prev = page > 1
+    ? `<li class="page-item"><a class="page-link" href="#" data-page="${page - 1}">‹</a></li>`
+    : `<li class="page-item disabled"><span class="page-link">‹</span></li>`;
+  const next = page < totalPages
+    ? `<li class="page-item"><a class="page-link" href="#" data-page="${page + 1}">›</a></li>`
+    : `<li class="page-item disabled"><span class="page-link">›</span></li>`;
+
+  const lo = Math.max(1, page - 2), hi = Math.min(totalPages, page + 2);
+  let links = '';
+  if (lo > 1) links += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+  if (lo > 2) links += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+  for (let p = lo; p <= hi; p++) {
+    links += `<li class="page-item${p === page ? ' active' : ''}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
+  }
+  if (hi < totalPages - 1) links += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+  if (hi < totalPages)     links += `<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`;
+
+  return `<div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2 w-100 px-1">
+    <small class="text-muted">Showing ${start}–${end} of ${total} records</small>
+    <nav aria-label="Table navigation"><ul class="pagination pagination-sm mb-0">${prev}${links}${next}</ul></nav>
+  </div>`;
+}
+
 // ── Toast notification ─────────────────────────────────────────────────────────
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');

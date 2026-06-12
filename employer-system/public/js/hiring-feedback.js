@@ -1,4 +1,7 @@
 let allItems=[], allCompanies=[], allContacts=[], editingId=null;
+let displayItems   = [];
+let currentPage    = 1;
+const PAGE_SIZE    = 25;
 
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
@@ -46,14 +49,42 @@ function applyFilters() {
   const hired    = document.getElementById('filter-hired').value;
   const from     = document.getElementById('filter-from').value;
   const to       = document.getElementById('filter-to').value;
-  renderTable(allItems.filter(r=>{
+  const filtered = allItems.filter(r=>{
     if(q && !r.CompanyName?.toLowerCase().includes(q) && !r.ContactName?.toLowerCase().includes(q)) return false;
     if(provider && r.FeedbackProvider!==provider) return false;
     if(hired    && r.HiredStudentAlumni!==hired)   return false;
     if(from     && r.DateReported<from)            return false;
     if(to       && r.DateReported>to)              return false;
     return true;
-  }));
+  });
+  displayItems = filtered; currentPage = 1; renderCurrentPage();
+}
+function renderCurrentPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  renderTable(displayItems.slice(start, start + PAGE_SIZE));
+
+  let pEl = document.getElementById('pagination-controls');
+  if (!pEl) {
+    pEl = document.createElement('div');
+    pEl.id = 'pagination-controls';
+    pEl.className = 'mt-3';
+    document.querySelector('.table-responsive')?.closest('.card')
+      ?.insertAdjacentElement('afterend', pEl);
+  }
+  if (!pEl) return;
+  const totalPages = Math.ceil(displayItems.length / PAGE_SIZE);
+  pEl.innerHTML = totalPages > 1
+    ? buildPaginationHtml(currentPage, totalPages, displayItems.length, PAGE_SIZE)
+    : '';
+  pEl.querySelectorAll('[data-page]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      currentPage = +a.dataset.page;
+      renderCurrentPage();
+      document.querySelector('.table-responsive')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
 }
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
@@ -78,6 +109,7 @@ function openModalById(id){ const item=allItems.find(r=>r.HiringFeedbackID==id);
 function openModal(item) {
   editingId = item?item.HiringFeedbackID:null;
   document.getElementById('the-form').reset();
+  document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('hired-name-row').classList.add('d-none');
   document.getElementById('modal-title').textContent = item?'Edit Hiring Feedback':'Add Hiring Feedback';
   document.getElementById('btn-delete').classList.toggle('d-none',!item);
@@ -98,6 +130,7 @@ function openModal(item) {
 }
 async function handleSave(e) {
   e.preventDefault();
+  if (!validateForm(document.getElementById('the-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
     ContactID: document.getElementById('f-contact').value,

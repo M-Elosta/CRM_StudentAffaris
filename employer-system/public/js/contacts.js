@@ -2,6 +2,9 @@
 let allContacts  = [];
 let allCompanies = [];
 let editingId    = null;
+let displayItems   = [];
+let currentPage    = 1;
+const PAGE_SIZE    = 25;
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -71,7 +74,7 @@ function applyFilters() {
   if (status)    filtered = filtered.filter(c => c.Status === status);
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
 
-  renderTable(filtered);
+  displayItems = filtered; currentPage = 1; renderCurrentPage();
   updateRecordCount(filtered.length, allContacts.length);
 }
 
@@ -86,6 +89,33 @@ function filterContacts(q) {
 }
 
 // ── Table rendering ────────────────────────────────────────────────────────────
+function renderCurrentPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  renderTable(displayItems.slice(start, start + PAGE_SIZE));
+
+  let pEl = document.getElementById('pagination-controls');
+  if (!pEl) {
+    pEl = document.createElement('div');
+    pEl.id = 'pagination-controls';
+    pEl.className = 'mt-3';
+    document.querySelector('.table-responsive')?.closest('.card')
+      ?.insertAdjacentElement('afterend', pEl);
+  }
+  if (!pEl) return;
+  const totalPages = Math.ceil(displayItems.length / PAGE_SIZE);
+  pEl.innerHTML = totalPages > 1
+    ? buildPaginationHtml(currentPage, totalPages, displayItems.length, PAGE_SIZE)
+    : '';
+  pEl.querySelectorAll('[data-page]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      currentPage = +a.dataset.page;
+      renderCurrentPage();
+      document.querySelector('.table-responsive')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+}
 function renderTable(contacts) {
   const tbody = document.getElementById('contacts-tbody');
 
@@ -156,6 +186,7 @@ function openModal(contact) {
 
   const form = document.getElementById('contact-form');
   form.reset();
+  document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('cmuq-fields').classList.add('d-none');
 
   const title     = document.getElementById('modal-title');
@@ -230,6 +261,7 @@ function formToPayload() {
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(e) {
   e.preventDefault();
+  if (!validateForm(document.getElementById('contact-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
 

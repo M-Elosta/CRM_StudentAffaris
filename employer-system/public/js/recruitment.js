@@ -2,6 +2,9 @@ let allItems     = [];
 let allCompanies = [];
 let allContacts  = [];
 let editingId    = null;
+let displayItems   = [];
+let currentPage    = 1;
+const PAGE_SIZE    = 25;
 
 const OPP_TYPES    = ['Internship','Part-time Job','Full-time Job','Graduate Program','Summer Research Program','Training Program','Mentorship Program','Fellowship','Competition/Hackathon','Volunteering','Others'];
 const COLLECT_CH   = ['Resume book','Handshake','Email','Other'];
@@ -100,6 +103,33 @@ function applyFilters() {
   }));
 }
 
+function renderCurrentPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  renderTable(displayItems.slice(start, start + PAGE_SIZE));
+
+  let pEl = document.getElementById('pagination-controls');
+  if (!pEl) {
+    pEl = document.createElement('div');
+    pEl.id = 'pagination-controls';
+    pEl.className = 'mt-3';
+    document.querySelector('.table-responsive')?.closest('.card')
+      ?.insertAdjacentElement('afterend', pEl);
+  }
+  if (!pEl) return;
+  const totalPages = Math.ceil(displayItems.length / PAGE_SIZE);
+  pEl.innerHTML = totalPages > 1
+    ? buildPaginationHtml(currentPage, totalPages, displayItems.length, PAGE_SIZE)
+    : '';
+  pEl.querySelectorAll('[data-page]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      currentPage = +a.dataset.page;
+      renderCurrentPage();
+      document.querySelector('.table-responsive')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+}
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
   if (!items.length) {
@@ -177,6 +207,7 @@ function openModal(item) {
 
 async function handleSave(e) {
   e.preventDefault();
+  if (!validateForm(document.getElementById('the-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
     ContactID: document.getElementById('f-contact').value,
