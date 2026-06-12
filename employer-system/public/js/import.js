@@ -64,6 +64,10 @@ async function handleFileUpload(e) {
   const formData = new FormData();
   formData.append('file', file);
 
+  const fileInput = e.target;
+  fileInput.disabled = true;
+  showToast('Parsing file…', 'warning');
+
   try {
     const res = await fetch('/api/import/parse', { method: 'POST', body: formData });
     const data = await res.json();
@@ -80,6 +84,8 @@ async function handleFileUpload(e) {
     markStepDone(1);
   } catch (err) {
     showToast('Parse failed: ' + err.message, 'danger');
+  } finally {
+    fileInput.disabled = false;
   }
 }
 
@@ -211,7 +217,7 @@ function renderPreview(rows) {
     const cells = cols.map(c => `<td class="small">${escHtml(String(r.row[c] ?? ''))}</td>`).join('');
 
     const actionCell = r.status === 'duplicate'
-      ? `<td><select class="form-select form-select-sm dup-action" data-index="${i}">
+      ? `<td><select class="form-select form-select-sm dup-action" data-index="${r.rowIndex ?? i}">
            <option value="skip">Skip</option>
            <option value="overwrite">Overwrite</option>
            <option value="create_new">Create New</option>

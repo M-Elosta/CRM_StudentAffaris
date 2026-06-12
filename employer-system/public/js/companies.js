@@ -82,10 +82,10 @@ function renderTable(companies) {
         <td>${escHtml(c.Sector)}</td>
         <td>${escHtml(c.Country)}</td>
         <td>${formatDate(c.DateAdded)}</td>
-        <td>${c.Website ? `<a href="${escHtml(c.Website)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
+        <td>${c.Website ? `<a href="${escHtml(c.Website)}" target="_blank" rel="noopener" title="Open website in new tab" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');

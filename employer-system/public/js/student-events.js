@@ -95,8 +95,8 @@ function renderTable(items) {
       <td>${escHtml(r.EventTitle || '—')}</td>
       <td><span class="badge ${badgeClass}">${escHtml(r.CollaborationOutcome)}</span></td>
       <td>
-        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.StudentLedEventID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.StudentLedEventID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.StudentLedEventID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.StudentLedEventID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');

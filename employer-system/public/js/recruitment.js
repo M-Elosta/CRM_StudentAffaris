@@ -103,7 +103,7 @@ function applyFilters() {
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No records found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No records found. <a href="#" onclick="openModal(null);return false;">Add one</a>.</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(r => {
@@ -117,8 +117,8 @@ function renderTable(items) {
       <td>${r.TargetGroup}</td>
       <td><span class="badge ${hired}">${r.HiredStudentAlumni}</span></td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');

@@ -113,8 +113,8 @@ function renderTable(items) {
       <td>${statusBadge}</td>
       <td>${followUp}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.OutreachEngagementID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.OutreachEngagementID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.OutreachEngagementID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.OutreachEngagementID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');

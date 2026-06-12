@@ -124,8 +124,8 @@ function renderTable(contacts) {
         <td>${escHtml(c.JobTitle || '—')}</td>
         <td>${statusBadge}${excludeBadge}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');

@@ -8,6 +8,12 @@ async function fetchAPI(url, options = {}) {
     config.body = JSON.stringify(config.body);
   }
   const res = await fetch(url, config);
+  // Session expired → send the user back to the login page instead of showing
+  // a cryptic error toast on every action
+  if (res.status === 401 && !window.location.pathname.endsWith('login.html')) {
+    window.location.href = '/login.html';
+    return new Promise(() => {}); // never resolves; page is navigating away
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
@@ -20,11 +26,12 @@ function showToast(message, type = 'success') {
 
   const id = 'toast-' + Date.now();
   const bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-warning';
+  const safeMessage = String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const html = `
     <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive">
       <div class="d-flex">
-        <div class="toast-body fw-semibold">${message}</div>
+        <div class="toast-body fw-semibold">${safeMessage}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
       </div>
     </div>`;
@@ -134,6 +141,9 @@ function injectSidebar() {
       </div>
       <ul class="nav flex-column flex-grow-1 mt-2 pb-3">${items}</ul>
       <div class="border-top border-secondary px-3 py-2">
+        <div class="small text-secondary mb-2 text-truncate d-none" id="sidebar-username">
+          <i class="bi bi-person-circle me-1"></i><span></span>
+        </div>
         <button class="btn btn-sm btn-outline-light w-100 mb-1" id="btn-change-pw">
           <i class="bi bi-key me-1"></i>Change Password
         </button>
@@ -171,6 +181,15 @@ function injectSidebar() {
   sidebarNav.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', closeSidebar);
   });
+
+  // Show who is signed in
+  fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(data => {
+    if (data?.username) {
+      const el = document.getElementById('sidebar-username');
+      el.querySelector('span').textContent = `Signed in as ${data.username}`;
+      el.classList.remove('d-none');
+    }
+  }).catch(() => {});
 
   // Logout
   document.getElementById('btn-logout')?.addEventListener('click', async () => {

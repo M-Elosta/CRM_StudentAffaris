@@ -57,18 +57,18 @@ function applyFilters() {
 }
 function renderTable(items) {
   const tbody = document.getElementById('tbody');
-  if(!items.length){ tbody.innerHTML=`<tr><td colspan="7" class="text-center text-muted py-4">No records found.</td></tr>`; return; }
+  if(!items.length){ tbody.innerHTML=`<tr><td colspan="7" class="text-center text-muted py-4">No records found. <a href="#" onclick="openModal(null);return false;">Add one</a>.</td></tr>`; return; }
   tbody.innerHTML = items.map(r=>`
     <tr style="cursor:pointer" data-id="${r.HiringFeedbackID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.FeedbackProvider)}</td>
       <td><span class="badge ${r.HiredStudentAlumni==='Yes'?'bg-success':'bg-secondary'}">${r.HiredStudentAlumni}</span></td>
-      <td>${r.DateReported}</td>
+      <td>${r.DateReported || '—'}</td>
       <td>${escHtml(r.HiredStudentName||'—')}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();handleDeleteById(${r.HiringFeedbackID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.HiringFeedbackID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
   tbody.querySelectorAll('tr[data-id]').forEach(row=>row.addEventListener('click',()=>openModal(allItems.find(r=>r.HiringFeedbackID==row.dataset.id))));
