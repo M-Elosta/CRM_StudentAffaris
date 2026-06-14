@@ -228,3 +228,22 @@ body {
 #bulk-toolbar.visible { display: flex; }
 #bulk-toolbar .bulk-left  { display: flex; align-items: center; gap: 8px; }
 #bulk-toolbar .bulk-right { display: flex; align-items: center; gap: 6px; }
+
+/* ── Sticky page header (title + filters) ────────────────────────────────────── */
+.page-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #f5f6fa;
+  padding-top: 28px;
+  margin-top: -28px;
+  padding-bottom: 12px;
+}
+
+/* ── Scrollbar — thin and transparent, appears on hover ─────────────────────── */
+::-webkit-scrollbar              { width: 6px; height: 6px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(0,0,0,0); border-radius: 99px; transition: background 0.2s; }
+::-webkit-scrollbar-thumb:hover  { background: rgba(0,0,0,0.25); }
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: rgba(0,0,0,0.2) transparent; }
