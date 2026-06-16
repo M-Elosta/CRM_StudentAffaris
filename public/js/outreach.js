@@ -6,13 +6,13 @@ let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = todayStr();
 
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-type').addEventListener('change', applyFilters);
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
@@ -46,7 +46,7 @@ async function loadItems() {
   setLoading(true);
   try {
     allItems = await fetchAPI('/api/outreach');
-    renderTable(allItems);
+    applyFilters();
   } catch (err) {
     showToast('Failed to load outreach records: ' + err.message, 'danger');
   } finally { setLoading(false); }
@@ -81,6 +81,7 @@ function applyFilters() {
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function isOverdue(row) {
@@ -121,26 +122,18 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const statusBadge = r.InteractionStatus === 'Complete'
-      ? '<span class="badge bg-success">Complete</span>'
-      : '<span class="badge bg-warning text-dark">In-progress</span>';
-
     const followUp = r.FollowUpDate
       ? (isOverdue(r)
-          ? `<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>${r.FollowUpDate}</span>`
-          : r.FollowUpDate)
+          ? `<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>${formatDate(r.FollowUpDate)}</span>`
+          : formatDate(r.FollowUpDate))
       : '—';
-
-    const typeBadge = {
-      'Call': 'bg-info', 'Meeting': 'bg-primary', 'Company Visit': 'bg-secondary'
-    }[r.InteractionType] || 'bg-secondary';
 
     return `<tr style="cursor:pointer" data-id="${r.OutreachEngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td><span class="badge ${typeBadge}">${escHtml(r.InteractionType)}</span></td>
-      <td>${r.InteractionDate}</td>
-      <td>${statusBadge}</td>
+      <td>${statusBadge(r.InteractionType, BADGE_STYLES.outreachType)}</td>
+      <td>${formatDate(r.InteractionDate)}</td>
+      <td>${statusBadge(r.InteractionStatus, BADGE_STYLES.outreachStatus)}</td>
       <td>${followUp}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.OutreachEngagementID})"><i class="bi bi-pencil"></i></button>
@@ -169,7 +162,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.OutreachEngagementID : null;
-  document.getElementById('outreach-form').reset();
+  const form = document.getElementById('outreach-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Outreach Record' : 'Add Outreach Record';
@@ -194,7 +189,7 @@ function openModal(item) {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('outreach-form'))) return;
   const payload = {
     CompanyID:         document.getElementById('f-company').value,
     ContactID:         document.getElementById('f-contact').value,
@@ -218,7 +213,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('outreach-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -227,7 +222,7 @@ async function handleSave(e) {
 
 async function handleDelete() {
   if (!editingId) return;
-  showConfirmModal('Delete Record', '<p>Delete this outreach record? This cannot be undone.</p>', async () => {
+  showConfirmModal('Delete Outreach Record', '<p>Delete this outreach record? This cannot be undone.</p>', async () => {
     try {
       bootstrap.Modal.getInstance(document.getElementById('the-modal'))?.hide();
       await fetchAPI(`/api/outreach/${editingId}`, { method: 'DELETE' });
@@ -238,7 +233,7 @@ async function handleDelete() {
 }
 
 async function handleDeleteById(id) {
-  showConfirmModal('Delete Record', '<p>Delete this outreach record? This cannot be undone.</p>', async () => {
+  showConfirmModal('Delete Outreach Record', '<p>Delete this outreach record? This cannot be undone.</p>', async () => {
     try {
       await fetchAPI(`/api/outreach/${id}`, { method: 'DELETE' });
       showToast('Record deleted', 'danger');
@@ -247,7 +242,3 @@ async function handleDeleteById(id) {
   });
 }
 
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}

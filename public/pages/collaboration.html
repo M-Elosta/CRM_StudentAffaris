@@ -25,20 +25,40 @@
   </div>
 
   <!-- Filters -->
-  <div class="d-flex flex-wrap gap-2 mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company…">    </div>
+      <input type="text" id="search-input" class="form-control" placeholder="Search company…">
+    </div>
+    <select id="filter-opportunity" class="form-select" style="max-width:220px">
+      <option value="">All opportunity types</option>
+      <option value="Intern/Graduate Hiring">Intern/Graduate Hiring</option>
+      <option value="Career Events">Career Events</option>
+      <option value="Mentorship Programs">Mentorship Programs</option>
+      <option value="Mock Interviews">Mock Interviews</option>
+      <option value="Guest Speakers/Panelists">Guest Speakers/Panelists</option>
+      <option value="Workshops/Training Sessions">Workshops/Training Sessions</option>
+      <option value="Company/Site Visits">Company/Site Visits</option>
+      <option value="Community Project Partnership">Community Project Partnership</option>
+      <option value="Student-Led Events">Student-Led Events</option>
+      <option value="Case Studies">Case Studies</option>
+      <option value="Research Partnership">Research Partnership</option>
+      <option value="Competition/Hackathon Sponsorship">Competition/Hackathon Sponsorship</option>
+      <option value="Student Sponsorship">Student Sponsorship</option>
+      <option value="MoU Signing">MoU Signing</option>
+      <option value="Other">Other</option>
+    </select>
+    <span id="record-count" class="badge bg-secondary ms-auto"></span>
   </div>
 
   </div><!-- /.page-sticky-top -->
 
   <div class="card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
+      <table class="table table-hover table-striped mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Company</th><th>Opportunities</th><th>Comment</th><th>Actions</th>
+            <th>Company</th><th>Opportunities</th><th>Comment</th><th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -56,7 +76,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form id="collaboration-form" novalidate>
-        <div class="modal-body">
+        <div class="modal-body" style="max-height:70vh">
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label">Company <span class="text-danger">*</span></label>
@@ -64,7 +84,7 @@
             </div>
             <div class="col-12">
               <label class="form-label">Collaboration Opportunities</label>
-              <div id="chk-opps" class="mt-1"></div>
+              <div id="chk-opps" class="border rounded p-2 mt-1"></div>
             </div>
             <div class="col-12">
               <label class="form-label">Comment</label>

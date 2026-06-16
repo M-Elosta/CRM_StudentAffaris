@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-mode').addEventListener('change', applyFilters);
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
@@ -73,7 +73,7 @@ async function loadItems() {
   setLoading(true);
   try {
     allItems = await fetchAPI('/api/recruitment');
-    renderTable(allItems);
+    applyFilters();
   } catch (err) { showToast('Failed to load: ' + err.message, 'danger'); }
   finally { setLoading(false); }
 }
@@ -93,14 +93,18 @@ function applyFilters() {
   const status = document.getElementById('filter-status').value;
   const from   = document.getElementById('filter-from').value;
   const to     = document.getElementById('filter-to').value;
-  renderTable(allItems.filter(r => {
+  const filtered = allItems.filter(r => {
     if (q && !r.CompanyName?.toLowerCase().includes(q) && !r.OpportunityTitle?.toLowerCase().includes(q)) return false;
     if (mode   && r.Mode   !== mode)   return false;
     if (status && r.Status !== status) return false;
     if (from   && r.DatePosted < from) return false;
     if (to     && r.DatePosted > to)   return false;
     return true;
-  }));
+  });
+  displayItems = filtered;
+  currentPage = 1;
+  renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function renderCurrentPage() {
@@ -137,15 +141,14 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const hired = { 'Yes':'bg-success','No':'bg-secondary','Not Reported':'bg-warning text-dark' }[r.HiredStudentAlumni] || 'bg-secondary';
     return `<tr style="cursor:pointer" data-id="${r.RecruitmentID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.OpportunityTitle)}</td>
-      <td>${r.DatePosted}</td>
-      <td><span class="badge bg-secondary">${r.Mode}</span></td>
-      <td><span class="badge ${r.Status==='Paid'?'bg-success':'bg-secondary'}">${r.Status}</span></td>
-      <td>${r.TargetGroup}</td>
-      <td><span class="badge ${hired}">${r.HiredStudentAlumni}</span></td>
+      <td>${formatDate(r.DatePosted)}</td>
+      <td>${statusBadge(r.Mode, BADGE_STYLES.recruitmentMode)}</td>
+      <td>${statusBadge(r.Status, BADGE_STYLES.recruitmentStatus)}</td>
+      <td>${escHtml(r.TargetGroup)}</td>
+      <td>${statusBadge(r.HiredStudentAlumni, BADGE_STYLES.recruitmentHired)}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
@@ -159,7 +162,7 @@ function renderTable(items) {
 
 function setLoading(on) {
   if (on) document.getElementById('tbody').innerHTML =
-    `<tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</td></tr>`;
+    `<tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`;
 }
 
 function openModalById(id) {
@@ -169,7 +172,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.RecruitmentID : null;
-  document.getElementById('recruitment-form').reset();
+  const form = document.getElementById('recruitment-form');
+  form.reset();
+  clearFormError(form);
   document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
   document.getElementById('pay-amount-row').classList.add('d-none');
 
@@ -199,7 +204,7 @@ function openModal(item) {
     setChecked('cls',     item.ClassLevels);
   } else {
     updateContactDropdown('');
-    document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('f-date').value = todayStr();
     document.getElementById('f-hired').value = 'Not Reported';
   }
   new bootstrap.Modal(document.getElementById('the-modal')).show();
@@ -207,7 +212,7 @@ function openModal(item) {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('recruitment-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
     ContactID: document.getElementById('f-contact').value,
@@ -238,7 +243,7 @@ async function handleSave(e) {
     bootstrap.Modal.getInstance(document.getElementById('the-modal')).hide();
     showToast('Record saved successfully');
     await loadItems();
-  } catch (err) { showToast('Save failed: ' + err.message, 'danger'); }
+  } catch (err) { showFormError('recruitment-form', err.message); }
   finally { btn.disabled = false; btn.innerHTML = 'Save'; }
 }
 
@@ -262,9 +267,4 @@ async function handleDeleteById(id) {
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
-}
-
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

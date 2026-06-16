@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-outcome').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
@@ -79,6 +79,7 @@ function applyFilters() {
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function renderCurrentPage() {
@@ -115,16 +116,14 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const badgeClass = r.CollaborationOutcome === 'Completed' ? 'bg-success' : 'bg-warning text-dark';
-    const proposalDate = r.ProposalDate ? r.ProposalDate.substring(0, 10) : '—';
     return `<tr style="cursor:pointer" data-id="${r.StudentLedEventID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.OrganizationName)}</td>
       <td>${escHtml(r.StudentName)}</td>
-      <td>${proposalDate}</td>
+      <td>${formatDate(r.ProposalDate)}</td>
       <td>${escHtml(r.EventTitle || '—')}</td>
-      <td><span class="badge ${badgeClass}">${escHtml(r.CollaborationOutcome)}</span></td>
-      <td>
+      <td>${statusBadge(r.CollaborationOutcome, BADGE_STYLES.studentOutcome)}</td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.StudentLedEventID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.StudentLedEventID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -151,7 +150,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.StudentLedEventID : null;
-  document.getElementById('student-events-form').reset();
+  const form = document.getElementById('student-events-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Student-Led Event' : 'Add Student-Led Event';
@@ -194,7 +195,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('student-events-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -209,7 +210,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('student-events-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -236,9 +237,4 @@ async function handleDeleteById(id) {
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
-}
-
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

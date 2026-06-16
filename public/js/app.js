@@ -145,7 +145,138 @@ function formatRelativeDate(ts) {
   const time  = d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
   if (diff === 0) return `today at ${time}`;
   if (diff === 1) return `yesterday at ${time}`;
-  return d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
+}
+
+// ── Shared string / date / UI helpers ─────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Returns "15/06/25"; timezone-safe; returns "—" for empty/invalid
+function formatDate(str) {
+  if (!str) return '—';
+  const m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '—';
+  return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
+}
+
+// Returns a debounced version of fn (300 ms default)
+function debounce(fn, ms = 300) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+// Update #record-count badge; safe no-op when element absent
+function updateRecordCount(shown, total) {
+  const el = document.getElementById('record-count');
+  if (!el) return;
+  el.textContent = shown === total
+    ? `${total} record${total !== 1 ? 's' : ''}`
+    : `${shown} of ${total}`;
+}
+
+const BADGE_STYLES = {
+  companyState: {
+    'Active': 'bg-primary',
+    'Blacklisted': 'bg-danger',
+    'Favorite': 'bg-warning text-dark',
+    'Signed MoU': 'bg-success',
+  },
+  contactStatus: {
+    'Mailable': 'bg-success',
+    'Non-mailable': 'bg-danger',
+    'Excluded from Mailing': 'bg-warning text-dark',
+  },
+  outreachStatus: {
+    'Complete': 'bg-success',
+    'In-progress': 'bg-warning text-dark',
+  },
+  outreachType: {
+    'Call': 'bg-info text-dark',
+    'Meeting': 'bg-primary',
+    'Company Visit': 'bg-secondary',
+  },
+  recruitmentMode: {
+    'Onsite': 'bg-primary',
+    'Hybrid': 'bg-info text-dark',
+    'Remote': 'bg-secondary',
+  },
+  recruitmentStatus: {
+    'Paid': 'bg-success',
+    'Unpaid': 'bg-secondary',
+  },
+  recruitmentHired: {
+    'Yes': 'bg-success',
+    'No': 'bg-secondary',
+    'Not Reported': 'bg-warning text-dark',
+  },
+  careerEventStatus: {
+    'Attended': 'bg-success',
+    'No-Show': 'bg-danger',
+    'Cancelled': 'bg-secondary',
+  },
+  studentOutcome: {
+    'Completed': 'bg-success',
+    'Pending': 'bg-warning text-dark',
+  },
+  academicType: {
+    'Guest Lecture': 'bg-primary',
+    'Panel Discussion': 'bg-info text-dark',
+    'Community Project Partnership': 'bg-success',
+    'Mock Interviews': 'bg-warning text-dark',
+    'Research Collaboration': 'bg-secondary',
+    'Competition/Hackathon Sponsorship': 'bg-dark',
+    'Other': 'bg-secondary',
+  },
+  hiringProvider: {
+    'Company': 'bg-primary',
+    'Student/Alumni': 'bg-info text-dark',
+    'Other': 'bg-secondary',
+  },
+  hiringOutcome: {
+    'Yes': 'bg-success',
+    'No': 'bg-secondary',
+  },
+};
+
+function getBadgeClass(group, value, fallback = 'bg-secondary') {
+  return BADGE_STYLES[group]?.[String(value)] || fallback;
+}
+
+// Returns a Bootstrap badge <span>; classMap maps value → 'bg-*' class
+function statusBadge(value, classMap = {}) {
+  if (value === null || value === undefined || value === '') return '<span class="badge bg-secondary">—</span>';
+  const cls = classMap[String(value)] || 'bg-secondary';
+  return `<span class="badge ${cls}">${escHtml(String(value))}</span>`;
+}
+
+function clearFormError(formOrId) {
+  const form = typeof formOrId === 'string' ? document.getElementById(formOrId) : formOrId;
+  form?.querySelector('[data-form-error]')?.remove();
+}
+
+function showFormError(formOrId, message) {
+  const form = typeof formOrId === 'string' ? document.getElementById(formOrId) : formOrId;
+  if (!form) return;
+  clearFormError(form);
+  const body = form.querySelector('.modal-body');
+  if (!body) return;
+  body.insertAdjacentHTML('afterbegin',
+    `<div class="alert alert-danger py-2 small mb-3" data-form-error>${escHtml(message)}</div>`);
 }
 
 // ── Meta / last-updated cache ──────────────────────────────────────────────────
@@ -405,7 +536,7 @@ function injectSidebar() {
                   </div>
                   <div class="mb-3">
                     <label class="form-label">New Password</label>
-                    <input type="password" id="pw-new" class="form-control" required minlength="6">
+                    <input type="password" id="pw-new" class="form-control" required minlength="12">
                   </div>
                   <div class="mb-0">
                     <label class="form-label">Confirm New Password</label>

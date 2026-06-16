@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCompanies();
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
+  document.getElementById('filter-opportunity').addEventListener('change', applyFilters);
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
   document.getElementById('collaboration-form').addEventListener('submit', handleSave);
   document.getElementById('btn-delete').addEventListener('click', handleDelete);
@@ -74,11 +75,14 @@ async function loadItems() {
 
 function applyFilters() {
   const q = document.getElementById('search-input').value.toLowerCase();
+  const opportunity = document.getElementById('filter-opportunity').value;
   const filtered = allItems.filter(r => {
     if (q && !r.CompanyName?.toLowerCase().includes(q)) return false;
+    if (opportunity && !(r.Opportunities || []).includes(opportunity)) return false;
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function renderCurrentPage() {
@@ -120,7 +124,7 @@ function renderTable(items) {
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(opps)}</td>
       <td style="max-width:200px" class="text-truncate">${escHtml(r.Comment)}</td>
-      <td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.PotentialCollaborationID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.PotentialCollaborationID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -147,7 +151,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.PotentialCollaborationID : null;
-  document.getElementById('collaboration-form').reset();
+  const form = document.getElementById('collaboration-form');
+  form.reset();
+  clearFormError(form);
   document.querySelectorAll('input[name="opp"]').forEach(el => el.checked = false);
 
   const isEdit = !!item;
@@ -172,7 +178,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('collaboration-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -187,7 +193,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('collaboration-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -214,9 +220,4 @@ async function handleDeleteById(id) {
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
-}
-
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

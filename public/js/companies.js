@@ -9,9 +9,11 @@ const PAGE_SIZE    = 25;
 document.addEventListener('DOMContentLoaded', () => {
   loadCompanies();
 
-  document.getElementById('search-input').addEventListener('input', e => {
-    displayItems = filterCompanies(e.target.value.trim()); currentPage = 1; renderCurrentPage();
-  });
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
+  document.getElementById('filter-sector').addEventListener('change', applyFilters);
+  document.getElementById('filter-state').addEventListener('change', applyFilters);
+  document.getElementById('filter-from').addEventListener('change', applyFilters);
+  document.getElementById('filter-to').addEventListener('change', applyFilters);
 
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
 
@@ -31,7 +33,7 @@ async function loadCompanies() {
   setTableLoading(true);
   try {
     allCompanies = await fetchAPI('/api/companies');
-    displayItems = allCompanies; renderCurrentPage();
+    applyFilters();
   } catch (err) {
     showToast('Failed to load companies: ' + err.message, 'danger');
   } finally {
@@ -39,15 +41,31 @@ async function loadCompanies() {
   }
 }
 
-function filterCompanies(q) {
-  if (!q) return allCompanies;
-  const lower = q.toLowerCase();
-  return allCompanies.filter(c =>
-    c.CompanyName.toLowerCase().includes(lower) ||
-    (c.Country || '').toLowerCase().includes(lower) ||
-    (c.Industry || '').toLowerCase().includes(lower) ||
-    (c.Sector || '').toLowerCase().includes(lower)
-  );
+function applyFilters() {
+  const q      = document.getElementById('search-input').value.trim().toLowerCase();
+  const sector = document.getElementById('filter-sector').value;
+  const state  = document.getElementById('filter-state').value;
+  const from   = document.getElementById('filter-from').value;
+  const to     = document.getElementById('filter-to').value;
+
+  const filtered = allCompanies.filter(c => {
+    if (q && !c.CompanyName.toLowerCase().includes(q) &&
+             !(c.Country || '').toLowerCase().includes(q) &&
+             !(c.Industry || '').toLowerCase().includes(q) &&
+             !(c.Sector || '').toLowerCase().includes(q)) return false;
+    if (sector && c.Sector !== sector) return false;
+    if (state === 'Active' && c.Blacklisted) return false;
+    if (state === 'Blacklisted' && !c.Blacklisted) return false;
+    if (state === 'Favorite' && !c.FavoriteEmployer) return false;
+    if (state === 'Signed MoU' && !c.SignedMoU) return false;
+    if (from && c.DateAdded && c.DateAdded.slice(0, 10) < from) return false;
+    if (to   && c.DateAdded && c.DateAdded.slice(0, 10) > to)   return false;
+    return true;
+  });
+  displayItems = filtered;
+  currentPage = 1;
+  renderCurrentPage();
+  updateRecordCount(filtered.length, allCompanies.length);
 }
 
 // ── Table rendering ────────────────────────────────────────────────────────────
@@ -85,7 +103,7 @@ function renderTable(companies) {
     tbody.innerHTML = `
       <tr>
         <td colspan="7" class="text-center text-muted py-4">
-          No companies found. <a href="#" id="empty-add-link">Add your first company</a>.
+          No records found. <a href="#" id="empty-add-link">Add one</a>.
         </td>
       </tr>`;
     document.getElementById('empty-add-link')?.addEventListener('click', e => {
@@ -96,17 +114,17 @@ function renderTable(companies) {
   }
 
   tbody.innerHTML = companies.map(c => {
-    const blacklistedBadge = c.Blacklisted
-      ? '<span class="badge bg-danger ms-1">Blacklisted</span>'
-      : '';
-    const moUBadge = c.SignedMoU ? '<span class="badge bg-success ms-1">MoU</span>' : '';
-    const favBadge = c.FavoriteEmployer ? '<i class="bi bi-star-fill text-warning ms-1" title="Favorite"></i>' : '';
+    const stateBadges = [
+      c.Blacklisted ? statusBadge('Blacklisted', BADGE_STYLES.companyState) : '',
+      c.SignedMoU ? statusBadge('Signed MoU', BADGE_STYLES.companyState) : '',
+      c.FavoriteEmployer ? statusBadge('Favorite', BADGE_STYLES.companyState) : '',
+    ].filter(Boolean).join(' ');
     const rowClass = c.Blacklisted ? 'table-secondary text-muted' : '';
 
     return `
       <tr class="${rowClass}" style="cursor:pointer" data-id="${c.CompanyID}">
         <td>
-          ${escHtml(c.CompanyName)}${blacklistedBadge}${moUBadge}${favBadge}
+          ${escHtml(c.CompanyName)}${stateBadges ? `<div class="d-flex flex-wrap gap-1 mt-1">${stateBadges}</div>` : ''}
         </td>
         <td>${escHtml(c.Industry)}</td>
         <td>${escHtml(c.Sector)}</td>
@@ -141,6 +159,7 @@ function openModal(company) {
 
   const form = document.getElementById('company-form');
   form.reset();
+  clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('blacklist-warning').classList.add('d-none');
 
@@ -219,7 +238,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadCompanies();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('company-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -287,23 +306,4 @@ async function handleDeleteById(id) {
       }
     );
   } catch (err) { showToast('Could not load company details: ' + err.message, 'danger'); }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function escHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function formatDate(str) {
-  if (str === null || str === undefined || str === '') return '—';
-  return String(str).slice(0, 10);
 }

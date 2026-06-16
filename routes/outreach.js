@@ -1,37 +1,61 @@
 const express = require('express');
 const router = express.Router();
+const {
+  optionalIsoDate,
+  optionalPositiveInt,
+  optionalTrimmedString,
+  requireEnum,
+  requireIsoDate,
+  requirePositiveInt,
+  requireTrimmedString,
+  sendValidationError,
+} = require('./_validation');
 
 const VALID_TYPES    = ['Call', 'Meeting', 'Company Visit'];
 const VALID_STATUSES = ['Complete', 'In-progress'];
 
+router.param('id', (req, res, next, id) => {
+  try {
+    req.recordId = requirePositiveInt(id, 'Outreach record ID');
+    next();
+  } catch (err) {
+    sendValidationError(res, err);
+  }
+});
+
 // GET /api/outreach
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
-  const { companyId, contactId, interactionType, interactionStatus, from, to } = req.query;
-
-  let sql = `
-    SELECT o.*,
-           c.CompanyName,
-           co.FirstName || ' ' || co.LastName AS ContactName
-    FROM OutreachEngagement o
-    JOIN Company c  ON o.CompanyID  = c.CompanyID
-    JOIN Contact co ON o.ContactID  = co.ContactID
-    WHERE 1=1
-  `;
-  const params = [];
-
-  if (companyId)         { sql += ' AND o.CompanyID = ?';        params.push(companyId); }
-  if (contactId)         { sql += ' AND o.ContactID = ?';        params.push(contactId); }
-  if (interactionType)   { sql += ' AND o.InteractionType = ?';  params.push(interactionType); }
-  if (interactionStatus) { sql += ' AND o.InteractionStatus = ?';params.push(interactionStatus); }
-  if (from)              { sql += ' AND o.InteractionDate >= ?'; params.push(from); }
-  if (to)                { sql += ' AND o.InteractionDate <= ?'; params.push(to); }
-
-  sql += ' ORDER BY o.InteractionDate DESC';
-
   try {
+    const companyId = optionalPositiveInt(req.query.companyId, 'companyId');
+    const contactId = optionalPositiveInt(req.query.contactId, 'contactId');
+    const interactionType = req.query.interactionType ? requireEnum(req.query.interactionType, 'interactionType', VALID_TYPES) : null;
+    const interactionStatus = req.query.interactionStatus ? requireEnum(req.query.interactionStatus, 'interactionStatus', VALID_STATUSES) : null;
+    const from = optionalIsoDate(req.query.from, 'from');
+    const to = optionalIsoDate(req.query.to, 'to');
+
+    let sql = `
+      SELECT o.*,
+             c.CompanyName,
+             co.FirstName || ' ' || co.LastName AS ContactName
+      FROM OutreachEngagement o
+      JOIN Company c  ON o.CompanyID  = c.CompanyID
+      JOIN Contact co ON o.ContactID  = co.ContactID
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (companyId)         { sql += ' AND o.CompanyID = ?';         params.push(companyId); }
+    if (contactId)         { sql += ' AND o.ContactID = ?';         params.push(contactId); }
+    if (interactionType)   { sql += ' AND o.InteractionType = ?';   params.push(interactionType); }
+    if (interactionStatus) { sql += ' AND o.InteractionStatus = ?'; params.push(interactionStatus); }
+    if (from)              { sql += ' AND o.InteractionDate >= ?';  params.push(from); }
+    if (to)                { sql += ' AND o.InteractionDate <= ?';  params.push(to); }
+
+    sql += ' ORDER BY o.InteractionDate DESC';
     res.json(db.prepare(sql).all(...params));
   } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -45,7 +69,7 @@ router.get('/:id', (req, res) => {
     JOIN Company c  ON o.CompanyID = c.CompanyID
     JOIN Contact co ON o.ContactID = co.ContactID
     WHERE o.OutreachEngagementID = ?
-  `).get(req.params.id);
+  `).get(req.recordId);
   if (!row) return res.status(404).json({ error: 'Record not found' });
   res.json(row);
 });
@@ -53,18 +77,18 @@ router.get('/:id', (req, res) => {
 // POST /api/outreach
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
-  const { CompanyID, ContactID, InteractionType, InteractionDate,
-          DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus } = req.body;
-
-  if (!CompanyID)       return res.status(400).json({ error: 'CompanyID is required' });
-  if (!ContactID)       return res.status(400).json({ error: 'ContactID is required' });
-  if (!InteractionType) return res.status(400).json({ error: 'InteractionType is required' });
-  if (!InteractionDate) return res.status(400).json({ error: 'InteractionDate is required' });
-  if (!DiscussionItems) return res.status(400).json({ error: 'DiscussionItems is required' });
-  if (!VALID_TYPES.includes(InteractionType))
-    return res.status(400).json({ error: `InteractionType must be one of: ${VALID_TYPES.join(', ')}` });
-
   try {
+    const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
+    const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
+    const InteractionType = requireEnum(req.body.InteractionType, 'InteractionType', VALID_TYPES);
+    const InteractionDate = requireIsoDate(req.body.InteractionDate, 'InteractionDate');
+    const DiscussionItems = requireTrimmedString(req.body.DiscussionItems, 'DiscussionItems', 2000);
+    const ActionPlan = optionalTrimmedString(req.body.ActionPlan, 'ActionPlan', 2000);
+    const FollowUpDate = optionalIsoDate(req.body.FollowUpDate, 'FollowUpDate');
+    const InteractionStatus = req.body.InteractionStatus
+      ? requireEnum(req.body.InteractionStatus, 'InteractionStatus', VALID_STATUSES)
+      : 'In-progress';
+
     const info = db.prepare(`
       INSERT INTO OutreachEngagement
         (CompanyID, ContactID, InteractionType, InteractionDate,
@@ -72,13 +96,14 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       CompanyID, ContactID, InteractionType, InteractionDate,
-      DiscussionItems.trim(),
+      DiscussionItems,
       ActionPlan || null,
       FollowUpDate || null,
-      InteractionStatus || 'In-progress'
+      InteractionStatus
     );
     res.status(201).json(db.prepare('SELECT * FROM OutreachEngagement WHERE OutreachEngagementID = ?').get(info.lastInsertRowid));
   } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -86,16 +111,18 @@ router.post('/', (req, res) => {
 // PUT /api/outreach/:id
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
-  const { CompanyID, ContactID, InteractionType, InteractionDate,
-          DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus } = req.body;
-
-  if (!CompanyID)       return res.status(400).json({ error: 'CompanyID is required' });
-  if (!ContactID)       return res.status(400).json({ error: 'ContactID is required' });
-  if (!InteractionType) return res.status(400).json({ error: 'InteractionType is required' });
-  if (!InteractionDate) return res.status(400).json({ error: 'InteractionDate is required' });
-  if (!DiscussionItems) return res.status(400).json({ error: 'DiscussionItems is required' });
-
   try {
+    const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
+    const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
+    const InteractionType = requireEnum(req.body.InteractionType, 'InteractionType', VALID_TYPES);
+    const InteractionDate = requireIsoDate(req.body.InteractionDate, 'InteractionDate');
+    const DiscussionItems = requireTrimmedString(req.body.DiscussionItems, 'DiscussionItems', 2000);
+    const ActionPlan = optionalTrimmedString(req.body.ActionPlan, 'ActionPlan', 2000);
+    const FollowUpDate = optionalIsoDate(req.body.FollowUpDate, 'FollowUpDate');
+    const InteractionStatus = req.body.InteractionStatus
+      ? requireEnum(req.body.InteractionStatus, 'InteractionStatus', VALID_STATUSES)
+      : 'In-progress';
+
     const info = db.prepare(`
       UPDATE OutreachEngagement SET
         CompanyID = ?, ContactID = ?, InteractionType = ?, InteractionDate = ?,
@@ -103,13 +130,14 @@ router.put('/:id', (req, res) => {
       WHERE OutreachEngagementID = ?
     `).run(
       CompanyID, ContactID, InteractionType, InteractionDate,
-      DiscussionItems.trim(), ActionPlan || null, FollowUpDate || null,
-      InteractionStatus || 'In-progress',
-      req.params.id
+      DiscussionItems, ActionPlan || null, FollowUpDate || null,
+      InteractionStatus,
+      req.recordId
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Record not found' });
-    res.json(db.prepare('SELECT * FROM OutreachEngagement WHERE OutreachEngagementID = ?').get(req.params.id));
+    res.json(db.prepare('SELECT * FROM OutreachEngagement WHERE OutreachEngagementID = ?').get(req.recordId));
   } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -118,7 +146,7 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM OutreachEngagement WHERE OutreachEngagementID = ?').run(req.params.id);
+    const info = db.prepare('DELETE FROM OutreachEngagement WHERE OutreachEngagementID = ?').run(req.recordId);
     if (info.changes === 0) return res.status(404).json({ error: 'Record not found' });
     res.json({ message: 'Deleted' });
   } catch (err) {

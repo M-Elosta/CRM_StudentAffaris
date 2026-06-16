@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-type').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
@@ -87,6 +87,7 @@ function applyFilters() {
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function renderCurrentPage() {
@@ -123,15 +124,14 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const sessionDate = r.SessionDate ? r.SessionDate.substring(0, 10) : '—';
     return `<tr style="cursor:pointer" data-id="${r.EngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
-      <td><span class="badge bg-secondary">${escHtml(r.EngagementType)}</span></td>
+      <td>${statusBadge(r.EngagementType, BADGE_STYLES.academicType)}</td>
       <td>${escHtml(r.GuestSpeakerName)}</td>
       <td>${escHtml(r.FacultyName)}</td>
       <td>${escHtml(r.CourseNumber)}${r.CourseTitle ? ' – ' + escHtml(r.CourseTitle) : ''}</td>
-      <td>${sessionDate}</td>
-      <td>
+      <td>${formatDate(r.SessionDate)}</td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.EngagementID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.EngagementID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -158,7 +158,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.EngagementID : null;
-  document.getElementById('academic-form').reset();
+  const form = document.getElementById('academic-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Academic Engagement' : 'Add Academic Engagement';
@@ -206,7 +208,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('academic-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -221,7 +223,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('academic-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -248,9 +250,4 @@ async function handleDeleteById(id) {
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
-}
-
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

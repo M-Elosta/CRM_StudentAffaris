@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
@@ -77,6 +77,7 @@ function applyFilters() {
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 
 function renderCurrentPage() {
@@ -113,23 +114,16 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const badgeClass = {
-      'Attended':  'bg-success',
-      'No-Show':   'bg-danger',
-      'Cancelled': 'bg-secondary'
-    }[r.RegisteredStatus] || 'bg-secondary';
-
     const alumniBooth = r.CMUQAlumniAtBooth ? '&#10003;' : '&mdash;';
-    const eventDate = r.EventDate ? r.EventDate.substring(0, 10) : '—';
 
     return `<tr style="cursor:pointer" data-id="${r.CareerEventID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.EventName)}</td>
-      <td>${eventDate}</td>
-      <td><span class="badge ${badgeClass}">${escHtml(r.RegisteredStatus)}</span></td>
+      <td>${formatDate(r.EventDate)}</td>
+      <td>${statusBadge(r.RegisteredStatus, BADGE_STYLES.careerEventStatus)}</td>
       <td class="text-center">${alumniBooth}</td>
-      <td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.CareerEventID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.CareerEventID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -156,7 +150,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.CareerEventID : null;
-  document.getElementById('career-events-form').reset();
+  const form = document.getElementById('career-events-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Career Event' : 'Add Career Event';
@@ -172,6 +168,7 @@ function openModal(item) {
     document.getElementById('f-comment').value   = item.Comment || '';
   } else {
     updateContactDropdown('');
+    document.getElementById('f-date').value = todayStr();
     document.getElementById('f-status').value = 'Attended';
   }
   new bootstrap.Modal(document.getElementById('the-modal')).show();
@@ -191,7 +188,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('career-events-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -206,7 +203,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('career-events-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -233,9 +230,4 @@ async function handleDeleteById(id) {
       await loadItems();
     } catch (err) { showToast('Delete failed: ' + err.message, 'danger'); }
   });
-}
-
-function escHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

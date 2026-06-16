@@ -25,7 +25,7 @@
   </div>
 
   <!-- Filters -->
-  <div class="d-flex flex-wrap gap-2 mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
       <input type="text" id="search-input" class="form-control" placeholder="Search company or speaker…">
@@ -41,17 +41,19 @@
       <option value="Other">Other</option>
     </select>
     <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date">  </div>
+    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date">
+    <span id="record-count" class="badge bg-secondary ms-auto"></span>
+  </div>
 
   </div><!-- /.page-sticky-top -->
 
   <div class="card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
+      <table class="table table-hover table-striped mb-0 align-middle">
         <thead class="table-light">
           <tr>
             <th>Company</th><th>Type</th><th>Guest Speaker</th>
-            <th>Faculty</th><th>Course</th><th>Session Date</th><th>Actions</th>
+            <th>Faculty</th><th>Course</th><th>Session Date</th><th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -69,7 +71,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form id="academic-form" novalidate>
-        <div class="modal-body">
+        <div class="modal-body" style="max-height:70vh">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Company <span class="text-danger">*</span></label>

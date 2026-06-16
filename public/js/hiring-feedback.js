@@ -6,13 +6,13 @@ const PAGE_SIZE    = 25;
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-provider').addEventListener('change', applyFilters);
   document.getElementById('filter-hired').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
-  document.getElementById('the-form').addEventListener('submit', handleSave);
+  document.getElementById('hiring-feedback-form').addEventListener('submit', handleSave);
   document.getElementById('btn-delete').addEventListener('click', handleDelete);
   document.getElementById('f-company').addEventListener('change', e => updateContactDropdown(e.target.value));
   document.getElementById('f-hired').addEventListener('change', e => {
@@ -33,7 +33,7 @@ async function loadContacts() {
 }
 async function loadItems() {
   setLoading(true);
-  try { allItems = await fetchAPI('/api/hiring-feedback'); renderTable(allItems); }
+  try { allItems = await fetchAPI('/api/hiring-feedback'); applyFilters(); }
   catch(err) { showToast('Failed to load: '+err.message,'danger'); }
   finally { setLoading(false); }
 }
@@ -58,6 +58,7 @@ function applyFilters() {
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
+  updateRecordCount(filtered.length, allItems.length);
 }
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
@@ -93,9 +94,9 @@ function renderTable(items) {
     <tr style="cursor:pointer" data-id="${r.HiringFeedbackID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td>${escHtml(r.FeedbackProvider)}</td>
-      <td><span class="badge ${r.HiredStudentAlumni==='Yes'?'bg-success':'bg-secondary'}">${r.HiredStudentAlumni}</span></td>
-      <td>${r.DateReported || '—'}</td>
+      <td>${statusBadge(r.FeedbackProvider, BADGE_STYLES.hiringProvider)}</td>
+      <td>${statusBadge(r.HiredStudentAlumni, BADGE_STYLES.hiringOutcome)}</td>
+      <td>${formatDate(r.DateReported)}</td>
       <td>${escHtml(r.HiredStudentName||'—')}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>
@@ -104,11 +105,13 @@ function renderTable(items) {
     </tr>`).join('');
   tbody.querySelectorAll('tr[data-id]').forEach(row=>row.addEventListener('click',()=>openModal(allItems.find(r=>r.HiringFeedbackID==row.dataset.id))));
 }
-function setLoading(on){ if(on) document.getElementById('tbody').innerHTML=`<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Loading…</td></tr>`; }
+function setLoading(on){ if(on) document.getElementById('tbody').innerHTML=`<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>`; }
 function openModalById(id){ const item=allItems.find(r=>r.HiringFeedbackID==id); if(item) openModal(item); }
 function openModal(item) {
   editingId = item?item.HiringFeedbackID:null;
-  document.getElementById('the-form').reset();
+  const form = document.getElementById('hiring-feedback-form');
+  form.reset();
+  clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('hired-name-row').classList.add('d-none');
   document.getElementById('modal-title').textContent = item?'Edit Hiring Feedback':'Add Hiring Feedback';
@@ -130,7 +133,7 @@ function openModal(item) {
 }
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('hiring-feedback-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
     ContactID: document.getElementById('f-contact').value,
@@ -147,7 +150,7 @@ async function handleSave(e) {
     bootstrap.Modal.getInstance(document.getElementById('the-modal')).hide();
     showToast('Record saved successfully');
     await loadItems();
-  } catch(err){ showToast('Save failed: '+err.message,'danger'); }
+  } catch(err){ showFormError('hiring-feedback-form', err.message); }
   finally { btn.disabled=false; btn.innerHTML='Save'; }
 }
 async function handleDelete() {
@@ -168,4 +171,3 @@ async function handleDeleteById(id){
     } catch(err){ showToast('Delete failed: '+err.message,'danger'); }
   });
 }
-function escHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

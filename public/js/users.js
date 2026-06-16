@@ -88,7 +88,7 @@ function renderUsers(users) {
       ? ``
       : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID}, '${escHtml(u.Username)}')" title="Delete"><i class="bi bi-trash"></i></button>`;
 
-    const created = u.CreatedAt ? new Date(u.CreatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    const created = u.CreatedAt ? formatDate(u.CreatedAt) : '—';
 
     return `
       <tr${isSelf ? ' class="table-active"' : ''}>

@@ -17,12 +17,19 @@ A web application for managing company relationships, contacts, outreach, recrui
 cd employer-system
 npm install
 node database/seed.js   # optional — loads sample data
+export SESSION_SECRET="$(openssl rand -hex 32)"
+export DEFAULT_ADMIN_PASSWORD="change-this-before-sharing"
 node server.js
 ```
 
 Open your browser to **http://localhost:3000**
 
-**Default login:** `admin` / `admin123` (change this after first login)
+On first start, the app creates the bootstrap admin from:
+
+- `DEFAULT_ADMIN_USERNAME` (optional, defaults to `admin`)
+- `DEFAULT_ADMIN_PASSWORD` (**required in production**)
+
+If `SESSION_SECRET` is not set in development, the server generates a temporary secret for that run only.
 
 ### Convenience Scripts
 
@@ -101,7 +108,7 @@ Click **Change Password** at the bottom of the sidebar (available from any page 
 | Problem | Solution |
 |---------|----------|
 | Port 3000 already in use | Kill the other process or change `PORT` in `server.js` |
-| Forgot password | Delete `data/employer.db` and restart — a fresh admin account will be created |
+| Forgot password | Reset the affected user directly in the database, or start a fresh dev database with a new `DEFAULT_ADMIN_PASSWORD` |
 | Blank dashboard charts | Make sure the database has data; run `node database/seed.js` to load samples |
 | Import fails validation | Download the entity template from the Import page to see expected column names |
 
@@ -111,8 +118,9 @@ Click **Change Password** at the bottom of the sidebar (available from any page 
 
 - **Framework:** Express 4, Node.js
 - **Database:** SQLite via `better-sqlite3` (`data/employer.db`)
-- **Auth:** `express-session` + `bcrypt`, rate-limited to 10 login attempts per 15 min
+- **Auth:** `express-session` + `bcrypt`, rate-limited to 10 login attempts per 15 min, `SameSite=Lax`, `HttpOnly`, and `Secure` cookies in production
 - **Port:** 3000 (configurable via `PORT` env var)
+- **Required for production:** `SESSION_SECRET` and `DEFAULT_ADMIN_PASSWORD`
 - **No build step** — vanilla HTML/CSS/JS, Bootstrap 5 and Chart.js loaded from CDN
 - **Route files:** `employer-system/routes/` — one file per entity
 - **Schema:** `employer-system/database/schema.sql`

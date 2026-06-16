@@ -10,10 +10,12 @@ const PAGE_SIZE    = 25;
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
 
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-company').addEventListener('change', applyFilters);
+  document.getElementById('filter-from').addEventListener('change', applyFilters);
+  document.getElementById('filter-to').addEventListener('change', applyFilters);
 
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
 
@@ -69,10 +71,14 @@ function applyFilters() {
   const q         = document.getElementById('search-input').value.trim();
   const status    = document.getElementById('filter-status').value;
   const companyId = document.getElementById('filter-company').value;
+  const from      = document.getElementById('filter-from').value;
+  const to        = document.getElementById('filter-to').value;
 
   let filtered = filterContacts(q);
   if (status)    filtered = filtered.filter(c => c.Status === status);
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
+  if (from)      filtered = filtered.filter(c => (c.DateAdded || '').slice(0, 10) >= from);
+  if (to)        filtered = filtered.filter(c => (c.DateAdded || '').slice(0, 10) <= to);
 
   displayItems = filtered; currentPage = 1; renderCurrentPage();
   updateRecordCount(filtered.length, allContacts.length);
@@ -123,7 +129,7 @@ function renderTable(contacts) {
     tbody.innerHTML = `
       <tr>
         <td colspan="6" class="text-center text-muted py-4">
-          No contacts found. <a href="#" id="empty-add-link">Add your first contact</a>.
+          No records found. <a href="#" id="empty-add-link">Add one</a>.
         </td>
       </tr>`;
     document.getElementById('empty-add-link')?.addEventListener('click', e => {
@@ -134,25 +140,19 @@ function renderTable(contacts) {
   }
 
   tbody.innerHTML = contacts.map(c => {
-    const statusBadge = c.Status === 'Mailable'
-      ? '<span class="badge bg-success">Mailable</span>'
-      : '<span class="badge bg-danger">Non-mailable</span>';
-
-    const primaryBadge = c.PrimaryContact
-      ? '<i class="bi bi-star-fill text-warning ms-1" title="Primary Contact"></i>'
-      : '';
-
-    const excludeBadge = c.ExcludeFromMailing
-      ? '<span class="badge bg-warning text-dark ms-1">Excluded from Mailing</span>'
-      : '';
+    const badges = [
+      statusBadge(c.Status, BADGE_STYLES.contactStatus),
+      c.PrimaryContact ? statusBadge('Primary', { Primary: 'bg-warning text-dark' }) : '',
+      c.ExcludeFromMailing ? statusBadge('Excluded from Mailing', BADGE_STYLES.contactStatus) : '',
+    ].filter(Boolean).join(' ');
 
     return `
       <tr style="cursor:pointer" data-id="${c.ContactID}">
-        <td>${escHtml(c.LastName)}, ${escHtml(c.FirstName)}${primaryBadge}</td>
+        <td>${escHtml(c.LastName)}, ${escHtml(c.FirstName)}</td>
         <td>${escHtml(c.CompanyName || '—')}</td>
         <td>${escHtml(c.EmailAddress)}</td>
         <td>${escHtml(c.JobTitle || '—')}</td>
-        <td>${statusBadge}${excludeBadge}</td>
+        <td><div class="d-flex flex-wrap gap-1">${badges}</div></td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
@@ -186,6 +186,7 @@ function openModal(contact) {
 
   const form = document.getElementById('contact-form');
   form.reset();
+  clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('cmuq-fields').classList.add('d-none');
 
@@ -278,7 +279,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadContacts();
   } catch (err) {
-    showToast('Save failed: ' + err.message, 'danger');
+    showFormError('contact-form', err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Save';
@@ -322,22 +323,4 @@ async function handleDelete() {
       }
     }
   );
-}
-
-function updateRecordCount(shown, total) {
-  const el = document.getElementById('record-count');
-  if (!el) return;
-  el.textContent = shown === total ? `${total} record${total !== 1 ? 's' : ''}` : `${shown} of ${total}`;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function escHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
 }

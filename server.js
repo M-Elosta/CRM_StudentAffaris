@@ -1,3 +1,4 @@
+const crypto   = require('crypto');
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
@@ -6,7 +7,19 @@ const session  = require('express-session');
 const bcrypt   = require('bcrypt');
 
 const app  = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const SESSION_SECRET = process.env.SESSION_SECRET || (!IS_PRODUCTION ? crypto.randomBytes(32).toString('hex') : null);
+const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || null;
+
+if (!SESSION_SECRET) {
+  throw new Error('SESSION_SECRET must be set when NODE_ENV=production');
+}
+
+if (!process.env.SESSION_SECRET && !IS_PRODUCTION) {
+  console.warn('SESSION_SECRET not set; using an ephemeral development secret.');
+}
 
 // ── Database init ──────────────────────────────────────────────────────────────
 const DATA_DIR = path.join(__dirname, 'data');
@@ -25,34 +38,71 @@ try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'")
 (async () => {
   const count = db.prepare('SELECT COUNT(*) AS n FROM Users').get().n;
   if (count === 0) {
-    const hash = await bcrypt.hash('admin123', 12);
-    db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES ('admin', ?, 'admin')").run(hash);
-    console.log('Default user created — username: admin, password: admin123');
+    if (IS_PRODUCTION && !DEFAULT_ADMIN_PASSWORD) {
+      throw new Error('DEFAULT_ADMIN_PASSWORD must be set before first production start');
+    }
+
+    const bootstrapPassword = DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
+    const hash = await bcrypt.hash(bootstrapPassword, 12);
+    db.prepare('INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, ?)')
+      .run(DEFAULT_ADMIN_USERNAME, hash, 'admin');
+    console.log(`Bootstrap admin created — username: ${DEFAULT_ADMIN_USERNAME}, password: ${bootstrapPassword}`);
   }
-})();
+})().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(session({
-  secret: 'ero-system-secret-2025',
+  name: 'ero.sid',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }, // 24h
+  proxy: IS_PRODUCTION,
+  unset: 'destroy',
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PRODUCTION,
+    maxAge: 24 * 60 * 60 * 1000,
+  },
 }));
 
 // ── Simple login rate limiter ──────────────────────────────────────────────────
 const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 10;
+
+function clientIp(req) {
+  return (req.ip || req.connection?.remoteAddress || 'unknown').toString();
+}
+
+function clearLoginAttempts(ip) {
+  loginAttempts.delete(ip);
+}
+
 function loginRateLimiter(req, res, next) {
-  const ip  = req.ip;
+  const ip  = clientIp(req);
   const now = Date.now();
-  const rec = loginAttempts.get(ip) || { count: 0, resetAt: now + 15 * 60 * 1000 };
-  if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + 15 * 60 * 1000; }
+  const rec = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW_MS };
+  if (now > rec.resetAt) {
+    rec.count = 0;
+    rec.resetAt = now + LOGIN_WINDOW_MS;
+  }
   rec.count++;
   loginAttempts.set(ip, rec);
-  if (rec.count > 10) return res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
+  if (rec.count > MAX_LOGIN_ATTEMPTS) {
+    return res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
+  }
   next();
 }
+
+app.locals.clearLoginAttempts = clearLoginAttempts;
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 const PUBLIC_PATHS = ['/login.html', '/api/auth/login', '/css/', '/js/', '/favicon'];

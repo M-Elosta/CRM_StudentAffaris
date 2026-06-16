@@ -30,12 +30,12 @@
       <small id="page-last-updated" data-entity="contacts" class="text-muted"></small>
     </div>
     <button class="btn btn-primary" id="btn-add">
-      <i class="bi bi-plus-lg me-1"></i>Add Contact
+      <i class="bi bi-plus-lg me-1"></i>Add Record
     </button>
   </div>
 
   <!-- Search + filters -->
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <div class="input-group" style="max-width:340px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
       <input type="text" id="search-input" class="form-control" placeholder="Search by name or email…">
@@ -48,16 +48,17 @@
     <select id="filter-company" class="form-select" style="max-width:220px">
       <option value="">All companies</option>
     </select>
+    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date">
     <span id="record-count" class="badge bg-secondary ms-auto"></span>
   </div>
-  <p class="text-muted small mb-3"><i class="bi bi-star-fill text-warning me-1"></i>= Primary Contact</p>
 
   <!-- Table -->
   </div><!-- /.page-sticky-top -->
 
   <div class="card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
+      <table class="table table-hover table-striped mb-0 align-middle">
         <thead class="table-light">
           <tr>
             <th>Name</th>
@@ -68,11 +69,7 @@
             <th class="text-end">Actions</th>
           </tr>
         </thead>
-        <tbody id="contacts-tbody">
-          <tr><td colspan="6" class="text-center py-4">
-            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
-          </td></tr>
-        </tbody>
+        <tbody id="contacts-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -88,7 +85,7 @@
       </div>
 
       <form id="contact-form" novalidate>
-        <div class="modal-body">
+        <div class="modal-body" style="max-height:70vh">
           <div class="row g-3">
 
             <!-- Company -->
