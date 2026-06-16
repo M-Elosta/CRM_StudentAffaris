@@ -65,24 +65,26 @@ const REPORT_SECTIONS = [
     icon: 'bi-graph-up-arrow',
     label: 'Trends & Insights',
     cards: [
-      { type: 'industry-trends',     label: 'Industry Trends',       desc: 'Engagement by industry per semester',   icon: 'bi-bar-chart-steps',  color: '#4361ee' },
-      { type: 'top-recruiters',      label: 'Top Recruiters',        desc: 'Companies ranked, vs last semester',    icon: 'bi-trophy',           color: '#e9a823' },
-      { type: 'top-roles-by-program',label: 'Top Roles by Program',  desc: 'Job roles grouped by target major',     icon: 'bi-diagram-3',        color: '#7209b7' },
-      { type: 'sector-engagement',   label: 'Sector Engagement',     desc: 'Sector activity over semesters',        icon: 'bi-graph-up',         color: '#2ec4b6' },
-      { type: 'hiring-conversion',   label: 'Hiring Conversion',     desc: 'Postings vs actual hires per semester', icon: 'bi-funnel',           color: '#198754' },
-      { type: 'semester-comparison', label: 'Semester Comparison',   desc: 'Side-by-side semester metrics',         icon: 'bi-arrow-left-right', color: '#f72585' },
+      { type: 'industry-trends',             label: 'Industry Trends',              desc: 'Recruitment and engagement by industry',          icon: 'bi-bar-chart-steps',  color: '#4361ee' },
+      { type: 'opportunities-per-semester',  label: 'Opportunities per Semester',   desc: 'Industries and companies driving semester activity', icon: 'bi-calendar-range', color: '#0dcaf0' },
+      { type: 'top-recruiters',              label: 'Top Recruiters',               desc: 'Companies ranked against the previous period',   icon: 'bi-trophy',           color: '#e9a823' },
+      { type: 'top-roles-by-program',        label: 'Top Job Roles by Program',     desc: 'Most common opportunity titles and types by target major', icon: 'bi-diagram-3', color: '#7209b7' },
+      { type: 'year-over-year-comparison',   label: 'Year-over-Year Comparison',    desc: 'Engagement and recruitment volumes across academic years', icon: 'bi-bar-chart-line', color: '#f72585' },
+      { type: 'sector-engagement',           label: 'Sector Engagement',            desc: 'Sector activity over semesters',                 icon: 'bi-graph-up',         color: '#2ec4b6' },
+      { type: 'hiring-conversion',           label: 'Hiring Conversion',            desc: 'Postings vs actual hires per semester',          icon: 'bi-funnel',           color: '#198754' },
+      { type: 'semester-comparison',         label: 'Semester Comparison',          desc: 'Side-by-side period metrics',                    icon: 'bi-arrow-left-right', color: '#6f42c1' },
     ],
   },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
-let quickChart      = null;
+let quickChart = null;
 let activeQuickType = null;
-
 let repFilter = null;
+let reportPeriods = buildFallbackPeriods();
 
 // ── Init ───────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   renderReportSections();
 
   repFilter = initDateFilter('rep-from', 'rep-to', 'rep-show-all',
@@ -91,6 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
   document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
   document.getElementById('btn-print-quick').addEventListener('click', () => window.print());
+
+  await initReportFilters();
 });
 
 function currentRange() {
@@ -98,9 +102,220 @@ function currentRange() {
   return { from: r.from || null, to: r.to || null };
 }
 
+function currentPeriodContext() {
+  const showAll = document.getElementById('rep-show-all')?.checked;
+  if (showAll) return { mode: 'all', label: 'All time' };
+
+  const mode = document.getElementById('rep-view-mode')?.value || 'date';
+  if (mode === 'semester') {
+    const option = reportPeriods.semesters.find(x => x.key === document.getElementById('rep-semester')?.value);
+    return { mode, semester: option?.key || null, label: option?.label || 'Semester' };
+  }
+  if (mode === 'academic-year') {
+    const option = reportPeriods.academicYears.find(x => x.key === document.getElementById('rep-academic-year')?.value);
+    return { mode, academicYear: option?.key || null, label: option?.label || 'Academic year' };
+  }
+
+  const range = currentRange();
+  if (range.from && range.to) return { mode, label: `${formatReportDate(range.from)} - ${formatReportDate(range.to)}` };
+  if (range.from) return { mode, label: `From ${formatReportDate(range.from)}` };
+  if (range.to) return { mode, label: `To ${formatReportDate(range.to)}` };
+  return { mode, label: 'Custom range' };
+}
+
 function rerunActive() {
   const card = document.querySelector('.report-card.active');
   runQuickReport(activeQuickType, card?.dataset.label || '');
+}
+
+async function initReportFilters() {
+  const viewModeEl = document.getElementById('rep-view-mode');
+  const semesterEl = document.getElementById('rep-semester');
+  const academicYearEl = document.getElementById('rep-academic-year');
+  const showAllEl = document.getElementById('rep-show-all');
+
+  reportPeriods = await loadReportPeriods();
+  populatePeriodOptions(semesterEl, reportPeriods.semesters);
+  populatePeriodOptions(academicYearEl, reportPeriods.academicYears);
+
+  semesterEl.value = reportPeriods.defaults?.semester || reportPeriods.semesters[0]?.key || '';
+  academicYearEl.value = reportPeriods.defaults?.academicYear || reportPeriods.academicYears[0]?.key || '';
+  viewModeEl.value = 'semester';
+  showAllEl.checked = false;
+
+  viewModeEl.addEventListener('change', () => {
+    ensureModeSelection(viewModeEl.value);
+    applyReportFilterState(true);
+  });
+  semesterEl.addEventListener('change', () => applyReportFilterState(true));
+  academicYearEl.addEventListener('change', () => applyReportFilterState(true));
+  showAllEl.addEventListener('change', () => applyReportFilterState(false));
+
+  applyReportFilterState(false);
+}
+
+async function loadReportPeriods() {
+  try {
+    const data = await fetchAPI('/api/reports/periods');
+    if (Array.isArray(data?.semesters) && data.semesters.length && Array.isArray(data?.academicYears) && data.academicYears.length) {
+      return data;
+    }
+  } catch (_) {}
+  return buildFallbackPeriods();
+}
+
+function populatePeriodOptions(selectEl, items) {
+  selectEl.innerHTML = items.map(item =>
+    `<option value="${escHtml(item.key)}">${escHtml(item.label)}</option>`).join('');
+}
+
+function ensureModeSelection(mode) {
+  if (mode === 'semester' && !document.getElementById('rep-semester').value) {
+    document.getElementById('rep-semester').value = reportPeriods.defaults?.semester || reportPeriods.semesters[0]?.key || '';
+  }
+  if (mode === 'academic-year' && !document.getElementById('rep-academic-year').value) {
+    document.getElementById('rep-academic-year').value = reportPeriods.defaults?.academicYear || reportPeriods.academicYears[0]?.key || '';
+  }
+}
+
+function applyReportFilterState(triggerRerun) {
+  const showAllEl = document.getElementById('rep-show-all');
+  const viewModeEl = document.getElementById('rep-view-mode');
+  const semesterEl = document.getElementById('rep-semester');
+  const academicYearEl = document.getElementById('rep-academic-year');
+  const fromEl = document.getElementById('rep-from');
+  const toEl = document.getElementById('rep-to');
+  const semesterWrap = document.getElementById('rep-semester-wrap');
+  const academicYearWrap = document.getElementById('rep-ay-wrap');
+  const dateWrap = document.getElementById('rep-date-wrap');
+  const captionEl = document.getElementById('rep-period-caption');
+  const isAll = showAllEl.checked;
+  const mode = viewModeEl.value;
+
+  viewModeEl.disabled = isAll;
+  semesterEl.disabled = isAll || mode !== 'semester';
+  academicYearEl.disabled = isAll || mode !== 'academic-year';
+  fromEl.disabled = isAll || mode !== 'date';
+  toEl.disabled = isAll || mode !== 'date';
+
+  semesterWrap.classList.toggle('d-none', isAll || mode !== 'semester');
+  academicYearWrap.classList.toggle('d-none', isAll || mode !== 'academic-year');
+  dateWrap.classList.toggle('d-none', isAll || mode !== 'date');
+
+  if (isAll) {
+    fromEl.value = '';
+    toEl.value = '';
+    captionEl.textContent = 'All time';
+  } else if (mode === 'semester') {
+    const semester = reportPeriods.semesters.find(x => x.key === semesterEl.value) || reportPeriods.semesters[0];
+    if (semester) {
+      fromEl.value = semester.from;
+      toEl.value = semester.to;
+      captionEl.textContent = `${semester.label} • ${formatReportDate(semester.from)} - ${formatReportDate(semester.to)}`;
+    }
+  } else if (mode === 'academic-year') {
+    const academicYear = reportPeriods.academicYears.find(x => x.key === academicYearEl.value) || reportPeriods.academicYears[0];
+    if (academicYear) {
+      fromEl.value = academicYear.from;
+      toEl.value = academicYear.to;
+      captionEl.textContent = `${academicYear.label} • ${formatReportDate(academicYear.from)} - ${formatReportDate(academicYear.to)}`;
+    }
+  } else if (fromEl.value && toEl.value) {
+    captionEl.textContent = `${formatReportDate(fromEl.value)} - ${formatReportDate(toEl.value)}`;
+  } else if (fromEl.value) {
+    captionEl.textContent = `From ${formatReportDate(fromEl.value)}`;
+  } else if (toEl.value) {
+    captionEl.textContent = `To ${formatReportDate(toEl.value)}`;
+  } else {
+    captionEl.textContent = 'Custom range';
+  }
+
+  if (triggerRerun && activeQuickType) rerunActive();
+}
+
+function buildFallbackPeriods() {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const semesters = [];
+  const terms = [
+    ['spring', 'Spring', '01-01', '05-31'],
+    ['summer', 'Summer', '06-01', '07-31'],
+    ['fall', 'Fall', '08-01', '12-31'],
+  ];
+
+  for (let year = currentYear - 4; year <= currentYear + 1; year++) {
+    terms.forEach(([key, label, from, to]) => {
+      semesters.push({
+        key: `${year}-${key}`,
+        label: `${label} ${year}`,
+        from: `${year}-${from}`,
+        to: `${year}-${to}`,
+      });
+    });
+  }
+
+  const academicYears = [];
+  for (let start = currentYear - 4; start <= currentYear + 1; start++) {
+    academicYears.push({
+      key: `${start}-${String(start + 1).slice(-2)}`,
+      label: `AY${start}-${String(start + 1).slice(-2)}`,
+      from: `${start}-08-01`,
+      to: `${start + 1}-05-31`,
+    });
+  }
+
+  return {
+    semesters,
+    academicYears,
+    defaults: {
+      semester: defaultSemesterKey(),
+      academicYear: defaultAcademicYearKey(),
+    },
+  };
+}
+
+function formatReportDate(value) {
+  if (!value) return '—';
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return String(value);
+  return `${match[3]}/${match[2]}/${match[1].slice(-2)}`;
+}
+
+function defaultSemesterKey() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  if (month >= 8) return `${year}-fall`;
+  if (month <= 5) return `${year}-spring`;
+  return `${year}-summer`;
+}
+
+function defaultAcademicYearKey() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const start = month >= 8 ? year : year - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+}
+
+function buildQuickReportQuery(extra = {}) {
+  const qs = new URLSearchParams(extra);
+  const showAll = document.getElementById('rep-show-all').checked;
+  const mode = document.getElementById('rep-view-mode').value;
+  const range = currentRange();
+
+  if (!showAll) {
+    if (mode === 'semester') {
+      qs.set('semester', document.getElementById('rep-semester').value);
+    } else if (mode === 'academic-year') {
+      qs.set('academicYear', document.getElementById('rep-academic-year').value);
+    } else {
+      if (range.from) qs.set('from', range.from);
+      if (range.to) qs.set('to', range.to);
+    }
+  }
+
+  return qs;
 }
 
 // ── Render sections & cards ────────────────────────────────────────────────────
@@ -120,7 +335,6 @@ function renderReportSections() {
       </div>
     </div>`).join('');
 
-  // Attach click handlers
   document.querySelectorAll('.report-card').forEach(el => {
     el.addEventListener('click', () => {
       document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
@@ -152,11 +366,7 @@ function hexToRgba(hex, alpha) {
 // ── Quick Reports ──────────────────────────────────────────────────────────────
 async function runQuickReport(type, label) {
   activeQuickType = type;
-  const range = currentRange();
-  const from  = range.from || '';
-  const to    = range.to   || '';
 
-  // Show results panel immediately (with loading state)
   const section = document.getElementById('results-section');
   section.classList.remove('d-none');
   document.getElementById('quick-loading').classList.remove('d-none');
@@ -166,19 +376,15 @@ async function runQuickReport(type, label) {
   document.getElementById('btn-download-png').classList.add('d-none');
 
   document.getElementById('qr-title').textContent = label;
-  document.getElementById('qr-count').textContent  = '';
-
-  // Smooth scroll to results
+  document.getElementById('qr-count').textContent = '';
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
-    const qs = new URLSearchParams();
-    if (from) qs.set('from', from);
-    if (to)   qs.set('to',   to);
-    const data = await fetchAPI(`/api/reports/quick/${type}?${qs}`);
-
-    document.getElementById('qr-count').textContent =
-      `${data.count} record${data.count !== 1 ? 's' : ''}`;
+    const data = await fetchAPI(`/api/reports/quick/${type}?${buildQuickReportQuery()}`);
+    const countText = `${data.count} record${data.count !== 1 ? 's' : ''}`;
+    document.getElementById('qr-count').textContent = data.meta?.periodLabel
+      ? `${countText} • ${data.meta.periodLabel}`
+      : countText;
 
     renderQuickTable(data.rows);
     renderQuickChart(data.chartData);
@@ -208,16 +414,25 @@ function renderQuickTable(rows) {
   tbody.innerHTML = rows.map(r => {
     const cls = r._urgency ? (urgencyClass[r._urgency] || '') : '';
     return `<tr class="${cls}">` +
-      cols.map(c => `<td title="${escHtml(String(r[c] ?? ''))}">${escHtml(String(r[c] ?? '—'))}</td>`).join('') +
+      cols.map(c => {
+        const value = formatReportCellValue(r[c]);
+        return `<td title="${escHtml(value)}">${escHtml(value)}</td>`;
+      }).join('') +
       '</tr>';
   }).join('');
 
   document.getElementById('quick-table-wrap').classList.remove('d-none');
 }
 
+function formatReportCellValue(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(value)) return formatReportDate(value);
+  return String(value);
+}
+
 function renderQuickChart(chartData) {
   const wrapper = document.getElementById('chart-wrapper');
-  const pngBtn  = document.getElementById('btn-download-png');
+  const pngBtn = document.getElementById('btn-download-png');
   if (!chartData || !chartData.labels || !chartData.labels.length) {
     wrapper.classList.add('d-none');
     pngBtn.classList.add('d-none');
@@ -231,13 +446,7 @@ function renderQuickChart(chartData) {
 
 async function exportQuickExcel() {
   if (!activeQuickType) return;
-  const range = currentRange();
-  const from  = range.from || '';
-  const to    = range.to   || '';
-  const qs = new URLSearchParams({ export: '1' });
-  if (from) qs.set('from', from);
-  if (to)   qs.set('to',   to);
-  triggerDownload(`/api/reports/quick/${activeQuickType}?${qs}`);
+  triggerDownload(`/api/reports/quick/${activeQuickType}?${buildQuickReportQuery({ export: '1' })}`);
   showToast('Downloading Excel…');
 }
 
@@ -258,7 +467,7 @@ function buildChartConfig(chartData) {
             label: ctx => {
               if (isPie) {
                 const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                const pct   = total ? Math.round(ctx.parsed / total * 100) : 0;
+                const pct = total ? Math.round(ctx.parsed / total * 100) : 0;
                 return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
               }
               const val = ctx.parsed.y ?? ctx.parsed.x ?? ctx.parsed;
@@ -269,7 +478,7 @@ function buildChartConfig(chartData) {
       },
       scales: isPie ? {} : {
         x: { ticks: { maxRotation: 45 }, stacked: chartData.stacked || false },
-        y: { beginAtZero: true,          stacked: chartData.stacked || false },
+        y: { beginAtZero: true, stacked: chartData.stacked || false },
       },
       indexAxis: chartData.indexAxis || 'x',
     },
@@ -281,7 +490,7 @@ function downloadChartPNG(canvasId, name) {
   if (!canvas) return;
   const a = document.createElement('a');
   a.download = `${name || 'chart'}-${Date.now()}.png`;
-  a.href     = canvas.toDataURL('image/png');
+  a.href = canvas.toDataURL('image/png');
   a.click();
   showToast('Chart downloaded');
 }
@@ -289,7 +498,8 @@ function downloadChartPNG(canvasId, name) {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function triggerDownload(url) {
   const a = document.createElement('a');
-  a.href = url; a.click();
+  a.href = url;
+  a.click();
 }
 
 function escHtml(s) {

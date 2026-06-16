@@ -1,10 +1,20 @@
 const express = require('express');
 const router  = express.Router();
 const XLSX    = require('xlsx');
+const {
+  optionalIsoDate,
+  optionalStringArray,
+  optionalTrimmedString,
+  requirePositiveInt,
+  requireTrimmedString,
+  sendValidationError,
+  validationError,
+} = require('./_validation');
 
 // ── Chart colour palette (consistent with dashboard) ───────────────────────────
 const PALETTE = ['#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c','#e71d36',
                  '#3a0ca3','#7209b7','#06d6a0','#118ab2','#ffd166','#ef476f'];
+const ISO_DATEISH_RE = /^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/;
 
 // ── Month label helper ─────────────────────────────────────────────────────────
 function monthLabel(str) {
@@ -19,6 +29,230 @@ function dateClause(col, from, to) {
   if (from) { parts.push(`${col} >= ?`); params.push(from); }
   if (to)   { parts.push(`${col} <= ?`); params.push(to); }
   return { sql: parts.length ? ' AND ' + parts.join(' AND ') : '', params };
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateOutput(value) {
+  if (typeof value !== 'string') return value;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return value;
+  return `${match[3]}/${match[2]}/${match[1].slice(-2)}`;
+}
+
+function formatRowsForOutput(rows) {
+  return rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => {
+    if (typeof value === 'string' && ISO_DATEISH_RE.test(value)) return [key, formatDateOutput(value)];
+    return [key, value];
+  })));
+}
+
+function academicYearKey(startYear) {
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
+function academicYearLabel(startYear) {
+  return `AY${academicYearKey(startYear)}`;
+}
+
+function academicYearRange(startYear) {
+  return {
+    kind: 'academic-year',
+    startYear,
+    key: academicYearKey(startYear),
+    label: academicYearLabel(startYear),
+    from: `${startYear}-08-01`,
+    to: `${startYear + 1}-05-31`,
+    order: startYear,
+  };
+}
+
+function academicYearStartForDate(dateStr) {
+  if (!dateStr) return new Date().getFullYear();
+  const month = Number(String(dateStr).slice(5, 7));
+  const year = Number(String(dateStr).slice(0, 4));
+  if (!month || !year) return new Date().getFullYear();
+  return month >= 8 ? year : year - 1;
+}
+
+function academicYearOf(dateStr) {
+  if (!dateStr) return null;
+  const month = Number(String(dateStr).slice(5, 7));
+  const year = Number(String(dateStr).slice(0, 4));
+  if (!month || !year || (month >= 6 && month <= 7)) return null;
+  return academicYearRange(month >= 8 ? year : year - 1);
+}
+
+function academicYearFromKey(key) {
+  const value = optionalTrimmedString(key, 'academicYear', 16);
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2}|\d{4})$/);
+  if (!match) throw validationError('academicYear must be in YYYY-YY format');
+  const startYear = Number(match[1]);
+  const endYear = match[2].length === 2 ? Number(`${match[1].slice(0, 2)}${match[2]}`) : Number(match[2]);
+  if (endYear !== startYear + 1) throw validationError('academicYear must span consecutive years');
+  return academicYearRange(startYear);
+}
+
+function semesterRange(term, year) {
+  if (term === 'fall') return { kind: 'semester', term, year, key: `${year}-fall`, label: `Fall ${year}`, order: year * 3 + 2, from: `${year}-08-01`, to: `${year}-12-31` };
+  if (term === 'spring') return { kind: 'semester', term, year, key: `${year}-spring`, label: `Spring ${year}`, order: year * 3 + 0, from: `${year}-01-01`, to: `${year}-05-31` };
+  return { kind: 'semester', term, year, key: `${year}-summer`, label: `Summer ${year}`, order: year * 3 + 1, from: `${year}-06-01`, to: `${year}-07-31` };
+}
+
+function semesterFromKey(key) {
+  const value = optionalTrimmedString(key, 'semester', 16);
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(fall|spring|summer)$/i);
+  if (!match) throw validationError('semester must be in YYYY-fall, YYYY-spring, or YYYY-summer format');
+  return semesterRange(match[2].toLowerCase(), Number(match[1]));
+}
+
+function resolveQuickReportPeriod(query) {
+  const from = optionalIsoDate(query.from, 'from');
+  const to = optionalIsoDate(query.to, 'to');
+  const semester = semesterFromKey(query.semester || null);
+  const academicYear = academicYearFromKey(query.academicYear || null);
+
+  if ((semester || academicYear) && (from || to)) {
+    throw validationError('Use either custom dates or semester/academicYear filters, not both');
+  }
+  if (semester && academicYear) {
+    throw validationError('Choose either a semester or an academicYear filter');
+  }
+
+  let mode = 'all';
+  let label = 'All time';
+  let resolvedFrom = from || null;
+  let resolvedTo = to || null;
+
+  if (semester) {
+    mode = 'semester';
+    label = semester.label;
+    resolvedFrom = semester.from;
+    resolvedTo = semester.to;
+  } else if (academicYear) {
+    mode = 'academic-year';
+    label = academicYear.label;
+    resolvedFrom = academicYear.from;
+    resolvedTo = academicYear.to;
+  } else if (resolvedFrom || resolvedTo) {
+    mode = 'date';
+    label = resolvedFrom && resolvedTo
+      ? `${formatDateOutput(resolvedFrom)} - ${formatDateOutput(resolvedTo)}`
+      : resolvedFrom
+        ? `From ${formatDateOutput(resolvedFrom)}`
+        : `To ${formatDateOutput(resolvedTo)}`;
+  }
+
+  if (resolvedFrom && resolvedTo && resolvedFrom > resolvedTo) {
+    throw validationError('from must be on or before to');
+  }
+
+  return {
+    mode,
+    label,
+    from: resolvedFrom,
+    to: resolvedTo,
+    semester: semester ? semester.key : null,
+    academicYear: academicYear ? academicYear.key : null,
+  };
+}
+
+function reportDateBounds(db) {
+  return db.prepare(`
+    SELECT MIN(d) AS minDate, MAX(d) AS maxDate
+    FROM (
+      SELECT DateAdded AS d FROM Company
+      UNION ALL SELECT DateAdded FROM Contact
+      UNION ALL SELECT InteractionDate FROM OutreachEngagement
+      UNION ALL SELECT DatePosted FROM Recruitment
+      UNION ALL SELECT DateReported FROM HiringFeedback
+      UNION ALL SELECT EventDate FROM CareerEvent
+      UNION ALL SELECT ProposalDate FROM StudentLedEvent
+      UNION ALL SELECT SessionDate FROM AcademicClassroomEngagement
+    )
+    WHERE d IS NOT NULL AND d != ''
+  `).get();
+}
+
+function buildReportPeriods(db) {
+  const bounds = reportDateBounds(db);
+  const currentDate = todayIso();
+  const currentSemester = semesterOf(currentDate);
+  const firstSemester = semesterOf(bounds.minDate || currentDate);
+  const lastSemester = semesterOf(bounds.maxDate || currentDate);
+  const startSemester = firstSemester.order <= currentSemester.order ? firstSemester : currentSemester;
+  const endSemester = lastSemester.order >= currentSemester.order ? lastSemester : currentSemester;
+  const semesters = [];
+  let cursor = startSemester;
+
+  while (cursor && cursor.order <= endSemester.order) {
+    semesters.push({ key: cursor.key, label: cursor.label, from: cursor.from, to: cursor.to });
+    cursor = nextSemesterOf(cursor);
+  }
+
+  const startAcademicYear = Math.min(academicYearStartForDate(bounds.minDate || currentDate), academicYearStartForDate(currentDate));
+  const endAcademicYear = Math.max(academicYearStartForDate(bounds.maxDate || currentDate), academicYearStartForDate(currentDate));
+  const academicYears = [];
+  for (let year = startAcademicYear; year <= endAcademicYear; year++) {
+    const range = academicYearRange(year);
+    academicYears.push({ key: range.key, label: range.label, from: range.from, to: range.to });
+  }
+
+  return {
+    semesters,
+    academicYears,
+    defaults: {
+      semester: currentSemester.key,
+      academicYear: academicYearRange(academicYearStartForDate(currentDate)).key,
+    },
+  };
+}
+
+function baseComparisonPeriod(periodCtx, anchorDate) {
+  if (periodCtx?.mode === 'academic-year' && periodCtx.academicYear) return academicYearFromKey(periodCtx.academicYear);
+  if (periodCtx?.mode === 'semester' && periodCtx.semester) return semesterFromKey(periodCtx.semester);
+  return semesterOf(anchorDate || todayIso());
+}
+
+function previousComparisonPeriod(period) {
+  if (period.kind === 'academic-year') return academicYearRange(period.startYear - 1);
+  return prevSemesterOf(period);
+}
+
+function academicYearForSemester(semester) {
+  return academicYearRange(semester.term === 'fall' ? semester.year : semester.year - 1);
+}
+
+function collectOpportunityEvents(db, from, to) {
+  const sources = [
+    { kind: 'recruitment', sql: `SELECT r.DatePosted AS d, c.Industry AS industry, c.CompanyName AS company FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE 1=1`, dateCol: 'DatePosted' },
+    { kind: 'engagement', sql: `SELECT o.InteractionDate AS d, c.Industry AS industry, c.CompanyName AS company FROM OutreachEngagement o JOIN Company c ON o.CompanyID=c.CompanyID WHERE 1=1`, dateCol: 'InteractionDate' },
+    { kind: 'engagement', sql: `SELECT e.EventDate AS d, c.Industry AS industry, c.CompanyName AS company FROM CareerEvent e JOIN Company c ON e.CompanyID=c.CompanyID WHERE e.RegisteredStatus='Attended'`, dateCol: 'EventDate' },
+    { kind: 'engagement', sql: `SELECT a.SessionDate AS d, c.Industry AS industry, c.CompanyName AS company FROM AcademicClassroomEngagement a JOIN Company c ON a.CompanyID=c.CompanyID WHERE 1=1`, dateCol: 'SessionDate' },
+  ];
+
+  const events = [];
+  sources.forEach(source => {
+    const dc = dateClause(source.dateCol, from, to);
+    db.prepare(`${source.sql}${dc.sql}`).all(...dc.params).forEach(row => {
+      const semester = semesterOf(row.d);
+      if (!semester) return;
+      const academicYear = academicYearOf(row.d);
+      events.push({
+        semester,
+        academicYear,
+        chartLabel: academicYear ? `${academicYear.label} • ${semester.label}` : semester.label,
+        industry: row.industry || 'Unknown',
+        company: row.company || 'Unknown',
+        kind: source.kind,
+      });
+    });
+  });
+  return events;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -592,11 +826,66 @@ const QUICK_REPORTS = {
     return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
   },
 
-  'top-recruiters': (db, from, to) => {
-    // Target semester = semester containing `from` (or current semester)
-    const anchor = from || new Date().toISOString().slice(0, 10);
-    const cur  = semesterOf(anchor);
-    const prev = prevSemesterOf(cur);
+  'opportunities-per-semester': (db, from, to) => {
+    const events = collectOpportunityEvents(db, from, to);
+    const buckets = {};
+
+    events.forEach(event => {
+      const key = `${event.chartLabel}||${event.industry}`;
+      const bucket = buckets[key] = buckets[key] || {
+        order: event.semester.order,
+        chartLabel: event.chartLabel,
+        semester: event.semester.label,
+        academicYear: event.academicYear ? event.academicYear.label : 'Outside AY',
+        industry: event.industry,
+        recruitment: 0,
+        engagement: 0,
+        companies: {},
+      };
+      bucket[event.kind]++;
+      bucket.companies[event.company] = (bucket.companies[event.company] || 0) + 1;
+    });
+
+    const rows = Object.values(buckets)
+      .sort((a, b) => a.order - b.order || (b.recruitment + b.engagement) - (a.recruitment + a.engagement))
+      .map(bucket => ({
+        'Academic Year': bucket.academicYear,
+        'Semester': bucket.semester,
+        'Industry': bucket.industry,
+        'Recruitment Count': bucket.recruitment,
+        'Engagement Count': bucket.engagement,
+        'Total Opportunities': bucket.recruitment + bucket.engagement,
+        'Top Companies': Object.entries(bucket.companies)
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 3)
+          .map(([company, count]) => `${company} (${count})`)
+          .join(', ') || '—',
+      }));
+
+    const chartRows = Object.values(buckets);
+    const topIndustries = Object.entries(rows.reduce((acc, row) => {
+      acc[row.Industry] = (acc[row.Industry] || 0) + row['Total Opportunities'];
+      return acc;
+    }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([industry]) => industry);
+    const labels = [...new Set(chartRows
+      .sort((a, b) => a.order - b.order)
+      .map(bucket => bucket.chartLabel))];
+    const datasets = topIndustries.map((industry, index) => ({
+      label: industry,
+      data: labels.map(label => {
+        const bucket = chartRows.find(item => item.industry === industry && item.chartLabel === label);
+        return bucket ? bucket.recruitment + bucket.engagement : 0;
+      }),
+      backgroundColor: PALETTE[index % PALETTE.length],
+      borderRadius: 4,
+    }));
+
+    return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
+  },
+
+  'top-recruiters': (db, from, to, periodCtx) => {
+    const current = baseComparisonPeriod(periodCtx, from || todayIso());
+    const previous = previousComparisonPeriod(current);
 
     const countBy = (sql, range, params0 = []) => {
       const out = {};
@@ -607,8 +896,8 @@ const QUICK_REPORTS = {
     const postSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE r.DatePosted>=? AND r.DatePosted<=? GROUP BY c.CompanyName`;
     const hireSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID WHERE h.HiredStudentAlumni='Yes' AND h.DateReported>=? AND h.DateReported<=? GROUP BY c.CompanyName`;
 
-    const curPost = countBy(postSql, cur),  curHire = countBy(hireSql, cur);
-    const prePost = countBy(postSql, prev), preHire = countBy(hireSql, prev);
+    const curPost = countBy(postSql, current),  curHire = countBy(hireSql, current);
+    const prePost = countBy(postSql, previous), preHire = countBy(hireSql, previous);
 
     const companies = [...new Set([...Object.keys(curPost), ...Object.keys(curHire)])];
     const rows = companies.map(co => {
@@ -618,7 +907,7 @@ const QUICK_REPORTS = {
       const diff     = total - prevTot;
       return {
         'Company': co, 'Postings': postings, 'Hires': hires, 'Total': total,
-        [`${prev.label}`]: prevTot,
+        [previous.label]: prevTot,
         'Change': diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—',
       };
     }).sort((a, b) => b.Total - a.Total);
@@ -628,8 +917,8 @@ const QUICK_REPORTS = {
       type: 'bar', indexAxis: 'y',
       labels: top.map(r => r.Company),
       datasets: [
-        { label: `Postings (${cur.label})`, data: top.map(r => r.Postings), backgroundColor: '#4361ee', borderRadius: 4 },
-        { label: `Hires (${cur.label})`,    data: top.map(r => r.Hires),    backgroundColor: '#2ec4b6', borderRadius: 4 },
+        { label: `Postings (${current.label})`, data: top.map(r => r.Postings), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: `Hires (${current.label})`,    data: top.map(r => r.Hires),    backgroundColor: '#2ec4b6', borderRadius: 4 },
       ],
     }};
   },
@@ -637,40 +926,71 @@ const QUICK_REPORTS = {
   'top-roles-by-program': (db, from, to) => {
     const dc = dateClause('r.DatePosted', from, to);
     const raw = db.prepare(`
-      SELECT m.Major AS major, r.OpportunityTitle AS title, r.Status AS payStatus,
+      SELECT DISTINCT r.RecruitmentID AS recruitmentId,
+             COALESCE(NULLIF(TRIM(m.Major), ''), 'Unspecified') AS major,
+             COALESCE(NULLIF(TRIM(t.Type), ''), 'Unspecified') AS roleType,
+             TRIM(COALESCE(r.OpportunityTitle, '')) AS title,
+             r.Status AS payStatus,
              r.HiredStudentAlumni AS hired
-      FROM Recruitment_TargetMajors m
-      JOIN Recruitment r ON m.RecruitmentID = r.RecruitmentID
+      FROM Recruitment r
+      LEFT JOIN Recruitment_TargetMajors m ON m.RecruitmentID = r.RecruitmentID
+      LEFT JOIN Recruitment_OpportunityType t ON t.RecruitmentID = r.RecruitmentID
       WHERE 1=1${dc.sql}`).all(...dc.params);
 
     const byMajor = {};
     raw.forEach(r => {
-      const m = byMajor[r.major] = byMajor[r.major] || { titles: {}, postings: 0, paid: 0, hired: 0 };
-      m.postings++;
-      if (r.payStatus === 'Paid')  m.paid++;
-      if (r.hired === 'Yes')       m.hired++;
-      const t = (r.title || '').trim();
-      if (t) m.titles[t] = (m.titles[t] || 0) + 1;
+      const m = byMajor[r.major] = byMajor[r.major] || {
+        titles: {},
+        roleTypes: {},
+        postings: new Set(),
+        paid: new Set(),
+        hired: new Set(),
+      };
+      m.postings.add(r.recruitmentId);
+      if (r.payStatus === 'Paid') m.paid.add(r.recruitmentId);
+      if (r.hired === 'Yes') m.hired.add(r.recruitmentId);
+      if (r.title) m.titles[r.title] = (m.titles[r.title] || 0) + 1;
+      if (r.roleType) m.roleTypes[r.roleType] = (m.roleTypes[r.roleType] || 0) + 1;
     });
 
     const rows = Object.entries(byMajor)
-      .sort((a, b) => b[1].postings - a[1].postings)
-      .map(([major, m]) => ({
-        'Major': major,
-        'Top Opportunity Titles': Object.entries(m.titles).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .sort((a, b) => b[1].postings.size - a[1].postings.size)
+      .map(([major, m]) => {
+        const postingCount = m.postings.size;
+        const topRoleTypes = Object.entries(m.roleTypes).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        return {
+          'Program': major,
+          'Top Job Role Types': topRoleTypes.map(([type, count]) => `${type} (${count})`).join(', ') || '—',
+          'Top Opportunity Titles': Object.entries(m.titles).sort((a, b) => b[1] - a[1]).slice(0, 3)
           .map(([t, n]) => `${t} (${n})`).join(', ') || '—',
-        'Posting Count': m.postings,
-        'Paid %': m.postings ? Math.round(m.paid / m.postings * 100) + '%' : '0%',
-        'Hired Count': m.hired,
-      }));
+          'Posting Count': postingCount,
+          'Paid %': postingCount ? Math.round(m.paid.size / postingCount * 100) + '%' : '0%',
+          'Hired Count': m.hired.size,
+        };
+      });
+
+    const topRoleTypes = Object.entries(Object.values(byMajor).reduce((acc, major) => {
+      Object.entries(major.roleTypes).forEach(([type, count]) => {
+        acc[type] = (acc[type] || 0) + count;
+      });
+      return acc;
+    }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([type]) => type);
 
     return { rows, chartData: {
       type: 'bar',
-      labels: rows.map(r => r.Major),
-      datasets: [
-        { label: 'Postings', data: rows.map(r => r['Posting Count']), backgroundColor: '#4361ee', borderRadius: 4 },
-        { label: 'Hired',    data: rows.map(r => r['Hired Count']),   backgroundColor: '#2ec4b6', borderRadius: 4 },
-      ],
+      indexAxis: 'y',
+      stacked: true,
+      labels: rows.map(r => r.Program),
+      datasets: topRoleTypes.length
+        ? topRoleTypes.map((type, index) => ({
+            label: type,
+            data: rows.map(row => byMajor[row.Program]?.roleTypes?.[type] || 0),
+            backgroundColor: PALETTE[index % PALETTE.length],
+            borderRadius: 4,
+          }))
+        : [
+            { label: 'Postings', data: rows.map(r => r['Posting Count']), backgroundColor: '#4361ee', borderRadius: 4 },
+          ],
     }};
   },
 
@@ -743,11 +1063,77 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'semester-comparison': (db, from, to) => {
-    // Semester A = semester containing `from` (or current); B = the one before it
-    const anchor = from || new Date().toISOString().slice(0, 10);
-    const A = semesterOf(anchor);
-    const B = prevSemesterOf(A);
+  'year-over-year-comparison': (db, from, to, periodCtx) => {
+    const countsByYear = {};
+    const add = (range, key) => {
+      const rows = db.prepare(`
+        SELECT d FROM (
+          SELECT DatePosted AS d, 'recruitment' AS kind FROM Recruitment WHERE DatePosted >= ? AND DatePosted <= ?
+          UNION ALL
+          SELECT InteractionDate AS d, 'engagement' AS kind FROM OutreachEngagement WHERE InteractionDate >= ? AND InteractionDate <= ?
+          UNION ALL
+          SELECT EventDate AS d, 'engagement' AS kind FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate >= ? AND EventDate <= ?
+          UNION ALL
+          SELECT SessionDate AS d, 'engagement' AS kind FROM AcademicClassroomEngagement WHERE SessionDate >= ? AND SessionDate <= ?
+        ) WHERE kind = ?
+      `).all(range.from, range.to, range.from, range.to, range.from, range.to, range.from, range.to, key);
+      rows.forEach(row => {
+        const academicYear = academicYearOf(row.d);
+        if (!academicYear) return;
+        const bucket = countsByYear[academicYear.label] = countsByYear[academicYear.label] || {
+          order: academicYear.order,
+          recruitment: 0,
+          engagement: 0,
+        };
+        bucket[key]++;
+      });
+    };
+
+    if (periodCtx?.mode === 'academic-year') {
+      const current = academicYearFromKey(periodCtx.academicYear);
+      const previous = previousComparisonPeriod(current);
+      add(previous, 'recruitment');
+      add(previous, 'engagement');
+      add(current, 'recruitment');
+      add(current, 'engagement');
+    } else if (periodCtx?.mode === 'semester') {
+      const current = academicYearForSemester(semesterFromKey(periodCtx.semester));
+      const previous = previousComparisonPeriod(current);
+      add(previous, 'recruitment');
+      add(previous, 'engagement');
+      add(current, 'recruitment');
+      add(current, 'engagement');
+    } else {
+      add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'recruitment');
+      add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'engagement');
+    }
+
+    const years = Object.entries(countsByYear).sort((a, b) => a[1].order - b[1].order);
+    const rows = years.map(([label, bucket], index) => {
+      const previous = index > 0 ? years[index - 1][1] : null;
+      const diff = previous ? (bucket.recruitment + bucket.engagement) - (previous.recruitment + previous.engagement) : 0;
+      return {
+        'Academic Year': label,
+        'Engagement Volume': bucket.engagement,
+        'Recruitment Volume': bucket.recruitment,
+        'Total Volume': bucket.engagement + bucket.recruitment,
+        'Change vs Previous AY': previous ? (diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—') : '—',
+      };
+    });
+
+    return { rows, chartData: {
+      type: 'bar',
+      labels: rows.map(row => row['Academic Year']),
+      datasets: [
+        { label: 'Engagement', data: rows.map(row => row['Engagement Volume']), backgroundColor: '#2ec4b6', borderRadius: 4 },
+        { label: 'Recruitment', data: rows.map(row => row['Recruitment Volume']), backgroundColor: '#4361ee', borderRadius: 4 },
+      ],
+    }};
+  },
+
+  'semester-comparison': (db, from, to, periodCtx) => {
+    const A = baseComparisonPeriod(periodCtx, from || todayIso());
+    const B = previousComparisonPeriod(A);
 
     const metrics = (r) => ({
       'Companies Engaged': db.prepare(`
@@ -793,13 +1179,18 @@ function semesterOf(dateStr) {
   const m = Number(String(dateStr).slice(5, 7));
   const y = Number(String(dateStr).slice(0, 4));
   if (!m || !y) return null;
-  if (m >= 8) return { label: `Fall ${y}`,   order: y * 3 + 2, from: `${y}-08-01`, to: `${y}-12-31` };
-  if (m <= 5) return { label: `Spring ${y}`, order: y * 3 + 0, from: `${y}-01-01`, to: `${y}-05-31` };
-  return { label: `Summer ${y}`, order: y * 3 + 1, from: `${y}-06-01`, to: `${y}-07-31` };
+  if (m >= 8) return semesterRange('fall', y);
+  if (m <= 5) return semesterRange('spring', y);
+  return semesterRange('summer', y);
+}
+
+function nextSemesterOf(sem) {
+  const d = new Date(sem.to);
+  d.setDate(d.getDate() + 1);
+  return semesterOf(d.toISOString().slice(0, 10));
 }
 
 function prevSemesterOf(sem) {
-  // step back via the day before this semester starts
   const d = new Date(sem.from);
   d.setDate(d.getDate() - 1);
   return semesterOf(d.toISOString().slice(0, 10));
@@ -1024,20 +1415,39 @@ router.get('/schema', (req, res) => {
   res.json(schema);
 });
 
+// GET /api/reports/periods
+router.get('/periods', (req, res) => {
+  try {
+    res.json(buildReportPeriods(req.app.locals.db));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/reports/quick/:type
 router.get('/quick/:type', (req, res) => {
   const db   = req.app.locals.db;
   const type = req.params.type;
-  const { from, to, export: doExport } = req.query;
   const fn = QUICK_REPORTS[type];
   if (!fn) return res.status(404).json({ error: `Unknown report type: ${type}` });
   try {
-    const result = fn(db, from || null, to || null);
+    const period = resolveQuickReportPeriod(req.query);
+    const doExport = req.query.export === '1' ? '1' : null;
+    const result = fn(db, period.from, period.to, period);
+    const rows = formatRowsForOutput(result.rows);
+    const meta = {
+      periodMode: period.mode,
+      periodLabel: result.meta?.periodLabel || period.label,
+      from: period.from,
+      to: period.to,
+      ...(result.meta || {}),
+    };
     if (doExport === '1') {
-      return exportXLSX(res, result.rows, `report-${type}`);
+      return exportXLSX(res, rows, `report-${type}`);
     }
-    res.json({ rows: result.rows, count: result.rows.length, chartData: result.chartData });
+    res.json({ rows, count: rows.length, chartData: result.chartData, meta });
   } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1050,49 +1460,47 @@ router.post('/builder', (req, res) => {
   const schema = BUILDER_SCHEMA[entity];
   if (!schema) return res.status(400).json({ error: 'Unknown entity' });
 
-  const allCols = schema.columns;
-
-  // Whitelist selected columns
-  const validCols = (selCols && selCols.length)
-    ? selCols.filter(k => allCols[k])
-    : Object.keys(allCols);
-
-  if (!validCols.length) return res.status(400).json({ error: 'No valid columns selected' });
-
-  // Whitelist sort column
-  const validSort = sortBy && allCols[sortBy]
-    ? allCols[sortBy].expr
-    : allCols[validCols[0]].expr;
-  const order = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-
-  // Build filter WHERE clause
-  const filterClause = buildFilters(filters, schema);
-
-  // Build date range clause for the primary date column (first date column)
-  let dateSql = '', dateParams = [];
-  const dateCols = Object.values(allCols).filter(c=>c.type==='date');
-  if (dateCols.length && (from || to)) {
-    const dc = dateClause(dateCols[0].expr, from, to);
-    dateSql = dc.sql; dateParams = dc.params;
-  }
-
-  // SELECT expressions
-  const selectExprs = validCols.map(k => {
-    const col = allCols[k];
-    const label = col.label.replace(/[^a-zA-Z0-9 ]/g,'');
-    return `${col.expr} AS "${label}"`;
-  });
-
-  const sql = `
-    SELECT ${selectExprs.join(', ')}
-    FROM ${schema.table} ${schema.alias}
-    ${schema.joins.join(' ')}
-    WHERE 1=1${filterClause.sql}${dateSql}
-    ORDER BY ${validSort} ${order}
-    LIMIT 5000
-  `;
-
   try {
+    const safeFrom = optionalIsoDate(from, 'from');
+    const safeTo = optionalIsoDate(to, 'to');
+    const exportMode = req.query.export === 'csv' ? 'csv' : req.query.export === '1' ? '1' : null;
+    const allCols = schema.columns;
+    const requestedCols = optionalStringArray(selCols, 'columns', { maxItems: 100, maxItemLength: 100 });
+
+    const validCols = requestedCols.length
+      ? requestedCols.filter(k => allCols[k])
+      : Object.keys(allCols);
+
+    if (!validCols.length) return res.status(400).json({ error: 'No valid columns selected' });
+
+    const validSort = sortBy && allCols[sortBy]
+      ? allCols[sortBy].expr
+      : allCols[validCols[0]].expr;
+    const order = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    const filterClause = buildFilters(filters, schema);
+
+    let dateSql = '', dateParams = [];
+    const dateCols = Object.values(allCols).filter(c=>c.type==='date');
+    if (dateCols.length && (safeFrom || safeTo)) {
+      const dc = dateClause(dateCols[0].expr, safeFrom, safeTo);
+      dateSql = dc.sql; dateParams = dc.params;
+    }
+
+    const selectExprs = validCols.map(k => {
+      const col = allCols[k];
+      const label = col.label.replace(/[^a-zA-Z0-9 ]/g,'');
+      return `${col.expr} AS "${label}"`;
+    });
+
+    const sql = `
+      SELECT ${selectExprs.join(', ')}
+      FROM ${schema.table} ${schema.alias}
+      ${schema.joins.join(' ')}
+      WHERE 1=1${filterClause.sql}${dateSql}
+      ORDER BY ${validSort} ${order}
+      LIMIT 5000
+    `;
+
     const rows = db.prepare(sql).all(...filterClause.params, ...dateParams);
 
     // Build chart data
@@ -1106,10 +1514,12 @@ router.post('/builder', (req, res) => {
       }
     }
 
-    if (req.query.export === '1') return exportXLSX(res, rows, 'custom-report');
-    if (req.query.export === 'csv') return exportCSV(res, rows, 'custom-report');
-    res.json({ rows, count: rows.length, chartData });
+    const outputRows = formatRowsForOutput(rows);
+    if (exportMode === '1') return exportXLSX(res, outputRows, 'custom-report');
+    if (exportMode === 'csv') return exportCSV(res, outputRows, 'custom-report');
+    res.json({ rows: outputRows, count: outputRows.length, chartData });
   } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1125,26 +1535,38 @@ router.get('/saved', (req, res) => {
 // POST /api/reports/saved
 router.post('/saved', (req, res) => {
   const db = req.app.locals.db;
-  const { ReportName, Entity, Columns, Filters, SortBy, SortOrder, ChartType, ChartGroupBy } = req.body;
-  if (!ReportName || !Entity) return res.status(400).json({ error: 'ReportName and Entity are required' });
   try {
+    const ReportName = requireTrimmedString(req.body.ReportName, 'ReportName', 120);
+    const Entity = requireTrimmedString(req.body.Entity, 'Entity', 120);
+    const Columns = optionalStringArray(req.body.Columns, 'Columns', { maxItems: 100, maxItemLength: 100 });
+    const Filters = Array.isArray(req.body.Filters) ? req.body.Filters.slice(0, 50) : [];
+    const SortBy = optionalTrimmedString(req.body.SortBy, 'SortBy', 100);
+    const SortOrder = optionalTrimmedString(req.body.SortOrder, 'SortOrder', 4) || 'ASC';
+    const ChartType = optionalTrimmedString(req.body.ChartType, 'ChartType', 50);
+    const ChartGroupBy = optionalTrimmedString(req.body.ChartGroupBy, 'ChartGroupBy', 100);
     const info = db.prepare(
       'INSERT INTO SavedReports (ReportName,Entity,Columns,Filters,SortBy,SortOrder,ChartType,ChartGroupBy) VALUES (?,?,?,?,?,?,?,?)'
     ).run(ReportName, Entity,
           JSON.stringify(Columns||[]), JSON.stringify(Filters||[]),
           SortBy||null, SortOrder||'ASC', ChartType||null, ChartGroupBy||null);
     res.status(201).json(db.prepare('SELECT * FROM SavedReports WHERE ReportID=?').get(info.lastInsertRowid));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // DELETE /api/reports/saved/:id
 router.delete('/saved/:id', (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(req.params.id);
+    const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(requirePositiveInt(req.params.id, 'Report ID'));
     if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err.statusCode) return sendValidationError(res, err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Export helpers ─────────────────────────────────────────────────────────────

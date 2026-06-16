@@ -111,15 +111,32 @@
   <div class="card mb-4" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e9ecef">
     <div class="card-body py-3 px-4">
       <div class="d-flex flex-wrap align-items-center gap-2">
+        <label class="small fw-semibold text-muted mb-0" for="rep-view-mode">View By</label>
+        <select id="rep-view-mode" class="form-select form-select-sm" style="width:170px">
+          <option value="date">Custom Dates</option>
+          <option value="semester">Semester</option>
+          <option value="academic-year">Academic Year</option>
+        </select>
+        <div id="rep-semester-wrap" class="d-flex flex-wrap align-items-center gap-2 d-none">
+          <label class="small fw-semibold text-muted mb-0" for="rep-semester">Semester</label>
+          <select id="rep-semester" class="form-select form-select-sm" style="width:200px"></select>
+        </div>
+        <div id="rep-ay-wrap" class="d-flex flex-wrap align-items-center gap-2 d-none">
+          <label class="small fw-semibold text-muted mb-0" for="rep-academic-year">Academic Year</label>
+          <select id="rep-academic-year" class="form-select form-select-sm" style="width:180px"></select>
+        </div>
+        <div id="rep-date-wrap" class="d-flex flex-wrap align-items-center gap-2">
         <label class="small fw-semibold text-muted mb-0" for="rep-from">From</label>
         <input type="date" id="rep-from" class="form-control form-control-sm" style="width:150px">
         <label class="small fw-semibold text-muted mb-0" for="rep-to">To</label>
         <input type="date" id="rep-to" class="form-control form-control-sm" style="width:150px">
+        </div>
         <div class="vr d-none d-sm-block" style="height:1.5rem"></div>
         <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" id="rep-show-all" role="switch" checked>
           <label class="form-check-label fw-semibold small" for="rep-show-all">Show All</label>
         </div>
+        <span id="rep-period-caption" class="small text-muted ms-sm-2">All time</span>
       </div>
     </div>
   </div>
