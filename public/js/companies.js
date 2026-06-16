@@ -1,6 +1,7 @@
 // ── State ──────────────────────────────────────────────────────────────────────
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -156,6 +157,7 @@ function setTableLoading(loading) {
 // ── Modal ──────────────────────────────────────────────────────────────────────
 function openModal(company) {
   editingId = company ? company.CompanyID : null;
+  editingUpdatedAt = company?.UpdatedAt || null;
 
   const form = document.getElementById('company-form');
   form.reset();
@@ -165,17 +167,23 @@ function openModal(company) {
 
   const title = document.getElementById('modal-title');
   const deleteBtn = document.getElementById('btn-delete');
+  const saveBtn = document.getElementById('btn-save');
+  const readOnly = isViewerRole();
 
   if (company) {
-    title.textContent = 'Edit Company';
-    deleteBtn.classList.remove('d-none');
+    title.textContent = readOnly ? 'View Company' : 'Edit Company';
+    deleteBtn.classList.toggle('d-none', readOnly);
     populateForm(company);
   } else {
-    title.textContent = 'Add Company';
+    title.textContent = readOnly ? 'View Company' : 'Add Company';
     deleteBtn.classList.add('d-none');
     // Default date to today
     document.getElementById('f-date-added').value = todayStr();
   }
+
+  saveBtn.classList.toggle('d-none', readOnly);
+  saveBtn.disabled = readOnly;
+  setFormReadOnly(form, readOnly);
 
   new bootstrap.Modal(document.getElementById('company-modal')).show();
 }
@@ -221,8 +229,10 @@ function formToPayload() {
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('company-form'))) return;
   const payload = formToPayload();
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn = document.getElementById('btn-save');
 
   btn.disabled = true;
@@ -247,6 +257,7 @@ async function handleSave(e) {
 
 // ── Delete ─────────────────────────────────────────────────────────────────────
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!editingId) return;
 
   try {

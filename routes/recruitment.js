@@ -11,6 +11,7 @@ const {
   requireTrimmedString,
   sendValidationError,
 } = require('./_validation');
+const { ensureRecordNotStale } = require('./_records');
 
 function getJunction(db, table, col, id) {
   return db.prepare(`SELECT ${col} FROM ${table} WHERE RecruitmentID = ?`).all(id).map(r => r[col]);
@@ -94,6 +95,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'Recruitment', 'RecruitmentID', req.recordId, req.body.UpdatedAt, 'Record not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const DatePosted = req.body.DatePosted ? requireIsoDate(req.body.DatePosted, 'DatePosted') : null;

@@ -2,6 +2,7 @@ let allItems     = [];
 let allCompanies = [];
 let allContacts  = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -158,13 +159,15 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.EngagementID : null;
+  editingUpdatedAt = item?.UpdatedAt || null;
   const form = document.getElementById('academic-form');
   form.reset();
   clearFormError(form);
 
   const isEdit = !!item;
-  document.getElementById('modal-title').textContent = isEdit ? 'Edit Academic Engagement' : 'Add Academic Engagement';
-  document.getElementById('btn-delete').classList.toggle('d-none', !isEdit);
+  const readOnly = isViewerRole();
+  document.getElementById('modal-title').textContent = readOnly ? 'View Academic Engagement' : (isEdit ? 'Edit Academic Engagement' : 'Add Academic Engagement');
+  document.getElementById('btn-delete').classList.toggle('d-none', !isEdit || readOnly);
 
   if (isEdit) {
     document.getElementById('f-company').value      = item.CompanyID;
@@ -184,6 +187,9 @@ function openModal(item) {
   } else {
     updateContactDropdown('');
   }
+  document.getElementById('btn-save').classList.toggle('d-none', readOnly);
+  document.getElementById('btn-save').disabled = readOnly;
+  setFormReadOnly(form, readOnly);
   new bootstrap.Modal(document.getElementById('the-modal')).show();
 }
 
@@ -208,8 +214,10 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('academic-form'))) return;
   const payload = formToPayload();
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
@@ -231,6 +239,7 @@ async function handleSave(e) {
 }
 
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!editingId) return;
   showConfirmModal('Delete Academic Engagement', '<p>Delete this academic engagement record? This cannot be undone.</p>', async () => {
     try {

@@ -33,6 +33,99 @@ app.locals.db = db;
 
 // ── Schema migrations for existing databases ───────────────────────────────────
 try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
+try { db.exec("ALTER TABLE PotentialCollaboration ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
+try { db.exec("ALTER TABLE HiringFeedback ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
+try { db.exec("ALTER TABLE CareerEvent ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
+try { db.exec("ALTER TABLE StudentLedEvent ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
+try { db.exec("ALTER TABLE AcademicClassroomEngagement ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
+
+db.exec(`
+  UPDATE PotentialCollaboration SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
+  UPDATE HiringFeedback SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
+  UPDATE CareerEvent SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
+  UPDATE StudentLedEvent SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
+  UPDATE AcademicClassroomEngagement SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
+
+  CREATE TRIGGER IF NOT EXISTS collaboration_inserted
+  AFTER INSERT ON PotentialCollaboration
+  BEGIN
+      UPDATE PotentialCollaboration
+      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
+      WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS collaboration_updated
+  AFTER UPDATE ON PotentialCollaboration
+  BEGIN
+      UPDATE PotentialCollaboration
+      SET UpdatedAt = datetime('now')
+      WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS hiring_feedback_inserted
+  AFTER INSERT ON HiringFeedback
+  BEGIN
+      UPDATE HiringFeedback
+      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
+      WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS hiring_feedback_updated
+  AFTER UPDATE ON HiringFeedback
+  BEGIN
+      UPDATE HiringFeedback
+      SET UpdatedAt = datetime('now')
+      WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS career_event_inserted
+  AFTER INSERT ON CareerEvent
+  BEGIN
+      UPDATE CareerEvent
+      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
+      WHERE CareerEventID = NEW.CareerEventID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS career_event_updated
+  AFTER UPDATE ON CareerEvent
+  BEGIN
+      UPDATE CareerEvent
+      SET UpdatedAt = datetime('now')
+      WHERE CareerEventID = NEW.CareerEventID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS student_event_inserted
+  AFTER INSERT ON StudentLedEvent
+  BEGIN
+      UPDATE StudentLedEvent
+      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
+      WHERE StudentLedEventID = NEW.StudentLedEventID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS student_event_updated
+  AFTER UPDATE ON StudentLedEvent
+  BEGIN
+      UPDATE StudentLedEvent
+      SET UpdatedAt = datetime('now')
+      WHERE StudentLedEventID = NEW.StudentLedEventID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS academic_engagement_inserted
+  AFTER INSERT ON AcademicClassroomEngagement
+  BEGIN
+      UPDATE AcademicClassroomEngagement
+      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
+      WHERE EngagementID = NEW.EngagementID;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS academic_engagement_updated
+  AFTER UPDATE ON AcademicClassroomEngagement
+  BEGIN
+      UPDATE AcademicClassroomEngagement
+      SET UpdatedAt = datetime('now')
+      WHERE EngagementID = NEW.EngagementID;
+  END;
+`);
 
 // ── Seed default admin user on first run ───────────────────────────────────────
 (async () => {

@@ -1,4 +1,4 @@
-let allItems=[], allCompanies=[], allContacts=[], editingId=null;
+let allItems=[], allCompanies=[], allContacts=[], editingId=null, editingUpdatedAt=null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -109,13 +109,15 @@ function setLoading(on){ if(on) document.getElementById('tbody').innerHTML=`<tr>
 function openModalById(id){ const item=allItems.find(r=>r.HiringFeedbackID==id); if(item) openModal(item); }
 function openModal(item) {
   editingId = item?item.HiringFeedbackID:null;
+  editingUpdatedAt = item?.UpdatedAt || null;
   const form = document.getElementById('hiring-feedback-form');
   form.reset();
   clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('hired-name-row').classList.add('d-none');
-  document.getElementById('modal-title').textContent = item?'Edit Hiring Feedback':'Add Hiring Feedback';
-  document.getElementById('btn-delete').classList.toggle('d-none',!item);
+  const readOnly = isViewerRole();
+  document.getElementById('modal-title').textContent = readOnly ? 'View Hiring Feedback' : (item?'Edit Hiring Feedback':'Add Hiring Feedback');
+  document.getElementById('btn-delete').classList.toggle('d-none',!item || readOnly);
   if(item){
     document.getElementById('f-company').value       = item.CompanyID;
     updateContactDropdown(item.CompanyID, item.ContactID);
@@ -129,10 +131,14 @@ function openModal(item) {
     updateContactDropdown('');
     document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   }
+  document.getElementById('btn-save').classList.toggle('d-none', readOnly);
+  document.getElementById('btn-save').disabled = readOnly;
+  setFormReadOnly(form, readOnly);
   new bootstrap.Modal(document.getElementById('the-modal')).show();
 }
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('hiring-feedback-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
@@ -143,6 +149,7 @@ async function handleSave(e) {
     HiredStudentName: document.getElementById('f-student-name').value.trim(),
     Comment: document.getElementById('f-comment').value.trim(),
   };
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn=document.getElementById('btn-save');
   btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
   try {
@@ -154,6 +161,7 @@ async function handleSave(e) {
   finally { btn.disabled=false; btn.innerHTML='Save'; }
 }
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if(!editingId) return;
   showConfirmModal('Delete Record','<p>Delete this hiring feedback record? This cannot be undone.</p>',async()=>{
     try {

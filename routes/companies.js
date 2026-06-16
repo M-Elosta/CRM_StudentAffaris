@@ -9,6 +9,7 @@ const {
   requireTrimmedString,
   sendValidationError,
 } = require('./_validation');
+const { ensureRecordNotStale } = require('./_records');
 
 const VALID_SECTORS = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
 
@@ -55,6 +56,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'Company', 'CompanyID', req.recordId, req.body.UpdatedAt, 'Company not found');
     const CompanyName = requireTrimmedString(req.body.CompanyName, 'CompanyName');
     const DateAdded = optionalIsoDate(req.body.DateAdded, 'DateAdded');
     const Industry = requireTrimmedString(req.body.Industry, 'Industry');

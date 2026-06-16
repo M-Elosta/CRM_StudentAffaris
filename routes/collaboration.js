@@ -6,6 +6,7 @@ const {
   requirePositiveInt,
   sendValidationError,
 } = require('./_validation');
+const { ensureRecordNotStale } = require('./_records');
 
 function getOpps(db, id) {
   return db.prepare('SELECT OpportunityType FROM PotentialCollaboration_Opportunities WHERE PotentialCollaborationID=?').all(id).map(r=>r.OpportunityType);
@@ -45,6 +46,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'PotentialCollaboration', 'PotentialCollaborationID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
     const Opportunities = optionalStringArray(req.body.Opportunities, 'Opportunities');

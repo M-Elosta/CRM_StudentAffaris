@@ -2,6 +2,7 @@
 let allContacts  = [];
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -183,6 +184,7 @@ function openModalById(id) {
 
 function openModal(contact) {
   editingId = contact ? contact.ContactID : null;
+  editingUpdatedAt = contact?.UpdatedAt || null;
 
   const form = document.getElementById('contact-form');
   form.reset();
@@ -192,17 +194,23 @@ function openModal(contact) {
 
   const title     = document.getElementById('modal-title');
   const deleteBtn = document.getElementById('btn-delete');
+  const saveBtn = document.getElementById('btn-save');
+  const readOnly = isViewerRole();
 
   if (contact) {
-    title.textContent = 'Edit Contact';
-    deleteBtn.classList.remove('d-none');
+    title.textContent = readOnly ? 'View Contact' : 'Edit Contact';
+    deleteBtn.classList.toggle('d-none', readOnly);
     populateForm(contact);
   } else {
-    title.textContent = 'Add Contact';
+    title.textContent = readOnly ? 'View Contact' : 'Add Contact';
     deleteBtn.classList.add('d-none');
     document.getElementById('f-date-added').value = todayStr();
     document.getElementById('f-status').checked = true;
   }
+
+  saveBtn.classList.toggle('d-none', readOnly);
+  saveBtn.disabled = readOnly;
+  setFormReadOnly(form, readOnly);
 
   new bootstrap.Modal(document.getElementById('contact-modal')).show();
 }
@@ -262,8 +270,10 @@ function formToPayload() {
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('contact-form'))) return;
   const payload = formToPayload();
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn = document.getElementById('btn-save');
 
   btn.disabled = true;
@@ -304,6 +314,7 @@ async function handleDeleteById(id) {
 }
 
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!editingId) return;
   const contact = allContacts.find(c => c.ContactID === editingId);
   const name = contact ? `${contact.FirstName} ${contact.LastName}` : 'this contact';

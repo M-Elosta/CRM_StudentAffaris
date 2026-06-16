@@ -1,6 +1,7 @@
 let allItems     = [];
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -151,20 +152,25 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.PotentialCollaborationID : null;
+  editingUpdatedAt = item?.UpdatedAt || null;
   const form = document.getElementById('collaboration-form');
   form.reset();
   clearFormError(form);
   document.querySelectorAll('input[name="opp"]').forEach(el => el.checked = false);
 
   const isEdit = !!item;
-  document.getElementById('modal-title').textContent = isEdit ? 'Edit Collaboration' : 'Add Collaboration';
-  document.getElementById('btn-delete').classList.toggle('d-none', !isEdit);
+  const readOnly = isViewerRole();
+  document.getElementById('modal-title').textContent = readOnly ? 'View Collaboration' : (isEdit ? 'Edit Collaboration' : 'Add Collaboration');
+  document.getElementById('btn-delete').classList.toggle('d-none', !isEdit || readOnly);
 
   if (isEdit) {
     document.getElementById('f-company').value = item.CompanyID;
     setCheckedOpps(item.Opportunities);
     document.getElementById('f-comment').value = item.Comment || '';
   }
+  document.getElementById('btn-save').classList.toggle('d-none', readOnly);
+  document.getElementById('btn-save').disabled = readOnly;
+  setFormReadOnly(form, readOnly);
   new bootstrap.Modal(document.getElementById('the-modal')).show();
 }
 
@@ -178,8 +184,10 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('collaboration-form'))) return;
   const payload = formToPayload();
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
@@ -201,6 +209,7 @@ async function handleSave(e) {
 }
 
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!editingId) return;
   showConfirmModal('Delete Collaboration', '<p>Delete this collaboration record? This cannot be undone.</p>', async () => {
     try {

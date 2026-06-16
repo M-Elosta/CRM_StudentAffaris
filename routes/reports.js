@@ -11,6 +11,13 @@ const {
   validationError,
 } = require('./_validation');
 
+function requireAdminSession(req, res, next) {
+  if ((req.session?.role || 'admin') !== 'admin') {
+    return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
+  }
+  next();
+}
+
 // ── Chart colour palette (consistent with dashboard) ───────────────────────────
 const PALETTE = ['#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c','#e71d36',
                  '#3a0ca3','#7209b7','#06d6a0','#118ab2','#ffd166','#ef476f'];
@@ -1533,7 +1540,7 @@ router.get('/saved', (req, res) => {
 });
 
 // POST /api/reports/saved
-router.post('/saved', (req, res) => {
+router.post('/saved', requireAdminSession, (req, res) => {
   const db = req.app.locals.db;
   try {
     const ReportName = requireTrimmedString(req.body.ReportName, 'ReportName', 120);
@@ -1557,7 +1564,7 @@ router.post('/saved', (req, res) => {
 });
 
 // DELETE /api/reports/saved/:id
-router.delete('/saved/:id', (req, res) => {
+router.delete('/saved/:id', requireAdminSession, (req, res) => {
   const db = req.app.locals.db;
   try {
     const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(requirePositiveInt(req.params.id, 'Report ID'));

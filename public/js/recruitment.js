@@ -2,6 +2,7 @@ let allItems     = [];
 let allCompanies = [];
 let allContacts  = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
@@ -172,14 +173,16 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.RecruitmentID : null;
+  editingUpdatedAt = item?.UpdatedAt || null;
   const form = document.getElementById('recruitment-form');
   form.reset();
   clearFormError(form);
   document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
   document.getElementById('pay-amount-row').classList.add('d-none');
 
-  document.getElementById('modal-title').textContent = item ? 'Edit Recruitment' : 'Add Recruitment';
-  document.getElementById('btn-delete').classList.toggle('d-none', !item);
+  const readOnly = isViewerRole();
+  document.getElementById('modal-title').textContent = readOnly ? 'View Recruitment' : (item ? 'Edit Recruitment' : 'Add Recruitment');
+  document.getElementById('btn-delete').classList.toggle('d-none', !item || readOnly);
 
   if (item) {
     document.getElementById('f-company').value        = item.CompanyID;
@@ -207,11 +210,15 @@ function openModal(item) {
     document.getElementById('f-date').value = todayStr();
     document.getElementById('f-hired').value = 'Not Reported';
   }
+  document.getElementById('btn-save').classList.toggle('d-none', readOnly);
+  document.getElementById('btn-save').disabled = readOnly;
+  setFormReadOnly(form, readOnly);
   new bootstrap.Modal(document.getElementById('the-modal')).show();
 }
 
 async function handleSave(e) {
   e.preventDefault();
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!validateForm(document.getElementById('recruitment-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
@@ -234,6 +241,7 @@ async function handleSave(e) {
     TargetMajors: getChecked('major'),
     ClassLevels: getChecked('cls'),
   };
+  if (editingId) payload.UpdatedAt = editingUpdatedAt;
   const btn = document.getElementById('btn-save');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
   try {
@@ -248,6 +256,7 @@ async function handleSave(e) {
 }
 
 async function handleDelete() {
+  if (isViewerRole()) return showToast('Viewers cannot make changes. Contact an admin.', 'danger');
   if (!editingId) return;
   showConfirmModal('Delete Recruitment', '<p>Delete this recruitment record? This cannot be undone.</p>', async () => {
     try {

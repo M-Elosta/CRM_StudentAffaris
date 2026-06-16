@@ -10,6 +10,7 @@ const {
   requireTrimmedString,
   sendValidationError,
 } = require('./_validation');
+const { ensureRecordNotStale } = require('./_records');
 
 const VALID_TYPES    = ['Call', 'Meeting', 'Company Visit'];
 const VALID_STATUSES = ['Complete', 'In-progress'];
@@ -78,6 +79,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'OutreachEngagement', 'OutreachEngagementID', req.recordId, req.body.UpdatedAt, 'Record not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const InteractionType = requireEnum(req.body.InteractionType, 'InteractionType', VALID_TYPES);

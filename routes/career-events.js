@@ -9,6 +9,7 @@ const {
   requireTrimmedString,
   sendValidationError,
 } = require('./_validation');
+const { ensureRecordNotStale } = require('./_records');
 
 router.param('id', (req, res, next, id) => {
   try {
@@ -59,6 +60,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'CareerEvent', 'CareerEventID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const EventName = requireTrimmedString(req.body.EventName, 'EventName');

@@ -1,0 +1,16 @@
+[Unit]
+Description=CMU-Q Employer Relations System
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/employer-system
+EnvironmentFile=/etc/employer-system/employer-system.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

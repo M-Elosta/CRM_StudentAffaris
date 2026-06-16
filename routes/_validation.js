@@ -9,6 +9,12 @@ function validationError(message) {
   return err;
 }
 
+function conflictError(message) {
+  const err = new Error(message);
+  err.statusCode = 409;
+  return err;
+}
+
 function sendValidationError(res, err) {
   return res.status(err.statusCode || 400).json({ error: err.message });
 }
@@ -120,6 +126,7 @@ function parseBoolean(value) {
 
 module.exports = {
   validationError,
+  conflictError,
   sendValidationError,
   requirePositiveInt,
   optionalPositiveInt,

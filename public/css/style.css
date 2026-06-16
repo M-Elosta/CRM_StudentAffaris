@@ -13,8 +13,6 @@ body {
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  opacity: 0;
-  animation: page-fade-in var(--page-fade-duration) ease-out forwards;
 }
 
 @keyframes page-fade-in {
@@ -27,7 +25,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body {
+  .main-content,
+  body > .login-card,
+  body > .text-center {
     animation: none;
     opacity: 1;
   }
@@ -37,6 +37,14 @@ body {
   margin-left: 240px;
   padding: 28px 32px;
   min-height: 100vh;
+  opacity: 0;
+  animation: page-fade-in var(--page-fade-duration) ease-out forwards;
+}
+
+body > .login-card,
+body > .text-center {
+  opacity: 0;
+  animation: page-fade-in var(--page-fade-duration) ease-out forwards;
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────────── */
@@ -218,10 +226,14 @@ body {
 /* ── Role-based access: viewer mode ─────────────────────────────────────────── */
 .role-viewer .admin-only,
 .role-viewer #btn-add,
+.role-viewer #btn-add-user,
 .role-viewer button[title="Edit"],
 .role-viewer button[title="Delete"],
 .role-viewer button[title="Remove"],
 .role-viewer #btn-delete,
+.role-viewer #btn-save-user,
+.role-viewer #empty-add-link,
+.role-viewer a[onclick*="openModal(null)"],
 .role-viewer #import-actions { display: none !important; }
 
 /* ── Sidebar section labels ──────────────────────────────────────────────────── */

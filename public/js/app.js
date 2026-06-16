@@ -189,6 +189,19 @@ function updateRecordCount(shown, total) {
     : `${shown} of ${total}`;
 }
 
+function isViewerRole() {
+  return window.appRole === 'viewer';
+}
+
+function setFormReadOnly(formOrId, readOnly) {
+  const form = typeof formOrId === 'string' ? document.getElementById(formOrId) : formOrId;
+  if (!form) return;
+  form.querySelectorAll('input, select, textarea').forEach(el => {
+    if (el.type === 'hidden') return;
+    el.disabled = !!readOnly;
+  });
+}
+
 const BADGE_STYLES = {
   companyState: {
     'Active': 'bg-primary',
