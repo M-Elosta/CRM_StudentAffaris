@@ -92,6 +92,10 @@
     #quick-chart { max-height: 300px; }
     .result-table th { white-space: nowrap; font-size: 12px; }
     .result-table td { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .report-card:focus-visible {
+      outline: 3px solid rgba(67,97,238,.35);
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
@@ -105,6 +109,9 @@
       <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Reports</h4>
       <p class="text-muted small mb-0">Generate, visualise, and export data</p>
     </div>
+  </div>
+  <div id="quick-feedback" class="alert alert-info py-2 px-3 small">
+    Choose a report card to preview results, update the current URL, and unlock export actions.
   </div>
 
   <!-- ── Filter Bar ── -->
@@ -155,13 +162,13 @@
             <h5 class="fw-bold mb-1" id="qr-title"></h5>
             <span class="text-muted small" id="qr-count"></span>
           </div>
-          <button class="btn btn-sm btn-outline-primary d-none" id="btn-download-png">
+          <button class="btn btn-sm btn-outline-primary d-none" id="btn-download-png" disabled>
             <i class="bi bi-image me-1"></i>Chart PNG
           </button>
-          <button class="btn btn-sm btn-outline-secondary" id="btn-print-quick">
+          <button class="btn btn-sm btn-outline-secondary" id="btn-print-quick" disabled>
             <i class="bi bi-printer me-1"></i>Print
           </button>
-          <button class="btn btn-sm btn-success" id="btn-quick-export">
+          <button class="btn btn-sm btn-success" id="btn-quick-export" disabled>
             <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
           </button>
         </div>

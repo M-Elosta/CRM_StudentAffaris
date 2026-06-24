@@ -473,7 +473,7 @@ function injectSidebar() {
   // Show who is signed in, apply role, populate last-updated indicators
   fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(async data => {
     if (!data) return;
-    window.appRole   = data.role   || 'admin';
+    window.appRole   = data.role === 'admin' ? 'admin' : 'viewer';
     window.appUserId = data.userId || null;
     if (data.username) {
       const el = document.getElementById('sidebar-username');

@@ -9,8 +9,12 @@ const {
   sendValidationError,
 } = require('./_validation');
 
+function normalizeRole(role) {
+  return role === 'admin' ? 'admin' : 'viewer';
+}
+
 function requireAdminSession(req, res, next) {
-  if ((req.session?.role || 'admin') !== 'admin') {
+  if (normalizeRole(req.session?.role) !== 'admin') {
     return res.status(403).json({ error: 'Admin access required.' });
   }
   next();

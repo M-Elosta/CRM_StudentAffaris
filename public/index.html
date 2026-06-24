@@ -56,7 +56,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
           <div class="fs-3 fw-bold text-success" id="stat-contacts">—</div>
-          <div class="small text-muted">Total Contacts</div>
+          <div class="small text-muted">Contacts</div>
         </div>
       </div>
     </div>
@@ -64,7 +64,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
           <div class="fs-3 fw-bold text-info" id="stat-mailable">—</div>
-          <div class="small text-muted">Mailable</div>
+          <div class="small text-muted">Mailable Contacts</div>
         </div>
       </div>
     </div>
@@ -72,15 +72,15 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
           <div class="fs-3 fw-bold text-warning" id="stat-outreach">—</div>
-          <div class="small text-muted">Outreach This Month</div>
+          <div class="small text-muted">Outreach Activity</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
-      <a href="/pages/reports.html?type=follow_up" class="card border-0 shadow-sm h-100 text-decoration-none card-hover">
+      <a href="/pages/reports.html?type=followup-actions" class="card border-0 shadow-sm h-100 text-decoration-none card-hover">
         <div class="card-body text-center py-3">
           <div class="fs-3 fw-bold text-danger" id="stat-followup">—</div>
-          <div class="small text-muted">Upcoming Follow-ups <i class="bi bi-arrow-right-short"></i></div>
+          <div class="small text-muted">Open Follow-ups <i class="bi bi-arrow-right-short"></i></div>
         </div>
       </a>
     </div>
@@ -88,7 +88,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body text-center py-3">
           <div class="fs-3 fw-bold text-secondary" id="stat-blacklisted">—</div>
-          <div class="small text-muted">Blacklisted</div>
+          <div class="small text-muted">Blacklisted Companies</div>
         </div>
       </div>
     </div>
@@ -220,10 +220,10 @@ async function loadAll() {
   try {
     const qs = q ? `?${q}` : '';
     const [stats, byMonth, byOutreach, bySector, byMajor, byEvent, topEngaged, hiringTrends] = await Promise.all([
-      fetchAPI('/api/dashboard/stats'),
+    fetchAPI(`/api/dashboard/stats${qs}`),
       fetchAPI(`/api/dashboard/companies-by-month${qs}`),
       fetchAPI(`/api/dashboard/outreach-by-month${qs}`),
-      fetchAPI('/api/dashboard/companies-by-sector'),
+    fetchAPI(`/api/dashboard/companies-by-sector${qs}`),
       fetchAPI(`/api/dashboard/recruitment-by-major${qs}`),
       fetchAPI(`/api/dashboard/event-attendance${qs}`),
       fetchAPI(`/api/dashboard/top-engaged${qs}`),

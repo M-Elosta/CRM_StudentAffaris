@@ -11,8 +11,12 @@ const {
   validationError,
 } = require('./_validation');
 
+function normalizeRole(role) {
+  return role === 'admin' ? 'admin' : 'viewer';
+}
+
 function requireAdminSession(req, res, next) {
-  if ((req.session?.role || 'admin') !== 'admin') {
+  if (normalizeRole(req.session?.role) !== 'admin') {
     return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
   }
   next();
@@ -188,6 +192,7 @@ function reportDateBounds(db) {
 function buildReportPeriods(db) {
   const bounds = reportDateBounds(db);
   const currentDate = todayIso();
+  const latestDataDate = bounds.maxDate || currentDate;
   const currentSemester = semesterOf(currentDate);
   const firstSemester = semesterOf(bounds.minDate || currentDate);
   const lastSemester = semesterOf(bounds.maxDate || currentDate);
@@ -213,8 +218,8 @@ function buildReportPeriods(db) {
     semesters,
     academicYears,
     defaults: {
-      semester: currentSemester.key,
-      academicYear: academicYearRange(academicYearStartForDate(currentDate)).key,
+      semester: semesterOf(latestDataDate).key,
+      academicYear: academicYearRange(academicYearStartForDate(latestDataDate)).key,
     },
   };
 }
@@ -385,14 +390,14 @@ const QUICK_REPORTS = {
   // ── Company Reports ────────────────────────────────────────────────────────
 
   'all-companies': (db, from, to) => {
-    const dc = dateClause('DateAdded', from, to);
+    const dc = dateClause('c.DateAdded', from, to);
     const rows = db.prepare(`
-      SELECT CompanyName AS "Name", Industry, Sector, Country,
-             date(DateAdded) AS "Date Added", Website,
-             CASE WHEN SignedMoU=1 THEN 'Yes' ELSE 'No' END AS "Signed MoU",
-             CASE WHEN FavoriteEmployer=1 THEN 'Yes' ELSE 'No' END AS "Favorite"
-      FROM Company WHERE Blacklisted=0${dc.sql}
-      ORDER BY CompanyName`).all(...dc.params);
+      SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
+             date(c.DateAdded) AS "Date Added", c.Website,
+             CASE WHEN c.SignedMoU=1 THEN 'Yes' ELSE 'No' END AS "Signed MoU",
+             CASE WHEN c.FavoriteEmployer=1 THEN 'Yes' ELSE 'No' END AS "Favorite"
+      FROM Company c WHERE c.Blacklisted=0${dc.sql}
+      ORDER BY c.CompanyName`).all(...dc.params);
     const agg = {};
     rows.forEach(r => { agg[r.Sector] = (agg[r.Sector] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -418,7 +423,7 @@ const QUICK_REPORTS = {
   },
 
   'companies-by-country': (db, from, to) => {
-    const dc = dateClause('DateAdded', from, to);
+    const dc = dateClause('c.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT c.Country, COUNT(DISTINCT c.CompanyID) AS "Company Count",
              COUNT(DISTINCT co.ContactID) AS "Contact Count"
@@ -433,13 +438,13 @@ const QUICK_REPORTS = {
   },
 
   'companies-by-sector': (db, from, to) => {
-    const dc = dateClause('DateAdded', from, to);
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=0${dc.sql}`).get(...dc.params).n;
+    const dc = dateClause('c.DateAdded', from, to);
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM Company c WHERE c.Blacklisted=0${dc.sql}`).get(...dc.params).n;
     const rows = db.prepare(`
-      SELECT Sector, COUNT(*) AS "Company Count",
+      SELECT c.Sector AS Sector, COUNT(*) AS "Company Count",
              ROUND(COUNT(*)*100.0/?, 1) AS "Percentage"
-      FROM Company WHERE Blacklisted=0${dc.sql}
-      GROUP BY Sector ORDER BY "Company Count" DESC`).all(total, ...dc.params);
+      FROM Company c WHERE c.Blacklisted=0${dc.sql}
+      GROUP BY c.Sector ORDER BY "Company Count" DESC`).all(total, ...dc.params);
     return { rows, chartData: {
       type: 'doughnut', labels: rows.map(r=>r.Sector),
       datasets: [{ data: rows.map(r=>r['Company Count']), backgroundColor: PALETTE }]
@@ -465,11 +470,11 @@ const QUICK_REPORTS = {
   },
 
   'new-companies': (db, from, to) => {
-    const dc = dateClause('DateAdded', from, to);
+    const dc = dateClause('c.DateAdded', from, to);
     const rows = db.prepare(`
-      SELECT CompanyName AS "Name", Industry, Sector, Country, date(DateAdded) AS "Date Added"
-      FROM Company WHERE 1=1${dc.sql}
-      ORDER BY DateAdded DESC`).all(...dc.params);
+      SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country, date(c.DateAdded) AS "Date Added"
+      FROM Company c WHERE 1=1${dc.sql}
+      ORDER BY c.DateAdded DESC`).all(...dc.params);
     const agg = {};
     rows.forEach(r => {
       const m = (r['Date Added'] || '').slice(0, 7);
@@ -999,6 +1004,56 @@ const QUICK_REPORTS = {
             { label: 'Postings', data: rows.map(r => r['Posting Count']), backgroundColor: '#4361ee', borderRadius: 4 },
           ],
     }};
+  },
+
+  'activity-mix': (db, from, to) => {
+    const sources = [
+      { label: 'Outreach', dateCol: 'o.InteractionDate', sql: 'SELECT o.InteractionDate AS d FROM OutreachEngagement o WHERE 1=1', color: '#4361ee' },
+      { label: 'Recruitment', dateCol: 'r.DatePosted', sql: 'SELECT r.DatePosted AS d FROM Recruitment r WHERE 1=1', color: '#0dcaf0' },
+      { label: 'Career Events', dateCol: 'e.EventDate', sql: "SELECT e.EventDate AS d FROM CareerEvent e WHERE e.RegisteredStatus='Attended'", color: '#7209b7' },
+      { label: 'Academic', dateCol: 'a.SessionDate', sql: 'SELECT a.SessionDate AS d FROM AcademicClassroomEngagement a WHERE 1=1', color: '#ff9f1c' },
+      { label: 'Student Events', dateCol: 's.ProposalDate', sql: 'SELECT s.ProposalDate AS d FROM StudentLedEvent s WHERE 1=1', color: '#f72585' },
+      { label: 'Hires', dateCol: 'h.DateReported', sql: "SELECT h.DateReported AS d FROM HiringFeedback h WHERE h.HiredStudentAlumni='Yes'", color: '#198754' },
+    ];
+
+    const buckets = {};
+    sources.forEach(source => {
+      const dc = dateClause(source.dateCol, from, to);
+      db.prepare(`${source.sql}${dc.sql}`).all(...dc.params).forEach(row => {
+        const semester = semesterOf(row.d);
+        if (!semester) return;
+        const bucket = buckets[semester.label] = buckets[semester.label] || { order: semester.order, counts: {} };
+        bucket.counts[source.label] = (bucket.counts[source.label] || 0) + 1;
+      });
+    });
+
+    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
+    const rows = semesters.map(([semester, bucket]) => {
+      const row = { 'Semester': semester };
+      let total = 0;
+      sources.forEach(source => {
+        const count = bucket.counts[source.label] || 0;
+        row[source.label] = count;
+        total += count;
+      });
+      row.Total = total;
+      return row;
+    });
+
+    return {
+      rows,
+      chartData: {
+        type: 'bar',
+        stacked: true,
+        labels: rows.map(row => row.Semester),
+        datasets: sources.map(source => ({
+          label: source.label,
+          data: rows.map(row => row[source.label]),
+          backgroundColor: source.color,
+          borderRadius: 4,
+        })),
+      },
+    };
   },
 
   'sector-engagement': (db, from, to) => {

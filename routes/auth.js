@@ -3,6 +3,10 @@ const bcrypt  = require('bcrypt');
 const router  = express.Router();
 const { requirePassword, requireString, requireTrimmedString, sendValidationError } = require('./_validation');
 
+function normalizeRole(role) {
+  return role === 'admin' ? 'admin' : 'viewer';
+}
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   const db = req.app.locals.db;
@@ -13,14 +17,15 @@ router.post('/login', async (req, res) => {
     const user = db.prepare('SELECT * FROM Users WHERE Username = ?').get(username);
     const match = user ? await bcrypt.compare(password, user.PasswordHash) : false;
     if (!user || !match) return res.status(401).json({ error: 'Invalid username or password' });
+    const role = normalizeRole(user.Role);
 
     req.app.locals.clearLoginAttempts?.(req.ip);
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: 'Unable to start session' });
       req.session.userId = user.UserID;
       req.session.username = user.Username;
-      req.session.role = user.Role || 'admin';
-      res.json({ success: true, username: user.Username, role: req.session.role });
+      req.session.role = role;
+      res.json({ success: true, username: user.Username, role });
     });
   } catch (err) {
     sendValidationError(res, err);
@@ -38,7 +43,12 @@ router.post('/logout', (req, res) => {
 // GET /api/auth/check
 router.get('/check', (req, res) => {
   if (req.session?.userId) {
-    res.json({ authenticated: true, username: req.session.username, role: req.session.role || 'admin', userId: req.session.userId });
+    res.json({
+      authenticated: true,
+      username: req.session.username,
+      role: normalizeRole(req.session.role),
+      userId: req.session.userId,
+    });
   } else {
     res.status(401).json({ authenticated: false });
   }

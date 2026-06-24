@@ -69,6 +69,7 @@ const REPORT_SECTIONS = [
       { type: 'opportunities-per-semester',  label: 'Opportunities per Semester',   desc: 'Industries and companies driving semester activity', icon: 'bi-calendar-range', color: '#0dcaf0' },
       { type: 'top-recruiters',              label: 'Top Recruiters',               desc: 'Companies ranked against the previous period',   icon: 'bi-trophy',           color: '#e9a823' },
       { type: 'top-roles-by-program',        label: 'Top Job Roles by Program',     desc: 'Most common opportunity titles and types by target major', icon: 'bi-diagram-3', color: '#7209b7' },
+      { type: 'activity-mix',                label: 'Activity Mix',                 desc: 'How outreach, recruitment, events, and hiring shift over time', icon: 'bi-layers', color: '#198754' },
       { type: 'year-over-year-comparison',   label: 'Year-over-Year Comparison',    desc: 'Engagement and recruitment volumes across academic years', icon: 'bi-bar-chart-line', color: '#f72585' },
       { type: 'sector-engagement',           label: 'Sector Engagement',            desc: 'Sector activity over semesters',                 icon: 'bi-graph-up',         color: '#2ec4b6' },
       { type: 'hiring-conversion',           label: 'Hiring Conversion',            desc: 'Postings vs actual hires per semester',          icon: 'bi-funnel',           color: '#198754' },
@@ -91,10 +92,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     () => { if (activeQuickType) rerunActive(); });
 
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
-  document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
-  document.getElementById('btn-print-quick').addEventListener('click', () => window.print());
+  document.getElementById('btn-download-png').addEventListener('click', exportQuickChartPng);
+  document.getElementById('btn-print-quick').addEventListener('click', printQuickReport);
 
   await initReportFilters();
+  restoreRequestedReport();
 });
 
 function currentRange() {
@@ -128,6 +130,50 @@ function rerunActive() {
   runQuickReport(activeQuickType, card?.dataset.label || '');
 }
 
+function setQuickFeedback(kind, message) {
+  const el = document.getElementById('quick-feedback');
+  if (!el) return;
+  el.className = `alert alert-${kind} py-2 px-3 small`;
+  el.textContent = message;
+}
+
+function updateActionButtons({ hasSelection = false, hasChart = false } = {}) {
+  document.getElementById('btn-quick-export').disabled = !hasSelection;
+  document.getElementById('btn-print-quick').disabled = !hasSelection;
+  const pngBtn = document.getElementById('btn-download-png');
+  pngBtn.disabled = !hasChart;
+  pngBtn.classList.toggle('d-none', !hasChart);
+}
+
+function normalizeRequestedReportType(value) {
+  if (!value) return null;
+  const aliases = {
+    'follow_up': 'followup-actions',
+    'follow-up': 'followup-actions',
+  };
+  return aliases[value] || value;
+}
+
+function setActiveReportCard(cardEl) {
+  document.querySelectorAll('.report-card').forEach(card => {
+    const isActive = card === cardEl;
+    card.classList.toggle('active', isActive);
+    card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function restoreRequestedReport() {
+  const requestedType = normalizeRequestedReportType(new URLSearchParams(window.location.search).get('type'));
+  if (!requestedType) return;
+  const card = document.querySelector(`.report-card[data-type="${CSS.escape(requestedType)}"]`);
+  if (!card) {
+    showToast(`Unknown report type: ${requestedType}`, 'warning');
+    return;
+  }
+  setActiveReportCard(card);
+  runQuickReport(card.dataset.type, card.dataset.label);
+}
+
 async function initReportFilters() {
   const viewModeEl = document.getElementById('rep-view-mode');
   const semesterEl = document.getElementById('rep-semester');
@@ -141,7 +187,6 @@ async function initReportFilters() {
   semesterEl.value = reportPeriods.defaults?.semester || reportPeriods.semesters[0]?.key || '';
   academicYearEl.value = reportPeriods.defaults?.academicYear || reportPeriods.academicYears[0]?.key || '';
   viewModeEl.value = 'semester';
-  showAllEl.checked = false;
 
   viewModeEl.addEventListener('change', () => {
     ensureModeSelection(viewModeEl.value);
@@ -336,10 +381,22 @@ function renderReportSections() {
     </div>`).join('');
 
   document.querySelectorAll('.report-card').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-pressed', 'false');
+    const activate = () => {
+      setActiveReportCard(el);
+      const url = new URL(window.location.href);
+      url.searchParams.set('type', el.dataset.type);
+      window.history.replaceState({}, '', url);
       runQuickReport(el.dataset.type, el.dataset.label);
+    };
+    el.addEventListener('click', activate);
+    el.addEventListener('keydown', evt => {
+      if (evt.key === 'Enter' || evt.key === ' ') {
+        evt.preventDefault();
+        activate();
+      }
     });
   });
 }
@@ -377,6 +434,8 @@ async function runQuickReport(type, label) {
 
   document.getElementById('qr-title').textContent = label;
   document.getElementById('qr-count').textContent = '';
+  updateActionButtons({ hasSelection: true, hasChart: false });
+  setQuickFeedback('info', `Loading ${label} for ${currentPeriodContext().label.toLowerCase()}...`);
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   try {
@@ -388,9 +447,16 @@ async function runQuickReport(type, label) {
 
     renderQuickTable(data.rows);
     renderQuickChart(data.chartData);
+    if (data.rows?.length) {
+      setQuickFeedback('success', `Showing ${label} for ${data.meta?.periodLabel || currentPeriodContext().label}.`);
+    } else {
+      setQuickFeedback('warning', `No records found for ${label} in ${data.meta?.periodLabel || currentPeriodContext().label}.`);
+    }
   } catch (err) {
     showToast('Failed to load report: ' + err.message, 'danger');
     document.getElementById('quick-empty').classList.remove('d-none');
+    updateActionButtons({ hasSelection: true, hasChart: false });
+    setQuickFeedback('danger', `Could not load ${label}: ${err.message}`);
   } finally {
     document.getElementById('quick-loading').classList.add('d-none');
   }
@@ -432,22 +498,40 @@ function formatReportCellValue(value) {
 
 function renderQuickChart(chartData) {
   const wrapper = document.getElementById('chart-wrapper');
-  const pngBtn = document.getElementById('btn-download-png');
   if (!chartData || !chartData.labels || !chartData.labels.length) {
     wrapper.classList.add('d-none');
-    pngBtn.classList.add('d-none');
+    updateActionButtons({ hasSelection: !!activeQuickType, hasChart: false });
     return;
   }
   wrapper.classList.remove('d-none');
-  pngBtn.classList.remove('d-none');
+  updateActionButtons({ hasSelection: !!activeQuickType, hasChart: true });
   if (quickChart) { quickChart.destroy(); quickChart = null; }
   quickChart = new Chart(document.getElementById('quick-chart').getContext('2d'), buildChartConfig(chartData));
 }
 
 async function exportQuickExcel() {
-  if (!activeQuickType) return;
+  if (!activeQuickType) {
+    showToast('Choose a report before exporting.', 'warning');
+    return;
+  }
   triggerDownload(`/api/reports/quick/${activeQuickType}?${buildQuickReportQuery({ export: '1' })}`);
   showToast('Downloading Excel…');
+}
+
+function exportQuickChartPng() {
+  if (!activeQuickType || !quickChart) {
+    showToast('Load a report chart before downloading PNG.', 'warning');
+    return;
+  }
+  downloadChartPNG('quick-chart', activeQuickType);
+}
+
+function printQuickReport() {
+  if (!activeQuickType) {
+    showToast('Choose a report before printing.', 'warning');
+    return;
+  }
+  window.print();
 }
 
 // ── Chart.js ───────────────────────────────────────────────────────────────────

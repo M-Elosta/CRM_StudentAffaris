@@ -13,6 +13,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET || (!IS_PRODUCTION ? crypto.ra
 const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
 const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || null;
 
+function normalizeRole(role) {
+  return role === 'admin' ? 'admin' : 'viewer';
+}
+
 if (!SESSION_SECRET) {
   throw new Error('SESSION_SECRET must be set when NODE_ENV=production');
 }
@@ -128,7 +132,7 @@ db.exec(`
 `);
 
 // ── Seed default admin user on first run ───────────────────────────────────────
-(async () => {
+async function bootstrapDefaultAdmin() {
   const count = db.prepare('SELECT COUNT(*) AS n FROM Users').get().n;
   if (count === 0) {
     if (IS_PRODUCTION && !DEFAULT_ADMIN_PASSWORD) {
@@ -141,10 +145,7 @@ db.exec(`
       .run(DEFAULT_ADMIN_USERNAME, hash, 'admin');
     console.log(`Bootstrap admin created — username: ${DEFAULT_ADMIN_USERNAME}, password: ${bootstrapPassword}`);
   }
-})().catch((err) => {
-  console.error(err.message);
-  process.exit(1);
-});
+}
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.disable('x-powered-by');
@@ -215,7 +216,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Viewer role: block all state-changing requests ────────────────────────────
 function requireAdmin(req, res, next) {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    const role = req.session?.role || 'admin';
+    const role = normalizeRole(req.session?.role);
     if (role !== 'admin') {
       return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
     }
@@ -250,9 +251,18 @@ app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Employer Relations System running at http://localhost:${PORT}`);
-  console.log(`Database: ${DB_PATH}`);
+async function startServer() {
+  await bootstrapDefaultAdmin();
+
+  app.listen(PORT, () => {
+    console.log(`Employer Relations System running at http://localhost:${PORT}`);
+    console.log(`Database: ${DB_PATH}`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
 });
 
-module.exports = { app, db };
+module.exports = { app, db, normalizeRole, startServer };
