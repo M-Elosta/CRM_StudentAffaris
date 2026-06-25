@@ -1,6 +1,5 @@
 const express = require('express');
 const router  = express.Router();
-const XLSX    = require('xlsx');
 const {
   optionalIsoDate,
   optionalStringArray,
@@ -10,6 +9,7 @@ const {
   sendValidationError,
   validationError,
 } = require('./_validation');
+const { workbookBufferFromJson } = require('../lib/excel');
 
 function normalizeRole(role) {
   return role === 'admin' ? 'admin' : 'viewer';
@@ -126,6 +126,9 @@ function resolveQuickReportPeriod(query) {
   const to = optionalIsoDate(query.to, 'to');
   const semester = semesterFromKey(query.semester || null);
   const academicYear = academicYearFromKey(query.academicYear || null);
+  const requestedViewMode = ['date', 'semester', 'academic-year'].includes(query.viewMode)
+    ? query.viewMode
+    : null;
 
   if ((semester || academicYear) && (from || to)) {
     throw validationError('Use either custom dates or semester/academicYear filters, not both');
@@ -169,6 +172,7 @@ function resolveQuickReportPeriod(query) {
     to: resolvedTo,
     semester: semester ? semester.key : null,
     academicYear: academicYear ? academicYear.key : null,
+    viewMode: requestedViewMode || mode,
   };
 }
 
@@ -250,6 +254,27 @@ function reportSemesterSeries(db, from, to) {
   const startSemester = firstSemester.order <= currentSemester.order ? firstSemester : currentSemester;
   const endSemester = lastSemester.order >= currentSemester.order ? lastSemester : currentSemester;
   return semesterSeries(startSemester, endSemester);
+}
+
+function reportAcademicYearSeries(db, from, to) {
+  const bounds = reportDateBounds(db);
+  const currentDate = todayIso();
+
+  if (from || to) {
+    const start = academicYearOf(from || to || currentDate) || academicYearRange(academicYearStartForDate(currentDate));
+    const end = academicYearOf(to || from || currentDate) || academicYearRange(academicYearStartForDate(currentDate));
+    const years = [];
+    const lo = Math.min(start.startYear, end.startYear);
+    const hi = Math.max(start.startYear, end.startYear);
+    for (let year = lo; year <= hi; year++) years.push(academicYearRange(year));
+    return years;
+  }
+
+  const startYear = Math.min(academicYearStartForDate(bounds.minDate || currentDate), academicYearStartForDate(currentDate));
+  const endYear = Math.max(academicYearStartForDate(bounds.maxDate || currentDate), academicYearStartForDate(currentDate));
+  const years = [];
+  for (let year = startYear; year <= endYear; year++) years.push(academicYearRange(year));
+  return years;
 }
 
 function baseComparisonPeriod(periodCtx, anchorDate) {
@@ -1124,7 +1149,7 @@ const QUICK_REPORTS = {
 
     const datasets = SECTORS.map((sec, i) => ({
       label: sec,
-      data: labels.map(l => buckets[l].sectors[sec] || 0),
+      data: labels.map(l => buckets[l]?.sectors?.[sec] || 0),
       borderColor: PALETTE[i], backgroundColor: PALETTE[i], fill: false, tension: 0.3,
     }));
     return { rows, chartData: { type: 'line', labels, datasets } };
@@ -1206,16 +1231,30 @@ const QUICK_REPORTS = {
       add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'engagement');
     }
 
-    const years = Object.entries(countsByYear).sort((a, b) => a[1].order - b[1].order);
-    const rows = years.map(([label, bucket], index) => {
-      const previous = index > 0 ? years[index - 1][1] : null;
-      const diff = previous ? (bucket.recruitment + bucket.engagement) - (previous.recruitment + previous.engagement) : 0;
+    const yearSeries = periodCtx?.mode === 'all'
+      ? reportAcademicYearSeries(db, from, to)
+      : Object.entries(countsByYear)
+          .sort((a, b) => a[1].order - b[1].order)
+          .map(([label]) => {
+            const match = reportAcademicYearSeries(db, from, to).find(year => year.label === label);
+            return match || null;
+          })
+          .filter(Boolean);
+
+    const rows = yearSeries.map((year, index) => {
+      const bucket = countsByYear[year.label] || { recruitment: 0, engagement: 0 };
+      const previousBucket = index > 0
+        ? (countsByYear[yearSeries[index - 1].label] || { recruitment: 0, engagement: 0 })
+        : null;
+      const diff = previousBucket
+        ? (bucket.recruitment + bucket.engagement) - (previousBucket.recruitment + previousBucket.engagement)
+        : 0;
       return {
-        'Academic Year': label,
+        'Academic Year': year.label,
         'Engagement Volume': bucket.engagement,
         'Recruitment Volume': bucket.recruitment,
         'Total Volume': bucket.engagement + bucket.recruitment,
-        'Change vs Previous AY': previous ? (diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—') : '—',
+        'Change vs Previous AY': previousBucket ? (diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—') : '—',
       };
     });
 
@@ -1230,9 +1269,6 @@ const QUICK_REPORTS = {
   },
 
   'semester-comparison': (db, from, to, periodCtx) => {
-    const A = baseComparisonPeriod(periodCtx, from || todayIso());
-    const B = previousComparisonPeriod(A);
-
     const metrics = (r) => ({
       'Companies Engaged': db.prepare(`
         SELECT COUNT(DISTINCT CompanyID) AS n FROM (
@@ -1248,6 +1284,42 @@ const QUICK_REPORTS = {
       'Academic Engagements':   db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to).n,
       'Outreach Interactions':  db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to).n,
     });
+
+    if (periodCtx?.mode === 'all') {
+      const series = periodCtx.viewMode === 'academic-year'
+        ? reportAcademicYearSeries(db, from, to)
+        : reportSemesterSeries(db, from, to);
+      const rows = series.map((period, index) => {
+        const currentMetrics = metrics(period);
+        const previousMetrics = index > 0 ? metrics(series[index - 1]) : null;
+        const currentTotal = Object.values(currentMetrics).reduce((sum, value) => sum + value, 0);
+        const previousTotal = previousMetrics ? Object.values(previousMetrics).reduce((sum, value) => sum + value, 0) : 0;
+        const diff = currentTotal - previousTotal;
+        return {
+          'Period': period.label,
+          'Companies Engaged': currentMetrics['Companies Engaged'],
+          'New Companies Added': currentMetrics['New Companies Added'],
+          'Recruitment Postings': currentMetrics['Recruitment Postings'],
+          'Career Events Attended': currentMetrics['Career Events Attended'],
+          'Students Hired': currentMetrics['Students Hired'],
+          'Academic Engagements': currentMetrics['Academic Engagements'],
+          'Outreach Interactions': currentMetrics['Outreach Interactions'],
+          'Total Activity': currentTotal,
+          'Change vs Previous': previousMetrics ? (diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—') : '—',
+        };
+      });
+      return { rows, chartData: {
+        type: 'bar',
+        labels: rows.map(row => row.Period),
+        datasets: [
+          { label: 'Total Activity', data: rows.map(row => row['Total Activity']), backgroundColor: '#4361ee', borderRadius: 4 },
+          { label: 'Students Hired', data: rows.map(row => row['Students Hired']), backgroundColor: '#2ec4b6', borderRadius: 4 },
+        ],
+      }};
+    }
+
+    const A = baseComparisonPeriod(periodCtx, from || todayIso());
+    const B = previousComparisonPeriod(A);
 
     const a = metrics(A), b = metrics(B);
     const rows = Object.keys(a).map(k => {
@@ -1518,12 +1590,12 @@ router.get('/periods', (req, res) => {
   try {
     res.json(buildReportPeriods(req.app.locals.db));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
 // GET /api/reports/quick/:type
-router.get('/quick/:type', (req, res) => {
+router.get('/quick/:type', async (req, res) => {
   const db   = req.app.locals.db;
   const type = req.params.type;
   const fn = QUICK_REPORTS[type];
@@ -1541,17 +1613,17 @@ router.get('/quick/:type', (req, res) => {
       ...(result.meta || {}),
     };
     if (doExport === '1') {
-      return exportXLSX(res, rows, `report-${type}`);
+      return await exportXLSX(res, rows, `report-${type}`);
     }
     res.json({ rows, count: rows.length, chartData: result.chartData, meta });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
 // POST /api/reports/builder
-router.post('/builder', (req, res) => {
+router.post('/builder', async (req, res) => {
   const db = req.app.locals.db;
   const { entity, columns: selCols, filters, sortBy, sortOrder, chartType, chartGroupBy, from, to } = req.body;
 
@@ -1613,12 +1685,12 @@ router.post('/builder', (req, res) => {
     }
 
     const outputRows = formatRowsForOutput(rows);
-    if (exportMode === '1') return exportXLSX(res, outputRows, 'custom-report');
+    if (exportMode === '1') return await exportXLSX(res, outputRows, 'custom-report');
     if (exportMode === 'csv') return exportCSV(res, outputRows, 'custom-report');
     res.json({ rows: outputRows, count: outputRows.length, chartData });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -1627,7 +1699,7 @@ router.get('/saved', (req, res) => {
   const db = req.app.locals.db;
   try {
     res.json(db.prepare('SELECT * FROM SavedReports ORDER BY CreatedAt DESC').all());
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { req.app.locals.respondServerError(req, res, err); }
 });
 
 // POST /api/reports/saved
@@ -1650,7 +1722,7 @@ router.post('/saved', requireAdminSession, (req, res) => {
     res.status(201).json(db.prepare('SELECT * FROM SavedReports WHERE ReportID=?').get(info.lastInsertRowid));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -1663,15 +1735,13 @@ router.delete('/saved/:id', requireAdminSession, (req, res) => {
     res.json({ message: 'Deleted' });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
 // ── Export helpers ─────────────────────────────────────────────────────────────
-function exportXLSX(res, rows, name) {
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Report');
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+async function exportXLSX(res, rows, name) {
+  const buf = await workbookBufferFromJson('Report', rows);
   res.setHeader('Content-Disposition', `attachment; filename="${name}-${Date.now()}.xlsx"`);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(buf);

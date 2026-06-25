@@ -45,7 +45,7 @@ router.get('/stats', (req, res) => {
     });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -62,7 +62,7 @@ router.get('/companies-by-month', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -79,7 +79,7 @@ router.get('/outreach-by-month', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -92,7 +92,7 @@ router.get('/companies-by-sector', (req, res) => {
     res.json(db.prepare(`SELECT Sector AS label, COUNT(*) AS count FROM Company WHERE Blacklisted=0${range.sql} GROUP BY Sector ORDER BY count DESC`).all(...range.params));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -109,7 +109,7 @@ router.get('/recruitment-by-major', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -126,7 +126,7 @@ router.get('/event-attendance', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -158,7 +158,7 @@ router.get('/top-engaged', (req, res) => {
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -175,7 +175,7 @@ router.get('/hiring-trends', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 

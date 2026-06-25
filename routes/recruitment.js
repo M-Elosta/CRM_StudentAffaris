@@ -73,7 +73,7 @@ router.get('/', (req, res) => {
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -140,7 +140,7 @@ router.post('/', (req, res) => {
     res.status(201).json(hydrate(db, db.prepare('SELECT * FROM Recruitment WHERE RecruitmentID = ?').get(id)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -195,7 +195,7 @@ router.put('/:id', (req, res) => {
     res.json(hydrate(db, db.prepare('SELECT * FROM Recruitment WHERE RecruitmentID = ?').get(id)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -207,7 +207,7 @@ router.delete('/:id', (req, res) => {
     if (info.changes === 0) return res.status(404).json({ error: 'Record not found' });
     res.json({ message: 'Deleted' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 

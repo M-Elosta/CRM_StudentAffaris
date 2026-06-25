@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
       SELECT p.*, c.CompanyName FROM PotentialCollaboration p JOIN Company c ON p.CompanyID=c.CompanyID ORDER BY p.CreatedAt DESC`
     ).all().map(r => ({ ...r, Opportunities: getOpps(db, r.PotentialCollaborationID) }));
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { req.app.locals.respondServerError(req, res, err); }
 });
 
 router.get('/:id', (req, res) => {
@@ -56,7 +56,7 @@ router.post('/', (req, res) => {
     res.status(201).json({ ...row, Opportunities: getOpps(db, info.lastInsertRowid) });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -73,7 +73,7 @@ router.put('/:id', (req, res) => {
     res.json({ ...row, Opportunities: getOpps(db, req.recordId) });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -83,7 +83,7 @@ router.delete('/:id', (req, res) => {
     const info = db.prepare('DELETE FROM PotentialCollaboration WHERE PotentialCollaborationID=?').run(req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { req.app.locals.respondServerError(req, res, err); }
 });
 
 module.exports = router;

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   optionalIsoDate,
+  optionalHttpUrl,
   optionalTrimmedString,
   parseBoolean,
   requireEnum,
@@ -40,7 +41,7 @@ router.get('/', (req, res) => {
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -63,9 +64,9 @@ router.post('/', (req, res) => {
     const Sector = requireEnum(req.body.Sector, 'Sector', VALID_SECTORS);
     const Country = requireTrimmedString(req.body.Country, 'Country');
     const Address = optionalTrimmedString(req.body.Address, 'Address', 255);
-    const Website = optionalTrimmedString(req.body.Website, 'Website', 255);
-    const LinkedInURL = optionalTrimmedString(req.body.LinkedInURL, 'LinkedInURL', 255);
-    const HandshakeURL = optionalTrimmedString(req.body.HandshakeURL, 'HandshakeURL', 255);
+    const Website = optionalHttpUrl(req.body.Website, 'Website', 255);
+    const LinkedInURL = optionalHttpUrl(req.body.LinkedInURL, 'LinkedInURL', 255);
+    const HandshakeURL = optionalHttpUrl(req.body.HandshakeURL, 'HandshakeURL', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
     const SignedMoU = parseBoolean(req.body.SignedMoU);
     const FavoriteEmployer = parseBoolean(req.body.FavoriteEmployer);
@@ -89,7 +90,7 @@ router.post('/', (req, res) => {
     res.status(201).json(created);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -103,9 +104,9 @@ router.put('/:id', (req, res) => {
     const Sector = requireEnum(req.body.Sector, 'Sector', VALID_SECTORS);
     const Country = requireTrimmedString(req.body.Country, 'Country');
     const Address = optionalTrimmedString(req.body.Address, 'Address', 255);
-    const Website = optionalTrimmedString(req.body.Website, 'Website', 255);
-    const LinkedInURL = optionalTrimmedString(req.body.LinkedInURL, 'LinkedInURL', 255);
-    const HandshakeURL = optionalTrimmedString(req.body.HandshakeURL, 'HandshakeURL', 255);
+    const Website = optionalHttpUrl(req.body.Website, 'Website', 255);
+    const LinkedInURL = optionalHttpUrl(req.body.LinkedInURL, 'LinkedInURL', 255);
+    const HandshakeURL = optionalHttpUrl(req.body.HandshakeURL, 'HandshakeURL', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
     const SignedMoU = parseBoolean(req.body.SignedMoU);
     const FavoriteEmployer = parseBoolean(req.body.FavoriteEmployer);
@@ -135,7 +136,7 @@ router.put('/:id', (req, res) => {
     res.json(updated);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -157,7 +158,7 @@ router.delete('/:id', (req, res) => {
       deleted: { contacts: contactCount, outreach: outreachCount, recruitment: recruitCount, events: eventCount }
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 

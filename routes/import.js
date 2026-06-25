@@ -1,9 +1,36 @@
 const express = require('express');
+const path    = require('path');
 const router  = express.Router();
 const multer  = require('multer');
-const XLSX    = require('xlsx');
+const {
+  optionalHttpUrl,
+} = require('./_validation');
+const {
+  excelSerialDateToISO,
+  readFirstWorksheet,
+  workbookBase64FromJson,
+  workbookBufferFromColumns,
+} = require('../lib/excel');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const MAX_IMPORT_ROWS = 5000;
+const ALLOWED_IMPORT_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    const extension = path.extname(file.originalname || '').toLowerCase();
+    if (extension !== '.xlsx' || !ALLOWED_IMPORT_MIME_TYPES.has(file.mimetype)) {
+      const err = new Error('Only .xlsx files are supported for import');
+      err.statusCode = 400;
+      return cb(err);
+    }
+    return cb(null, true);
+  },
+});
 
 const COLLAB_OPPS = [
   'Intern/Graduate Hiring','Career Events','Mentorship Programs','Mock Interviews',
@@ -78,8 +105,7 @@ const ENTITY_FIELDS = {
 function parseDate(val) {
   if (!val) return null;
   if (typeof val === 'number') {
-    const d = XLSX.SSF.parse_date_code(val);
-    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    return excelSerialDateToISO(val);
   }
   const s = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -91,6 +117,33 @@ function parseDate(val) {
   const d = new Date(s);
   if (!isNaN(d)) return d.toISOString().slice(0,10);
   return null;
+}
+
+function looksLikePlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeImportPayload(entity, rows, mapping) {
+  if (!ENTITY_FIELDS[entity]) {
+    const err = new Error('Unknown entity');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!Array.isArray(rows) || !rows.length) {
+    const err = new Error('rows must be a non-empty array');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (rows.length > MAX_IMPORT_ROWS) {
+    const err = new Error(`rows must contain at most ${MAX_IMPORT_ROWS} entries`);
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!looksLikePlainObject(mapping)) {
+    const err = new Error('mapping must be an object');
+    err.statusCode = 400;
+    throw err;
+  }
 }
 
 // ── Enum canonical lookup (case-insensitive + space/hyphen-insensitive) ─────────
@@ -180,33 +233,31 @@ function inFileDupKey(entity, row) {
 }
 
 // GET /api/import/template/:entity
-router.get('/template/:entity', (req, res) => {
+router.get('/template/:entity', async (req, res) => {
   const entity = decodeURIComponent(req.params.entity);
   const def = ENTITY_FIELDS[entity];
   if (!def) return res.status(404).json({ error: 'Unknown entity' });
 
-  const cols = [...def.required, ...def.optional];
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([cols]);
-  XLSX.utils.book_append_sheet(wb, ws, entity);
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  try {
+    const cols = [...def.required, ...def.optional];
+    const buf = await workbookBufferFromColumns(entity, cols);
 
-  res.setHeader('Content-Disposition', `attachment; filename="template-${entity.replace(/ /g,'-')}.xlsx"`);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.send(buf);
+    res.setHeader('Content-Disposition', `attachment; filename="template-${entity.replace(/ /g,'-')}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch (err) {
+    req.app.locals.respondServerError(req, res, err);
+  }
 });
 
 // POST /api/import/parse
-router.post('/parse', upload.single('file'), (req, res) => {
+router.post('/parse', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+    const { headers, rows } = await readFirstWorksheet(req.file.buffer, { maxRows: MAX_IMPORT_ROWS });
     res.json({ headers, preview: rows.slice(0, 10), totalRows: rows.length, allRows: rows });
   } catch (err) {
-    res.status(400).json({ error: 'Could not parse file: ' + err.message });
+    res.status(400).json({ error: `Could not parse file: ${err.message}` });
   }
 });
 
@@ -216,17 +267,22 @@ router.post('/validate', (req, res) => {
   const { entity, rows, mapping } = req.body;
   if (!entity || !rows || !mapping) return res.status(400).json({ error: 'entity, rows, mapping required' });
 
-  const def = ENTITY_FIELDS[entity];
-  if (!def) return res.status(400).json({ error: 'Unknown entity' });
+  try {
+    normalizeImportPayload(entity, rows, mapping);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message });
+  }
 
+  const def = ENTITY_FIELDS[entity];
   const seenKeys = new Map(); // in-file duplicate tracking: key → first row number
 
   const result = rows.map((raw, idx) => {
     // Apply mapping
-    const row = {};
+    const row = Object.create(null);
+    const errors = [];
     for (const [fileCol, dbCol] of Object.entries(mapping)) {
       if (dbCol && dbCol !== '__ignore__') {
-        let val = raw[fileCol];
+        let val = looksLikePlainObject(raw) ? raw[fileCol] : undefined;
         if (typeof val === 'string') val = val.trim();
         row[dbCol] = val;
       }
@@ -267,6 +323,16 @@ router.post('/validate', (req, res) => {
     for (const field of (def.dateFields || [])) {
       if (row[field] !== undefined && row[field] !== '') {
         row[field] = parseDate(row[field]) || row[field];
+      }
+    }
+
+    for (const field of ['Website', 'LinkedInURL', 'HandshakeURL']) {
+      if (row[field] !== undefined && row[field] !== '') {
+        try {
+          row[field] = optionalHttpUrl(row[field], field, 255);
+        } catch (err) {
+          errors.push(err.message);
+        }
       }
     }
 
@@ -326,8 +392,6 @@ router.post('/validate', (req, res) => {
       } catch (_) {}
     }
 
-    const errors = [];
-
     if (row.__companyLookupFailed) {
       errors.push(`Company "${row.__companyLookupFailed}" not found in database`);
       delete row.__companyLookupFailed;
@@ -381,10 +445,16 @@ router.post('/validate', (req, res) => {
 });
 
 // POST /api/import/confirm
-router.post('/confirm', (req, res) => {
+router.post('/confirm', async (req, res) => {
   const db = req.app.locals.db;
   const { entity, rows } = req.body;
   if (!entity || !rows) return res.status(400).json({ error: 'entity and rows required' });
+
+  try {
+    normalizeImportPayload(entity, rows, { ok: true });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message });
+  }
 
   let imported = 0, updated = 0, skipped = 0, failed = 0;
   const failedRows = [];
@@ -447,7 +517,14 @@ router.post('/confirm', (req, res) => {
     'Potential Collaboration': 'DELETE FROM PotentialCollaboration WHERE PotentialCollaborationID=?',
   };
 
-  for (const { row, action } of rows) {
+  for (const item of rows) {
+    const row = looksLikePlainObject(item?.row) ? item.row : null;
+    const action = typeof item?.action === 'string' ? item.action : 'skip';
+    if (!row) {
+      failed++;
+      failedRows.push({ row: { __row: 'Invalid payload' }, error: 'Invalid import row payload' });
+      continue;
+    }
     if (action === 'skip') { skipped++; continue; }
     try {
       if (action === 'overwrite' && row.__existingId) {
@@ -474,10 +551,8 @@ router.post('/confirm', (req, res) => {
 
   let errorFileBase64 = null;
   if (failedRows.length > 0) {
-    const wb = XLSX.utils.book_new();
     const data = failedRows.map(f => ({ ...f.row, __error: f.error }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Errors');
-    errorFileBase64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    errorFileBase64 = await workbookBase64FromJson('Errors', data);
   }
 
   res.json({

@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const {
+  optionalHttpUrl,
+  optionalIsoDate,
   optionalPositiveInt,
   optionalTrimmedString,
   parseBoolean,
@@ -57,7 +59,7 @@ router.get('/', (req, res) => {
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -82,15 +84,15 @@ router.post('/', (req, res) => {
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');
-    const DateAdded = req.body.DateAdded || null;
+    const DateAdded = optionalIsoDate(req.body.DateAdded, 'DateAdded');
     const JobTitle = optionalTrimmedString(req.body.JobTitle, 'JobTitle', 255);
     const EmailAddress = requireEmail(req.body.EmailAddress, 'EmailAddress');
     const Address = optionalTrimmedString(req.body.Address, 'Address', 255);
     const Country = optionalTrimmedString(req.body.Country, 'Country', 100);
     const WorkPhone = optionalTrimmedString(req.body.WorkPhone, 'WorkPhone', 50);
     const Mobile = optionalTrimmedString(req.body.Mobile, 'Mobile', 50);
-    const LinkedInURL = optionalTrimmedString(req.body.LinkedInURL, 'LinkedInURL', 255);
-    const HandshakeURL = optionalTrimmedString(req.body.HandshakeURL, 'HandshakeURL', 255);
+    const LinkedInURL = optionalHttpUrl(req.body.LinkedInURL, 'LinkedInURL', 255);
+    const HandshakeURL = optionalHttpUrl(req.body.HandshakeURL, 'HandshakeURL', 255);
     const Major = optionalTrimmedString(req.body.Major, 'Major', 100);
     const GraduationYear = req.body.GraduationYear ? requirePositiveInt(req.body.GraduationYear, 'GraduationYear') : null;
     const resolvedStatus = req.body.Status ? requireEnum(req.body.Status, 'Status', VALID_STATUSES) : 'Mailable';
@@ -119,7 +121,7 @@ router.post('/', (req, res) => {
     res.status(201).json(created);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -130,15 +132,15 @@ router.put('/:id', (req, res) => {
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');
-    const DateAdded = req.body.DateAdded || null;
+    const DateAdded = optionalIsoDate(req.body.DateAdded, 'DateAdded');
     const JobTitle = optionalTrimmedString(req.body.JobTitle, 'JobTitle', 255);
     const EmailAddress = requireEmail(req.body.EmailAddress, 'EmailAddress');
     const Address = optionalTrimmedString(req.body.Address, 'Address', 255);
     const Country = optionalTrimmedString(req.body.Country, 'Country', 100);
     const WorkPhone = optionalTrimmedString(req.body.WorkPhone, 'WorkPhone', 50);
     const Mobile = optionalTrimmedString(req.body.Mobile, 'Mobile', 50);
-    const LinkedInURL = optionalTrimmedString(req.body.LinkedInURL, 'LinkedInURL', 255);
-    const HandshakeURL = optionalTrimmedString(req.body.HandshakeURL, 'HandshakeURL', 255);
+    const LinkedInURL = optionalHttpUrl(req.body.LinkedInURL, 'LinkedInURL', 255);
+    const HandshakeURL = optionalHttpUrl(req.body.HandshakeURL, 'HandshakeURL', 255);
     const Major = optionalTrimmedString(req.body.Major, 'Major', 100);
     const GraduationYear = req.body.GraduationYear ? requirePositiveInt(req.body.GraduationYear, 'GraduationYear') : null;
     const Status = req.body.Status ? requireEnum(req.body.Status, 'Status', VALID_STATUSES) : 'Mailable';
@@ -170,7 +172,7 @@ router.put('/:id', (req, res) => {
     res.json(updated);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -184,7 +186,7 @@ router.delete('/:id', (req, res) => {
     db.prepare('DELETE FROM Contact WHERE ContactID = ?').run(req.recordId);
     res.json({ message: 'Contact deleted', name: `${contact.FirstName} ${contact.LastName}` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 

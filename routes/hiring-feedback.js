@@ -39,7 +39,7 @@ router.get('/', (req, res) => {
     res.json(db.prepare(sql).all(...p));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -66,7 +66,7 @@ router.post('/', (req, res) => {
     res.status(201).json(db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(info.lastInsertRowid));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -86,7 +86,7 @@ router.put('/:id', (req, res) => {
     res.json(db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(req.recordId));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
-    res.status(500).json({ error: err.message });
+    req.app.locals.respondServerError(req, res, err);
   }
 });
 
@@ -96,7 +96,7 @@ router.delete('/:id', (req, res) => {
     const info = db.prepare('DELETE FROM HiringFeedback WHERE HiringFeedbackID=?').run(req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { req.app.locals.respondServerError(req, res, err); }
 });
 
 module.exports = router;

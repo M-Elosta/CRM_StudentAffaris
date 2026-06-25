@@ -82,6 +82,24 @@ function requireEmail(value, name) {
   return email;
 }
 
+function optionalHttpUrl(value, name, maxLength = 2048) {
+  const url = optionalTrimmedString(value, name, maxLength);
+  if (!url) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (_) {
+    throw validationError(`${name} must be a valid http or https URL`);
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw validationError(`${name} must be a valid http or https URL`);
+  }
+
+  return parsed.toString();
+}
+
 function requireUsername(value) {
   const username = requireTrimmedString(value, 'Username', 64);
   if (!USERNAME_RE.test(username)) {
@@ -138,6 +156,7 @@ module.exports = {
   optionalIsoDate,
   requireIsoTime,
   requireEmail,
+  optionalHttpUrl,
   requireUsername,
   requirePassword,
   requireString,

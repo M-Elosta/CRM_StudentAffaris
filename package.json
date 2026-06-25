@@ -7,16 +7,21 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.10.1",
     "cors": "^2.8.5",
-    "express": "^4.18.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.5.2",
     "express-session": "^1.18.0",
-    "multer": "^2.2.0",
-    "xlsx": "^0.18.5"
+    "helmet": "^8.2.0",
+    "multer": "^2.2.0"
   },
   "allowScripts": {
-    "bcrypt@5.1.1": true,
+    "bcrypt@6.0.0": true,
     "better-sqlite3@12.10.1": true
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }

@@ -355,6 +355,7 @@ function buildQuickReportQuery(extra = {}) {
   const showAll = document.getElementById('rep-show-all').checked;
   const mode = document.getElementById('rep-view-mode').value;
   const range = currentRange();
+  qs.set('viewMode', mode);
 
   if (!showAll) {
     if (mode === 'semester') {

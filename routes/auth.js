@@ -19,7 +19,6 @@ router.post('/login', async (req, res) => {
     if (!user || !match) return res.status(401).json({ error: 'Invalid username or password' });
     const role = normalizeRole(user.Role);
 
-    req.app.locals.clearLoginAttempts?.(req.ip);
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: 'Unable to start session' });
       req.session.userId = user.UserID;

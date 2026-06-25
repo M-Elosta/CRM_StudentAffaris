@@ -3,7 +3,10 @@ const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
 const Database = require('better-sqlite3');
+const cors     = require('cors');
+const helmet   = require('helmet');
 const session  = require('express-session');
+const rateLimit = require('express-rate-limit');
 const bcrypt   = require('bcrypt');
 
 const app  = express();
@@ -15,6 +18,70 @@ const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || null;
 
 function normalizeRole(role) {
   return role === 'admin' ? 'admin' : 'viewer';
+}
+
+function parseConfiguredOrigins(port) {
+  const configured = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const defaults = [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
+  return new Set([...defaults, ...configured].map((origin) => {
+    try {
+      return new URL(origin).origin;
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean));
+}
+
+function runtimeOrigin(req) {
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+function normalizeOrigin(origin) {
+  try {
+    return new URL(origin).origin;
+  } catch (_) {
+    return null;
+  }
+}
+
+function isTrustedOrigin(origin, req, allowedOrigins) {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  return normalized === runtimeOrigin(req) || allowedOrigins.has(normalized);
+}
+
+function createPoisonKeyGuard() {
+  const poisonKeys = new Set(['__proto__', 'constructor', 'prototype']);
+
+  function inspect(value) {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach(inspect);
+      return;
+    }
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (poisonKeys.has(key)) {
+        const err = new Error('Unsupported field in request payload');
+        err.statusCode = 400;
+        throw err;
+      }
+      inspect(nestedValue);
+    }
+  }
+
+  return (req, _res, next) => {
+    try {
+      inspect(req.body);
+      inspect(req.query);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 if (!SESSION_SECRET) {
@@ -143,15 +210,76 @@ async function bootstrapDefaultAdmin() {
     const hash = await bcrypt.hash(bootstrapPassword, 12);
     db.prepare('INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, ?)')
       .run(DEFAULT_ADMIN_USERNAME, hash, 'admin');
-    console.log(`Bootstrap admin created — username: ${DEFAULT_ADMIN_USERNAME}, password: ${bootstrapPassword}`);
+    if (IS_PRODUCTION) {
+      console.log(`Bootstrap admin created for username: ${DEFAULT_ADMIN_USERNAME}. Rotate the bootstrap password after first login.`);
+    } else {
+      console.log(`Bootstrap admin created — username: ${DEFAULT_ADMIN_USERNAME}, password: ${bootstrapPassword}`);
+    }
   }
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.set('trust proxy', IS_PRODUCTION ? 1 : false);
+
+const allowedOrigins = parseConfiguredOrigins(PORT);
+
+app.locals.respondServerError = (req, res, err) => {
+  console.error(`[${req.method} ${req.originalUrl}]`, err?.stack || err);
+  if (res.headersSent) return;
+  return res.status(500).json({ error: 'An unexpected error occurred' });
+};
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
+      connectSrc: ["'self'"],
+    },
+  },
+  hsts: IS_PRODUCTION ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  } : false,
+  referrerPolicy: { policy: 'no-referrer' },
+}));
+
+app.use((req, res, next) => cors({
+  origin(origin, callback) {
+    if (!origin || isTrustedOrigin(origin, req, allowedOrigins)) {
+      return callback(null, true);
+    }
+
+    const err = new Error('Origin not allowed');
+    err.statusCode = 403;
+    return callback(err);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+})(req, res, next));
+
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 400,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+}));
+
+app.use(express.json({ limit: '256kb' }));
+app.use(express.urlencoded({ extended: true, limit: '256kb' }));
+app.use(createPoisonKeyGuard());
 app.use(session({
   name: 'ero.sid',
   secret: SESSION_SECRET,
@@ -161,42 +289,20 @@ app.use(session({
   unset: 'destroy',
   cookie: {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     secure: IS_PRODUCTION,
     maxAge: 24 * 60 * 60 * 1000,
   },
 }));
 
-// ── Simple login rate limiter ──────────────────────────────────────────────────
-const loginAttempts = new Map();
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const MAX_LOGIN_ATTEMPTS = 10;
-
-function clientIp(req) {
-  return (req.ip || req.connection?.remoteAddress || 'unknown').toString();
-}
-
-function clearLoginAttempts(ip) {
-  loginAttempts.delete(ip);
-}
-
-function loginRateLimiter(req, res, next) {
-  const ip  = clientIp(req);
-  const now = Date.now();
-  const rec = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW_MS };
-  if (now > rec.resetAt) {
-    rec.count = 0;
-    rec.resetAt = now + LOGIN_WINDOW_MS;
-  }
-  rec.count++;
-  loginAttempts.set(ip, rec);
-  if (rec.count > MAX_LOGIN_ATTEMPTS) {
-    return res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
-  }
-  next();
-}
-
-app.locals.clearLoginAttempts = clearLoginAttempts;
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many login attempts. Try again in 15 minutes.' },
+});
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 const PUBLIC_PATHS = ['/login.html', '/api/auth/login', '/css/', '/js/', '/favicon'];
@@ -210,6 +316,21 @@ function requireAuth(req, res, next) {
   res.redirect('/login.html');
 }
 
+function requireTrustedOrigin(req, res, next) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) || !req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  const origin = req.get('origin');
+  if (origin && isTrustedOrigin(origin, req, allowedOrigins)) return next();
+
+  const referer = req.get('referer');
+  if (referer && isTrustedOrigin(referer, req, allowedOrigins)) return next();
+
+  return res.status(403).json({ error: 'Untrusted request origin' });
+}
+
+app.use(requireTrustedOrigin);
 app.use(requireAuth);
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -251,17 +372,27 @@ app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err?.statusCode && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ error: err.message });
+  }
+  return app.locals.respondServerError(req, res, err);
+});
+
 async function startServer() {
   await bootstrapDefaultAdmin();
 
   app.listen(PORT, () => {
     console.log(`Employer Relations System running at http://localhost:${PORT}`);
-    console.log(`Database: ${DB_PATH}`);
+    if (!IS_PRODUCTION) {
+      console.log(`Database: ${DB_PATH}`);
+    }
   });
 }
 
 startServer().catch((err) => {
-  console.error(err.message);
+  console.error(err.stack || err.message);
   process.exit(1);
 });
 
