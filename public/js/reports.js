@@ -189,11 +189,18 @@ async function initReportFilters() {
   viewModeEl.value = 'semester';
 
   viewModeEl.addEventListener('change', () => {
+    if (showAllEl.checked) showAllEl.checked = false;
     ensureModeSelection(viewModeEl.value);
     applyReportFilterState(true);
   });
-  semesterEl.addEventListener('change', () => applyReportFilterState(true));
-  academicYearEl.addEventListener('change', () => applyReportFilterState(true));
+  semesterEl.addEventListener('change', () => {
+    if (showAllEl.checked) showAllEl.checked = false;
+    applyReportFilterState(true);
+  });
+  academicYearEl.addEventListener('change', () => {
+    if (showAllEl.checked) showAllEl.checked = false;
+    applyReportFilterState(true);
+  });
   showAllEl.addEventListener('change', () => applyReportFilterState(false));
 
   applyReportFilterState(false);
@@ -237,7 +244,7 @@ function applyReportFilterState(triggerRerun) {
   const isAll = showAllEl.checked;
   const mode = viewModeEl.value;
 
-  viewModeEl.disabled = isAll;
+  viewModeEl.disabled = false;
   semesterEl.disabled = isAll || mode !== 'semester';
   academicYearEl.disabled = isAll || mode !== 'academic-year';
   fromEl.disabled = isAll || mode !== 'date';

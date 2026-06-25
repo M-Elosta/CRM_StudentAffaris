@@ -224,6 +224,34 @@ function buildReportPeriods(db) {
   };
 }
 
+function semesterSeries(startSemester, endSemester) {
+  const semesters = [];
+  let cursor = startSemester;
+  while (cursor && cursor.order <= endSemester.order) {
+    semesters.push(cursor);
+    cursor = nextSemesterOf(cursor);
+  }
+  return semesters;
+}
+
+function reportSemesterSeries(db, from, to) {
+  const bounds = reportDateBounds(db);
+  const currentDate = todayIso();
+  const currentSemester = semesterOf(currentDate);
+
+  if (from || to) {
+    const start = semesterOf(from || to || currentDate) || currentSemester;
+    const end = semesterOf(to || from || currentDate) || currentSemester;
+    return semesterSeries(start.order <= end.order ? start : end, end.order >= start.order ? end : start);
+  }
+
+  const firstSemester = semesterOf(bounds.minDate || currentDate) || currentSemester;
+  const lastSemester = semesterOf(bounds.maxDate || currentDate) || currentSemester;
+  const startSemester = firstSemester.order <= currentSemester.order ? firstSemester : currentSemester;
+  const endSemester = lastSemester.order >= currentSemester.order ? lastSemester : currentSemester;
+  return semesterSeries(startSemester, endSemester);
+}
+
 function baseComparisonPeriod(periodCtx, anchorDate) {
   if (periodCtx?.mode === 'academic-year' && periodCtx.academicYear) return academicYearFromKey(periodCtx.academicYear);
   if (periodCtx?.mode === 'semester' && periodCtx.semester) return semesterFromKey(periodCtx.semester);
@@ -810,6 +838,7 @@ const QUICK_REPORTS = {
       ind[ev.kind]++;
     });
 
+    const semesterList = reportSemesterSeries(db, from, to);
     const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
     const rows = [];
     semesters.forEach(([sem, data]) => {
@@ -826,7 +855,7 @@ const QUICK_REPORTS = {
     const indTotals = {};
     rows.forEach(r => { indTotals[r.Industry] = (indTotals[r.Industry] || 0) + r.Total; });
     const topInds = Object.entries(indTotals).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => x[0]);
-    const labels = semesters.map(([sem]) => sem);
+    const labels = semesterList.map(sem => sem.label);
     const datasets = topInds.map((ind, i) => ({
       label: ind,
       data: labels.map(sem => {
@@ -840,6 +869,7 @@ const QUICK_REPORTS = {
 
   'opportunities-per-semester': (db, from, to) => {
     const events = collectOpportunityEvents(db, from, to);
+    const semesterList = reportSemesterSeries(db, from, to);
     const buckets = {};
 
     events.forEach(event => {
@@ -879,9 +909,10 @@ const QUICK_REPORTS = {
       acc[row.Industry] = (acc[row.Industry] || 0) + row['Total Opportunities'];
       return acc;
     }, {})).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([industry]) => industry);
-    const labels = [...new Set(chartRows
-      .sort((a, b) => a.order - b.order)
-      .map(bucket => bucket.chartLabel))];
+    const labels = semesterList.map(sem => {
+      const academicYear = academicYearOf(sem.from);
+      return academicYear ? `${academicYear.label} • ${sem.label}` : sem.label;
+    });
     const datasets = topIndustries.map((industry, index) => ({
       label: industry,
       data: labels.map(label => {
@@ -1027,9 +1058,10 @@ const QUICK_REPORTS = {
       });
     });
 
-    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
-    const rows = semesters.map(([semester, bucket]) => {
-      const row = { 'Semester': semester };
+    const semesterList = reportSemesterSeries(db, from, to);
+    const rows = semesterList.map(semester => {
+      const bucket = buckets[semester.label] || { counts: {} };
+      const row = { 'Semester': semester.label };
       let total = 0;
       sources.forEach(source => {
         const count = bucket.counts[source.label] || 0;
@@ -1079,8 +1111,9 @@ const QUICK_REPORTS = {
       const b = buckets[ev.sem.label] = buckets[ev.sem.label] || { order: ev.sem.order, sectors: {} };
       b.sectors[ev.sector] = (b.sectors[ev.sector] || 0) + 1;
     });
+    const semesterList = reportSemesterSeries(db, from, to);
     const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
-    const labels    = semesters.map(([l]) => l);
+    const labels    = semesterList.map(sem => sem.label);
     const SECTORS   = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
 
     const rows = [];
@@ -1111,16 +1144,19 @@ const QUICK_REPORTS = {
     });
     add(postings, 'posted'); add(hires, 'hired');
 
-    const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
-    const rows = semesters.map(([sem, b]) => ({
-      'Semester': sem, 'Postings': b.posted, 'Hires': b.hired,
-      'Conversion': b.posted ? Math.round(b.hired / b.posted * 100) + '%' : '—',
-    }));
+    const semesterList = reportSemesterSeries(db, from, to);
+    const rows = semesterList.map(semester => {
+      const bucket = buckets[semester.label] || { posted: 0, hired: 0 };
+      return {
+        'Semester': semester.label, 'Postings': bucket.posted, 'Hires': bucket.hired,
+        'Conversion': bucket.posted ? Math.round(bucket.hired / bucket.posted * 100) + '%' : '0%',
+      };
+    });
     return { rows, chartData: {
-      type: 'bar', labels: semesters.map(([l]) => l),
+      type: 'bar', labels: semesterList.map(sem => sem.label),
       datasets: [
-        { label: 'Postings', data: semesters.map(([, b]) => b.posted), backgroundColor: '#4361ee', borderRadius: 4 },
-        { label: 'Hires',    data: semesters.map(([, b]) => b.hired),  backgroundColor: '#2ec4b6', borderRadius: 4 },
+        { label: 'Postings', data: rows.map(row => row.Postings), backgroundColor: '#4361ee', borderRadius: 4 },
+        { label: 'Hires',    data: rows.map(row => row.Hires),    backgroundColor: '#2ec4b6', borderRadius: 4 },
       ],
     }};
   },
