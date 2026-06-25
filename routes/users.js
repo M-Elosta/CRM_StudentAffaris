@@ -8,6 +8,7 @@ const {
   requireUsername,
   sendValidationError,
 } = require('./_validation');
+const { isInsecurePassword } = require('../lib/password-policy');
 
 function normalizeRole(role) {
   return role === 'admin' ? 'admin' : 'viewer';
@@ -45,7 +46,8 @@ router.post('/', requireAdminSession, async (req, res) => {
     }
 
     const hash = await bcrypt.hash(password, 12);
-    const result = db.prepare('INSERT INTO Users (Username,PasswordHash,Role) VALUES (?,?,?)').run(username, hash, role);
+    const result = db.prepare('INSERT INTO Users (Username,PasswordHash,Role,MustChangePassword) VALUES (?,?,?,?)')
+      .run(username, hash, role, isInsecurePassword(password) ? 1 : 0);
     res.status(201).json({ UserID: result.lastInsertRowid, Username: username, Role: role });
   } catch (err) {
     sendValidationError(res, err);

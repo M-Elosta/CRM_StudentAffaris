@@ -328,33 +328,34 @@ const QUICK_REPORTS = {
 
   // ── Contact Lists ──────────────────────────────────────────────────────────
 
+  // These are current-state lists (mailing status, flags, alumni status), so
+  // they intentionally ignore the global date filter and always show the live set.
+
   'mailable-contacts': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
-             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0${dc.sql}
-      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+      WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
+      ORDER BY c.CompanyName, co.LastName`).all();
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
     return { rows, chartData: {
       type: 'pie', labels: sorted.map(x=>x[0]),
       datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: PALETTE }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   'event-invitation': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
-             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.EventInvitation=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0${dc.sql}
-      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+      WHERE co.EventInvitation=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
+      ORDER BY c.CompanyName, co.LastName`).all();
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
@@ -362,19 +363,18 @@ const QUICK_REPORTS = {
       type: 'bar', labels: sorted.map(x=>x[0]),
       datasets: [{ label: 'Contacts', data: sorted.map(x=>x[1]),
                    backgroundColor: '#4361ee', borderRadius: 4 }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   'resume-book': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
-             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", co.Country,
+             COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country",
              co.Major AS "Major", co.GraduationYear AS "Grad Year"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.ResumeBook=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0${dc.sql}
-      ORDER BY co.Major, co.LastName`).all(...dc.params);
+      WHERE co.ResumeBook=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
+      ORDER BY co.Major, co.LastName`).all();
     const agg = {};
     rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -382,35 +382,33 @@ const QUICK_REPORTS = {
       type: 'bar', labels: sorted.map(x=>x[0]),
       datasets: [{ label: 'Contacts', data: sorted.map(x=>x[1]),
                    backgroundColor: '#2ec4b6', borderRadius: 4 }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   'non-mailable': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email",
              CASE WHEN c.Blacklisted=1 THEN 'Blacklisted Company' ELSE 'Manually Set' END AS "Reason"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.Status='Non-mailable'${dc.sql}
-      ORDER BY co.LastName`).all(...dc.params);
+      WHERE co.Status='Non-mailable'
+      ORDER BY co.LastName`).all();
     const bl = rows.filter(r => r.Reason === 'Blacklisted Company').length;
     const mn = rows.length - bl;
     return { rows, chartData: {
       type: 'pie', labels: ['Blacklisted Company', 'Manually Set'],
       datasets: [{ data: [bl, mn], backgroundColor: ['#e71d36','#adb5bd'] }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   'primary-contacts': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
              COALESCE(co.WorkPhone, co.Mobile) AS "Phone"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.PrimaryContact=1 AND co.Status='Mailable'${dc.sql}
-      ORDER BY c.CompanyName, co.LastName`).all(...dc.params);
+      WHERE co.PrimaryContact=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
+      ORDER BY c.CompanyName, co.LastName`).all();
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
@@ -418,18 +416,17 @@ const QUICK_REPORTS = {
       type: 'bar', labels: sorted.map(x=>x[0]),
       datasets: [{ label: 'Primary Contacts', data: sorted.map(x=>x[1]),
                    backgroundColor: '#f72585', borderRadius: 4 }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   'alumni-contacts': (db, from, to) => {
-    const dc = dateClause('co.DateAdded', from, to);
     const rows = db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.Major AS "Major", co.GraduationYear AS "Grad Year",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
-      WHERE co.CMUQGraduate=1${dc.sql}
-      ORDER BY co.GraduationYear DESC, co.LastName`).all(...dc.params);
+      WHERE co.CMUQGraduate=1 AND c.Blacklisted=0
+      ORDER BY co.GraduationYear DESC, co.LastName`).all();
     const agg = {};
     rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -437,7 +434,7 @@ const QUICK_REPORTS = {
       type: 'bar', labels: sorted.map(x=>x[0]),
       datasets: [{ label: 'Alumni', data: sorted.map(x=>x[1]),
                    backgroundColor: '#7209b7', borderRadius: 4 }]
-    }};
+    }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
   // ── Company Reports ────────────────────────────────────────────────────────

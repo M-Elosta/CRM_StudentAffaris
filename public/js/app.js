@@ -15,9 +15,121 @@ async function fetchAPI(url, options = {}) {
     return new Promise(() => {}); // never resolves; page is navigating away
   }
   const data = await res.json().catch(() => ({}));
+  if (res.status === 403 && data.code === 'PASSWORD_CHANGE_REQUIRED') {
+    window.__forcePasswordChange?.();
+  }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
+
+let forcedPasswordChangeActive = false;
+let changePasswordModalInstance = null;
+
+function ensureChangePasswordModal() {
+  let modal = document.getElementById('change-pw-modal');
+  if (modal) return modal;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal fade" id="change-pw-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Change Password</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" data-pw-close></button>
+          </div>
+          <form id="change-pw-form">
+            <div class="modal-body">
+              <div id="pw-required-note" class="alert alert-warning d-none small py-2">
+                You are signed in with an insecure default password. Choose a new secure password before continuing.
+              </div>
+              <div id="pw-error" class="alert alert-danger d-none small py-2"></div>
+              <div class="mb-3">
+                <label class="form-label">Current Password</label>
+                <input type="password" id="pw-current" class="form-control" required autocomplete="current-password">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">New Password</label>
+                <input type="password" id="pw-new" class="form-control" required minlength="12" autocomplete="new-password">
+              </div>
+              <div class="mb-0">
+                <label class="form-label">Confirm New Password</label>
+                <input type="password" id="pw-confirm" class="form-control" required autocomplete="new-password">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-pw-cancel>Cancel</button>
+              <button type="submit" class="btn btn-primary" id="pw-submit">Update Password</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>`);
+  modal = document.getElementById('change-pw-modal');
+
+  document.getElementById('change-pw-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const errEl = document.getElementById('pw-error');
+    errEl.classList.add('d-none');
+    const newPw  = document.getElementById('pw-new').value;
+    const confPw = document.getElementById('pw-confirm').value;
+    if (newPw !== confPw) {
+      errEl.textContent = 'Passwords do not match';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const btn = document.getElementById('pw-submit');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: document.getElementById('pw-current').value, newPassword: newPw })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      forcedPasswordChangeActive = false;
+      changePasswordModalInstance?.hide();
+      showToast('Password updated successfully');
+      document.getElementById('change-pw-form').reset();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Update Password';
+    }
+  });
+
+  modal.addEventListener('hide.bs.modal', (event) => {
+    if (forcedPasswordChangeActive) {
+      event.preventDefault();
+    }
+  });
+
+  return modal;
+}
+
+function openChangePasswordModal({ forced = false } = {}) {
+  forcedPasswordChangeActive = forced;
+  const modal = ensureChangePasswordModal();
+  const note = document.getElementById('pw-required-note');
+  const cancel = modal.querySelector('[data-pw-cancel]');
+  const close = modal.querySelector('[data-pw-close]');
+  const errEl = document.getElementById('pw-error');
+  errEl.classList.add('d-none');
+  note.classList.toggle('d-none', !forced);
+  cancel.classList.toggle('d-none', forced);
+  close.classList.toggle('d-none', forced);
+
+  changePasswordModalInstance = new bootstrap.Modal(modal, {
+    backdrop: forced ? 'static' : true,
+    keyboard: !forced,
+  });
+  changePasswordModalInstance.show();
+}
+
+window.__forcePasswordChange = () => openChangePasswordModal({ forced: true });
 
 // ── Form validation ────────────────────────────────────────────────────────────
 // Marks every [required] field in the form invalid if empty; returns true if all
@@ -481,6 +593,9 @@ function injectSidebar() {
       el.querySelector('span').textContent = `Signed in as ${data.username}${roleLabel}`;
       el.classList.remove('d-none');
     }
+    if (data.mustChangePassword) {
+      window.__forcePasswordChange?.();
+    }
     if (window.appRole === 'viewer') document.body.classList.add('role-viewer');
     document.dispatchEvent(new CustomEvent('approleready', { detail: { role: window.appRole } }));
 
@@ -533,64 +648,9 @@ function injectSidebar() {
   document.getElementById('btn-change-pw')?.addEventListener('click', () => {
     let modal = document.getElementById('change-pw-modal');
     if (!modal) {
-      document.body.insertAdjacentHTML('beforeend', `
-        <div class="modal fade" id="change-pw-modal" tabindex="-1">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header"><h5 class="modal-title">Change Password</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <form id="change-pw-form">
-                <div class="modal-body">
-                  <div id="pw-error" class="alert alert-danger d-none small py-2"></div>
-                  <div class="mb-3">
-                    <label class="form-label">Current Password</label>
-                    <input type="password" id="pw-current" class="form-control" required>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label">New Password</label>
-                    <input type="password" id="pw-new" class="form-control" required minlength="12">
-                  </div>
-                  <div class="mb-0">
-                    <label class="form-label">Confirm New Password</label>
-                    <input type="password" id="pw-confirm" class="form-control" required>
-                  </div>
-                </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                  <button type="submit" class="btn btn-primary" id="pw-submit">Update Password</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>`);
-      modal = document.getElementById('change-pw-modal');
-
-      document.getElementById('change-pw-form').addEventListener('submit', async e => {
-        e.preventDefault();
-        const errEl = document.getElementById('pw-error');
-        errEl.classList.add('d-none');
-        const newPw  = document.getElementById('pw-new').value;
-        const confPw = document.getElementById('pw-confirm').value;
-        if (newPw !== confPw) { errEl.textContent = 'Passwords do not match'; errEl.classList.remove('d-none'); return; }
-        const btn = document.getElementById('pw-submit');
-        btn.disabled = true; btn.textContent = 'Saving…';
-        try {
-          const res = await fetch('/api/auth/change-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentPassword: document.getElementById('pw-current').value, newPassword: newPw })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error);
-          bootstrap.Modal.getInstance(modal).hide();
-          showToast('Password updated successfully');
-        } catch (err) {
-          errEl.textContent = err.message; errEl.classList.remove('d-none');
-        } finally { btn.disabled = false; btn.textContent = 'Update Password'; }
-      });
+      modal = ensureChangePasswordModal();
     }
-    new bootstrap.Modal(modal).show();
+    openChangePasswordModal();
   });
 }
 

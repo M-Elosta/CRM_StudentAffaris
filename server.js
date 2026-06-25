@@ -8,6 +8,7 @@ const helmet   = require('helmet');
 const session  = require('express-session');
 const rateLimit = require('express-rate-limit');
 const bcrypt   = require('bcrypt');
+const { isInsecurePassword } = require('./lib/password-policy');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -104,6 +105,7 @@ app.locals.db = db;
 
 // ── Schema migrations for existing databases ───────────────────────────────────
 try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
+try { db.exec("ALTER TABLE Users ADD COLUMN MustChangePassword INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
 try { db.exec("ALTER TABLE PotentialCollaboration ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
 try { db.exec("ALTER TABLE HiringFeedback ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
 try { db.exec("ALTER TABLE CareerEvent ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
@@ -208,8 +210,8 @@ async function bootstrapDefaultAdmin() {
 
     const bootstrapPassword = DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
     const hash = await bcrypt.hash(bootstrapPassword, 12);
-    db.prepare('INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, ?)')
-      .run(DEFAULT_ADMIN_USERNAME, hash, 'admin');
+    db.prepare('INSERT INTO Users (Username, PasswordHash, Role, MustChangePassword) VALUES (?, ?, ?, ?)')
+      .run(DEFAULT_ADMIN_USERNAME, hash, 'admin', isInsecurePassword(bootstrapPassword) ? 1 : 0);
     if (IS_PRODUCTION) {
       console.log(`Bootstrap admin created for username: ${DEFAULT_ADMIN_USERNAME}. Rotate the bootstrap password after first login.`);
     } else {
@@ -330,8 +332,26 @@ function requireTrustedOrigin(req, res, next) {
   return res.status(403).json({ error: 'Untrusted request origin' });
 }
 
+function requirePasswordRotation(req, res, next) {
+  if (!req.session?.mustChangePassword) return next();
+  if (!req.path.startsWith('/api/')) return next();
+
+  const allowedApiPaths = new Set([
+    '/api/auth/check',
+    '/api/auth/change-password',
+    '/api/auth/logout',
+  ]);
+  if (allowedApiPaths.has(req.path)) return next();
+
+  return res.status(403).json({
+    error: 'Password change required before continuing.',
+    code: 'PASSWORD_CHANGE_REQUIRED',
+  });
+}
+
 app.use(requireTrustedOrigin);
 app.use(requireAuth);
+app.use(requirePasswordRotation);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Viewer role: block all state-changing requests ────────────────────────────

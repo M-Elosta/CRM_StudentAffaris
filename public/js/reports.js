@@ -545,6 +545,21 @@ function printQuickReport() {
 // ── Chart.js ───────────────────────────────────────────────────────────────────
 function buildChartConfig(chartData) {
   const isPie = ['pie', 'doughnut'].includes(chartData.type);
+  const indexAxis = chartData.indexAxis || 'x';
+  const valueAxisKey = indexAxis === 'y' ? 'x' : 'y';
+  const valueAxis = {
+    beginAtZero: true,
+    stacked: chartData.stacked || false,
+  };
+
+  if (usesIntegerSeries(chartData)) {
+    const maxValue = maxChartValue(chartData);
+    valueAxis.ticks = {
+      precision: 0,
+      stepSize: maxValue > 0 && maxValue <= 10 ? 1 : undefined,
+    };
+  }
+
   return {
     type: chartData.type,
     data: { labels: chartData.labels, datasets: chartData.datasets },
@@ -569,12 +584,40 @@ function buildChartConfig(chartData) {
         },
       },
       scales: isPie ? {} : {
-        x: { ticks: { maxRotation: 45 }, stacked: chartData.stacked || false },
-        y: { beginAtZero: true, stacked: chartData.stacked || false },
+        x: {
+          ticks: { maxRotation: 45 },
+          stacked: chartData.stacked || false,
+          ...(valueAxisKey === 'x' ? valueAxis : {}),
+        },
+        y: valueAxisKey === 'y'
+          ? valueAxis
+          : { stacked: chartData.stacked || false },
       },
-      indexAxis: chartData.indexAxis || 'x',
+      indexAxis,
     },
   };
+}
+
+function usesIntegerSeries(chartData) {
+  return (chartData.datasets || []).every(dataset =>
+    (dataset.data || []).every(value =>
+      value === null ||
+      value === undefined ||
+      (typeof value === 'number' && Number.isInteger(value))
+    )
+  );
+}
+
+function maxChartValue(chartData) {
+  let max = 0;
+  (chartData.datasets || []).forEach(dataset => {
+    (dataset.data || []).forEach(value => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        max = Math.max(max, value);
+      }
+    });
+  });
+  return max;
 }
 
 function downloadChartPNG(canvasId, name) {
