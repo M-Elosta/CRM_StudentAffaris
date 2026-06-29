@@ -81,9 +81,9 @@ function semanticToneForStatus(value) {
     case 'in-progress':
     case 'pending':
     case 'due-soon':
+    case 'not-reported':
       return 'warn';
     case 'no-show':
-    case 'not-reported':
     case 'viewer':
     case 'admin':
     default:
@@ -408,26 +408,19 @@ function formatRelativeDate(ts) {
 
 // ── Shared string / date / UI helpers ─────────────────────────────────────────
 function escHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return escapeHtml(str);
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayISODate();
 }
 
 function safeString(value) {
-  return value == null ? '' : String(value);
+  return safeText(value);
 }
 
 function safeTrim(value) {
   return safeString(value).trim();
-}
-
-function safeLower(value) {
-  return safeString(value).toLowerCase();
 }
 
 function dateKey(value) {
