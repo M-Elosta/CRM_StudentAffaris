@@ -1,5 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalTrimmed,
+  parseBooleanFlag,
+  requiredTrimmed,
+} = require('./_helpers');
+
+const VALID_REGISTERED_STATUSES = ['Attended', 'No-Show', 'Cancelled'];
 
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
@@ -34,13 +42,16 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, EventName, EventDate, RegisteredStatus, CMUQAlumniAtBooth, Comment } = req.body;
-  if (!CompanyID || !ContactID || !EventName || !EventDate || !RegisteredStatus)
-    return res.status(400).json({ error: 'CompanyID, ContactID, EventName, EventDate, RegisteredStatus are required' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const eventName = requiredTrimmed(EventName, 'EventName');
+    const eventDate = requiredTrimmed(EventDate, 'EventDate');
+    const registeredStatus = ensureEnum(RegisteredStatus, VALID_REGISTERED_STATUSES, 'RegisteredStatus');
     const info = db.prepare(`
       INSERT INTO CareerEvent (CompanyID, ContactID, EventName, EventDate, RegisteredStatus, CMUQAlumniAtBooth, Comment)
       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(CompanyID, ContactID, EventName.trim(), EventDate, RegisteredStatus, CMUQAlumniAtBooth?1:0, Comment||null);
+    ).run(companyId, contactId, eventName, eventDate, registeredStatus, parseBooleanFlag(CMUQAlumniAtBooth), optionalTrimmed(Comment));
     res.status(201).json(db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID = ?').get(info.lastInsertRowid));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -48,13 +59,16 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, EventName, EventDate, RegisteredStatus, CMUQAlumniAtBooth, Comment } = req.body;
-  if (!CompanyID || !ContactID || !EventName || !EventDate || !RegisteredStatus)
-    return res.status(400).json({ error: 'CompanyID, ContactID, EventName, EventDate, RegisteredStatus are required' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const eventName = requiredTrimmed(EventName, 'EventName');
+    const eventDate = requiredTrimmed(EventDate, 'EventDate');
+    const registeredStatus = ensureEnum(RegisteredStatus, VALID_REGISTERED_STATUSES, 'RegisteredStatus');
     const info = db.prepare(`
       UPDATE CareerEvent SET CompanyID=?,ContactID=?,EventName=?,EventDate=?,RegisteredStatus=?,CMUQAlumniAtBooth=?,Comment=?
       WHERE CareerEventID=?`
-    ).run(CompanyID, ContactID, EventName.trim(), EventDate, RegisteredStatus, CMUQAlumniAtBooth?1:0, Comment||null, req.params.id);
+    ).run(companyId, contactId, eventName, eventDate, registeredStatus, parseBooleanFlag(CMUQAlumniAtBooth), optionalTrimmed(Comment), req.params.id);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json(db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID=?').get(req.params.id));
   } catch (err) { res.status(500).json({ error: err.message }); }

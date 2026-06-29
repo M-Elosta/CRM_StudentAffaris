@@ -10,7 +10,7 @@ const PAGE_SIZE    = 25;
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
 
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-company').addEventListener('change', applyFilters);
@@ -75,16 +75,15 @@ function applyFilters() {
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
 
   displayItems = filtered; currentPage = 1; renderCurrentPage();
-  updateRecordCount(filtered.length, allContacts.length);
 }
 
 function filterContacts(q) {
   if (!q) return allContacts;
-  const lower = q.toLowerCase();
+  const lower = safeLower(q);
   return allContacts.filter(c =>
-    c.FirstName.toLowerCase().includes(lower) ||
-    c.LastName.toLowerCase().includes(lower)  ||
-    (c.EmailAddress || '').toLowerCase().includes(lower)
+    safeLower(c.FirstName).includes(lower) ||
+    safeLower(c.LastName).includes(lower)  ||
+    safeLower(c.EmailAddress).includes(lower)
   );
 }
 
@@ -92,6 +91,7 @@ function filterContacts(q) {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allContacts.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -134,25 +134,19 @@ function renderTable(contacts) {
   }
 
   tbody.innerHTML = contacts.map(c => {
-    const statusBadge = c.Status === 'Mailable'
-      ? '<span class="badge bg-success">Mailable</span>'
-      : '<span class="badge bg-danger">Non-mailable</span>';
-
-    const primaryBadge = c.PrimaryContact
-      ? '<i class="bi bi-star-fill text-warning ms-1" title="Primary Contact"></i>'
-      : '';
-
+    const statusBadge = renderStatusBadge(c.Status);
+    const primaryBadge = c.PrimaryContact ? renderPrimaryIndicator() : '';
     const excludeBadge = c.ExcludeFromMailing
-      ? '<span class="badge bg-warning text-dark ms-1">Excluded from Mailing</span>'
+      ? renderSemanticBadge('Excluded', 'neutral', { subtle: true, title: 'Excluded from mailing' })
       : '';
 
     return `
       <tr style="cursor:pointer" data-id="${c.ContactID}">
-        <td>${escHtml(c.LastName)}, ${escHtml(c.FirstName)}${primaryBadge}</td>
+        <td><span class="name-with-indicator">${primaryBadge}<span class="entity-name">${escHtml(c.LastName)}, ${escHtml(c.FirstName)}</span></span></td>
         <td>${escHtml(c.CompanyName || '—')}</td>
         <td>${escHtml(c.EmailAddress)}</td>
         <td>${escHtml(c.JobTitle || '—')}</td>
-        <td>${statusBadge}${excludeBadge}</td>
+        <td><span class="badge-stack">${statusBadge}${excludeBadge}</span></td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
@@ -186,6 +180,7 @@ function openModal(contact) {
 
   const form = document.getElementById('contact-form');
   form.reset();
+  clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('cmuq-fields').classList.add('d-none');
 
@@ -211,7 +206,7 @@ function populateForm(c) {
   document.getElementById('f-firstname').value   = c.FirstName || '';
   document.getElementById('f-lastname').value    = c.LastName || '';
   document.getElementById('f-email').value       = c.EmailAddress || '';
-  document.getElementById('f-date-added').value  = c.DateAdded ? c.DateAdded.slice(0,10) : todayStr();
+  document.getElementById('f-date-added').value  = toDateInputValue(c.DateAdded) || todayStr();
   document.getElementById('f-workphone').value   = c.WorkPhone || '';
   document.getElementById('f-mobile').value      = c.Mobile || '';
   document.getElementById('f-jobtitle').value    = c.JobTitle || '';
@@ -278,6 +273,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadContacts();
   } catch (err) {
+    showFormError('contact-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;
@@ -324,12 +320,6 @@ async function handleDelete() {
   );
 }
 
-function updateRecordCount(shown, total) {
-  const el = document.getElementById('record-count');
-  if (!el) return;
-  el.textContent = shown === total ? `${total} record${total !== 1 ? 's' : ''}` : `${shown} of ${total}`;
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function escHtml(str) {
   if (!str) return '';
@@ -339,5 +329,5 @@ function escHtml(str) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayISODate();
 }

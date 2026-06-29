@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
@@ -63,15 +63,15 @@ function updateContactDropdown(companyId, selectedId = null) {
 }
 
 function applyFilters() {
-  const q      = document.getElementById('search-input').value.toLowerCase();
+  const q      = safeLower(document.getElementById('search-input').value);
   const status = document.getElementById('filter-status').value;
   const from   = document.getElementById('filter-from').value;
   const to     = document.getElementById('filter-to').value;
 
   const filtered = allItems.filter(r => {
-    if (q && !r.CompanyName?.toLowerCase().includes(q) && !r.EventName?.toLowerCase().includes(q)) return false;
+    if (q && !safeLower(r.CompanyName).includes(q) && !safeLower(r.EventName).includes(q)) return false;
     if (status && r.RegisteredStatus !== status) return false;
-    const eventDate = r.EventDate ? r.EventDate.substring(0, 10) : '';
+    const eventDate = toDateInputValue(r.EventDate);
     if (from && eventDate < from) return false;
     if (to   && eventDate > to)   return false;
     return true;
@@ -82,6 +82,7 @@ function applyFilters() {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allItems.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -113,23 +114,17 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const badgeClass = {
-      'Attended':  'bg-success',
-      'No-Show':   'bg-danger',
-      'Cancelled': 'bg-secondary'
-    }[r.RegisteredStatus] || 'bg-secondary';
-
     const alumniBooth = r.CMUQAlumniAtBooth ? '&#10003;' : '&mdash;';
-    const eventDate = r.EventDate ? r.EventDate.substring(0, 10) : '—';
+    const eventDate = toDateDisplay(r.EventDate);
 
     return `<tr style="cursor:pointer" data-id="${r.CareerEventID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.EventName)}</td>
       <td>${eventDate}</td>
-      <td><span class="badge ${badgeClass}">${escHtml(r.RegisteredStatus)}</span></td>
+      <td>${renderStatusBadge(r.RegisteredStatus)}</td>
       <td class="text-center">${alumniBooth}</td>
-      <td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.CareerEventID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.CareerEventID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -156,7 +151,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.CareerEventID : null;
-  document.getElementById('career-events-form').reset();
+  const form = document.getElementById('career-events-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Career Event' : 'Add Career Event';
@@ -166,7 +163,7 @@ function openModal(item) {
     document.getElementById('f-company').value   = item.CompanyID;
     updateContactDropdown(item.CompanyID, item.ContactID);
     document.getElementById('f-name').value      = item.EventName || '';
-    document.getElementById('f-date').value      = item.EventDate ? item.EventDate.substring(0, 10) : '';
+    document.getElementById('f-date').value      = toDateInputValue(item.EventDate);
     document.getElementById('f-status').value    = item.RegisteredStatus || 'Attended';
     document.getElementById('f-alumni').checked  = !!item.CMUQAlumniAtBooth;
     document.getElementById('f-comment').value   = item.Comment || '';
@@ -191,7 +188,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('career-events-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -206,6 +203,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
+    showFormError('career-events-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;

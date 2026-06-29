@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalDateString,
+  optionalTrimmed,
+  requiredTrimmed,
+} = require('./_helpers');
 
 const VALID_TYPES    = ['Call', 'Meeting', 'Company Visit'];
 const VALID_STATUSES = ['Complete', 'In-progress'];
@@ -56,26 +62,29 @@ router.post('/', (req, res) => {
   const { CompanyID, ContactID, InteractionType, InteractionDate,
           DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus } = req.body;
 
-  if (!CompanyID)       return res.status(400).json({ error: 'CompanyID is required' });
-  if (!ContactID)       return res.status(400).json({ error: 'ContactID is required' });
-  if (!InteractionType) return res.status(400).json({ error: 'InteractionType is required' });
-  if (!InteractionDate) return res.status(400).json({ error: 'InteractionDate is required' });
-  if (!DiscussionItems) return res.status(400).json({ error: 'DiscussionItems is required' });
-  if (!VALID_TYPES.includes(InteractionType))
-    return res.status(400).json({ error: `InteractionType must be one of: ${VALID_TYPES.join(', ')}` });
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const interactionType = ensureEnum(InteractionType, VALID_TYPES, 'InteractionType');
+    const interactionDate = requiredTrimmed(InteractionDate, 'InteractionDate');
+    const discussionItems = requiredTrimmed(DiscussionItems, 'DiscussionItems');
+    const interactionStatus = InteractionStatus
+      ? ensureEnum(InteractionStatus, VALID_STATUSES, 'InteractionStatus')
+      : 'In-progress';
     const info = db.prepare(`
       INSERT INTO OutreachEngagement
         (CompanyID, ContactID, InteractionType, InteractionDate,
          DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      CompanyID, ContactID, InteractionType, InteractionDate,
-      DiscussionItems.trim(),
-      ActionPlan || null,
-      FollowUpDate || null,
-      InteractionStatus || 'In-progress'
+      companyId,
+      contactId,
+      interactionType,
+      interactionDate,
+      discussionItems,
+      optionalTrimmed(ActionPlan),
+      optionalDateString(FollowUpDate),
+      interactionStatus
     );
     res.status(201).json(db.prepare('SELECT * FROM OutreachEngagement WHERE OutreachEngagementID = ?').get(info.lastInsertRowid));
   } catch (err) {
@@ -89,22 +98,29 @@ router.put('/:id', (req, res) => {
   const { CompanyID, ContactID, InteractionType, InteractionDate,
           DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus } = req.body;
 
-  if (!CompanyID)       return res.status(400).json({ error: 'CompanyID is required' });
-  if (!ContactID)       return res.status(400).json({ error: 'ContactID is required' });
-  if (!InteractionType) return res.status(400).json({ error: 'InteractionType is required' });
-  if (!InteractionDate) return res.status(400).json({ error: 'InteractionDate is required' });
-  if (!DiscussionItems) return res.status(400).json({ error: 'DiscussionItems is required' });
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const interactionType = ensureEnum(InteractionType, VALID_TYPES, 'InteractionType');
+    const interactionDate = requiredTrimmed(InteractionDate, 'InteractionDate');
+    const discussionItems = requiredTrimmed(DiscussionItems, 'DiscussionItems');
+    const interactionStatus = InteractionStatus
+      ? ensureEnum(InteractionStatus, VALID_STATUSES, 'InteractionStatus')
+      : 'In-progress';
     const info = db.prepare(`
       UPDATE OutreachEngagement SET
         CompanyID = ?, ContactID = ?, InteractionType = ?, InteractionDate = ?,
         DiscussionItems = ?, ActionPlan = ?, FollowUpDate = ?, InteractionStatus = ?
       WHERE OutreachEngagementID = ?
     `).run(
-      CompanyID, ContactID, InteractionType, InteractionDate,
-      DiscussionItems.trim(), ActionPlan || null, FollowUpDate || null,
-      InteractionStatus || 'In-progress',
+      companyId,
+      contactId,
+      interactionType,
+      interactionDate,
+      discussionItems,
+      optionalTrimmed(ActionPlan),
+      optionalDateString(FollowUpDate),
+      interactionStatus,
       req.params.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Record not found' });

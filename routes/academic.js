@@ -1,5 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalDateString,
+  optionalTrimmed,
+  requiredTrimmed,
+} = require('./_helpers');
+
+const VALID_ENGAGEMENT_TYPES = [
+  'Guest Lecture',
+  'Panel Discussion',
+  'Community Project Partnership',
+  'Mock Interviews',
+  'Research Collaboration',
+  'Competition/Hackathon Sponsorship',
+  'Other',
+];
 
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
@@ -33,14 +49,23 @@ router.post('/', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, EngagementType, GuestSpeakerName, GuestTitle, Email, PhoneNumber,
           FacultyName, CourseNumber, CourseTitle, TopicTheme, SessionDate, SessionTime, Comment } = req.body;
-  if (!CompanyID||!ContactID||!EngagementType||!GuestSpeakerName||!GuestTitle||!FacultyName||!CourseNumber||!CourseTitle||!TopicTheme||!SessionDate||!SessionTime)
-    return res.status(400).json({ error: 'All required fields must be filled' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const engagementType = ensureEnum(EngagementType, VALID_ENGAGEMENT_TYPES, 'EngagementType');
+    const guestSpeakerName = requiredTrimmed(GuestSpeakerName, 'GuestSpeakerName');
+    const guestTitle = requiredTrimmed(GuestTitle, 'GuestTitle');
+    const facultyName = requiredTrimmed(FacultyName, 'FacultyName');
+    const courseNumber = requiredTrimmed(CourseNumber, 'CourseNumber');
+    const courseTitle = requiredTrimmed(CourseTitle, 'CourseTitle');
+    const topicTheme = requiredTrimmed(TopicTheme, 'TopicTheme');
+    const sessionDate = requiredTrimmed(SessionDate, 'SessionDate');
+    const sessionTime = requiredTrimmed(SessionTime, 'SessionTime');
     const info = db.prepare(`
       INSERT INTO AcademicClassroomEngagement
         (CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email,PhoneNumber,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(CompanyID,ContactID,EngagementType,GuestSpeakerName.trim(),GuestTitle.trim(),Email||null,PhoneNumber||null,FacultyName.trim(),CourseNumber.trim(),CourseTitle.trim(),TopicTheme.trim(),SessionDate,SessionTime,Comment||null);
+    ).run(companyId, contactId, engagementType, guestSpeakerName, guestTitle, optionalTrimmed(Email), optionalTrimmed(PhoneNumber), facultyName, courseNumber, courseTitle, topicTheme, sessionDate, sessionTime, optionalTrimmed(Comment));
     res.status(201).json(db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(info.lastInsertRowid));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -49,14 +74,23 @@ router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, EngagementType, GuestSpeakerName, GuestTitle, Email, PhoneNumber,
           FacultyName, CourseNumber, CourseTitle, TopicTheme, SessionDate, SessionTime, Comment } = req.body;
-  if (!CompanyID||!ContactID||!EngagementType||!GuestSpeakerName||!GuestTitle||!FacultyName||!CourseNumber||!CourseTitle||!TopicTheme||!SessionDate||!SessionTime)
-    return res.status(400).json({ error: 'All required fields must be filled' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const engagementType = ensureEnum(EngagementType, VALID_ENGAGEMENT_TYPES, 'EngagementType');
+    const guestSpeakerName = requiredTrimmed(GuestSpeakerName, 'GuestSpeakerName');
+    const guestTitle = requiredTrimmed(GuestTitle, 'GuestTitle');
+    const facultyName = requiredTrimmed(FacultyName, 'FacultyName');
+    const courseNumber = requiredTrimmed(CourseNumber, 'CourseNumber');
+    const courseTitle = requiredTrimmed(CourseTitle, 'CourseTitle');
+    const topicTheme = requiredTrimmed(TopicTheme, 'TopicTheme');
+    const sessionDate = requiredTrimmed(SessionDate, 'SessionDate');
+    const sessionTime = requiredTrimmed(SessionTime, 'SessionTime');
     const info = db.prepare(`
       UPDATE AcademicClassroomEngagement SET
         CompanyID=?,ContactID=?,EngagementType=?,GuestSpeakerName=?,GuestTitle=?,Email=?,PhoneNumber=?,FacultyName=?,CourseNumber=?,CourseTitle=?,TopicTheme=?,SessionDate=?,SessionTime=?,Comment=?
       WHERE EngagementID=?`
-    ).run(CompanyID,ContactID,EngagementType,GuestSpeakerName.trim(),GuestTitle.trim(),Email||null,PhoneNumber||null,FacultyName.trim(),CourseNumber.trim(),CourseTitle.trim(),TopicTheme.trim(),SessionDate,SessionTime,Comment||null,req.params.id);
+    ).run(companyId, contactId, engagementType, guestSpeakerName, guestTitle, optionalTrimmed(Email), optionalTrimmed(PhoneNumber), facultyName, courseNumber, courseTitle, topicTheme, sessionDate, sessionTime, optionalTrimmed(Comment), req.params.id);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json(db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(req.params.id));
   } catch (err) { res.status(500).json({ error: err.message }); }

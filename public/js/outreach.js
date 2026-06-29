@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
   document.getElementById('filter-type').addEventListener('change', applyFilters);
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
@@ -46,7 +46,7 @@ async function loadItems() {
   setLoading(true);
   try {
     allItems = await fetchAPI('/api/outreach');
-    renderTable(allItems);
+    applyFilters();
   } catch (err) {
     showToast('Failed to load outreach records: ' + err.message, 'danger');
   } finally { setLoading(false); }
@@ -66,14 +66,14 @@ function updateContactDropdown(companyId, selectedId = null) {
 }
 
 function applyFilters() {
-  const q      = document.getElementById('search-input').value.toLowerCase();
+  const q      = safeLower(document.getElementById('search-input').value);
   const type   = document.getElementById('filter-type').value;
   const status = document.getElementById('filter-status').value;
   const from   = document.getElementById('filter-from').value;
   const to     = document.getElementById('filter-to').value;
 
   let filtered = allItems.filter(r => {
-    if (q && !r.CompanyName?.toLowerCase().includes(q) && !r.ContactName?.toLowerCase().includes(q)) return false;
+    if (q && !safeLower(r.CompanyName).includes(q) && !safeLower(r.ContactName).includes(q)) return false;
     if (type   && r.InteractionType   !== type)   return false;
     if (status && r.InteractionStatus !== status) return false;
     if (from   && r.InteractionDate < from)        return false;
@@ -90,6 +90,7 @@ function isOverdue(row) {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allItems.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -121,25 +122,21 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const statusBadge = r.InteractionStatus === 'Complete'
-      ? '<span class="badge bg-success">Complete</span>'
-      : '<span class="badge bg-warning text-dark">In-progress</span>';
+    const statusBadge = renderStatusBadge(r.InteractionStatus);
 
     const followUp = r.FollowUpDate
       ? (isOverdue(r)
-          ? `<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>${r.FollowUpDate}</span>`
-          : r.FollowUpDate)
+          ? `<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>${toDateDisplay(r.FollowUpDate)}</span>`
+          : toDateDisplay(r.FollowUpDate))
       : '—';
 
-    const typeBadge = {
-      'Call': 'bg-info', 'Meeting': 'bg-primary', 'Company Visit': 'bg-secondary'
-    }[r.InteractionType] || 'bg-secondary';
+    const typeBadge = renderSemanticBadge(r.InteractionType, 'neutral', { subtle: true });
 
     return `<tr style="cursor:pointer" data-id="${r.OutreachEngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td><span class="badge ${typeBadge}">${escHtml(r.InteractionType)}</span></td>
-      <td>${r.InteractionDate}</td>
+      <td>${typeBadge}</td>
+      <td>${toDateDisplay(r.InteractionDate)}</td>
       <td>${statusBadge}</td>
       <td>${followUp}</td>
       <td class="text-end">
@@ -169,7 +166,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.OutreachEngagementID : null;
-  document.getElementById('outreach-form').reset();
+  const form = document.getElementById('outreach-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Outreach Record' : 'Add Outreach Record';
@@ -179,10 +178,10 @@ function openModal(item) {
     document.getElementById('f-company').value = item.CompanyID;
     updateContactDropdown(item.CompanyID, item.ContactID);
     document.getElementById('f-type').value          = item.InteractionType;
-    document.getElementById('f-date').value          = item.InteractionDate;
+    document.getElementById('f-date').value          = toDateInputValue(item.InteractionDate);
     document.getElementById('f-discussion').value    = item.DiscussionItems || '';
     document.getElementById('f-action').value        = item.ActionPlan || '';
-    document.getElementById('f-followup').value      = item.FollowUpDate || '';
+    document.getElementById('f-followup').value      = toDateInputValue(item.FollowUpDate);
     document.getElementById('f-status').value        = item.InteractionStatus || 'In-progress';
   } else {
     updateContactDropdown('');
@@ -194,7 +193,7 @@ function openModal(item) {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('outreach-form'))) return;
   const payload = {
     CompanyID:         document.getElementById('f-company').value,
     ContactID:         document.getElementById('f-contact').value,
@@ -218,6 +217,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
+    showFormError('outreach-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;

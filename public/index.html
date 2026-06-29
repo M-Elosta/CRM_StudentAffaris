@@ -198,6 +198,10 @@ function downloadChart(canvasId, name) {
   a.click();
 }
 
+function safeLabel(value) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
 let dashFilter = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -259,7 +263,7 @@ function renderCompaniesByMonth(data) {
   makeChart('chart-companies-month', {
     type: 'bar',
     data: {
-      labels: data.map(d => d.month),
+      labels: data.map(d => safeLabel(d.month)),
       datasets: [{ label: 'Companies Added', data: data.map(d => d.count), backgroundColor: '#4361ee', borderRadius: 4 }]
     },
     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
@@ -270,7 +274,7 @@ function renderSector(data) {
   makeChart('chart-sector', {
     type: 'pie',
     data: {
-      labels: data.map(d => d.label),
+      labels: data.map(d => safeLabel(d.label)),
       datasets: [{ data: data.map(d => d.count), backgroundColor: PALETTE, hoverOffset: 8 }]
     },
     options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
@@ -279,8 +283,8 @@ function renderSector(data) {
 
 function renderOutreach(data) {
   // Group by month, series per type
-  const months = [...new Set(data.map(d => d.month))].sort();
-  const types  = [...new Set(data.map(d => d.type))];
+  const months = [...new Set(data.map(d => safeLabel(d.month)))].sort();
+  const types  = [...new Set(data.map(d => safeLabel(d.type)))];
   const datasets = types.map(type => ({
     label: type,
     data: months.map(m => { const r = data.find(d => d.month === m && d.type === type); return r ? r.count : 0; }),
@@ -299,7 +303,7 @@ function renderMajors(data) {
   makeChart('chart-majors', {
     type: 'bar',
     data: {
-      labels: data.map(d => d.label),
+      labels: data.map(d => safeLabel(d.label)),
       datasets: [{ label: 'Postings', data: data.map(d => d.count), backgroundColor: PALETTE, borderRadius: 4 }]
     },
     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
@@ -307,9 +311,9 @@ function renderMajors(data) {
 }
 
 function renderEvents(data) {
-  const events   = [...new Set(data.map(d => d.EventName))];
+  const events   = [...new Set(data.map(d => safeLabel(d.EventName)))];
   const statuses = ['Attended', 'No-Show', 'Cancelled'];
-  const colors   = { 'Attended': '#06d6a0', 'No-Show': '#ef476f', 'Cancelled': '#adb5bd' };
+  const colors   = { 'Attended': '#06d6a0', 'No-Show': '#ef476f', 'Cancelled': '#dc3545' };
   const datasets = statuses.map(s => ({
     label: s,
     data: events.map(e => { const r = data.find(d => d.EventName === e && d.status === s); return r ? r.count : 0; }),
@@ -326,7 +330,10 @@ function renderTopEngaged(data) {
   makeChart('chart-top', {
     type: 'bar',
     data: {
-      labels: data.map(d => d.company.length > 22 ? d.company.slice(0,22)+'…' : d.company),
+      labels: data.map(d => {
+        const label = safeLabel(d.company);
+        return label.length > 22 ? label.slice(0,22)+'…' : label;
+      }),
       datasets: [{ label: 'Total Interactions', data: data.map(d => d.total), backgroundColor: '#7209b7', borderRadius: 4 }]
     },
     options: {
@@ -341,7 +348,7 @@ function renderHiring(data) {
   makeChart('chart-hiring', {
     type: 'line',
     data: {
-      labels: data.map(d => d.month),
+      labels: data.map(d => safeLabel(d.month)),
       datasets: [{ label: 'Students/Alumni Hired', data: data.map(d => d.count), borderColor: '#06d6a0', backgroundColor: '#06d6a022', tension: 0.3, fill: true, pointRadius: 5 }]
     },
     options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }

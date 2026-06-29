@@ -9,7 +9,7 @@ const PAGE_SIZE    = 25;
 document.addEventListener('DOMContentLoaded', () => {
   loadCompanies();
 
-  document.getElementById('search-input').addEventListener('input', e => {
+  bindDebouncedInput('search-input', e => {
     displayItems = filterCompanies(e.target.value.trim()); currentPage = 1; renderCurrentPage();
   });
 
@@ -41,12 +41,12 @@ async function loadCompanies() {
 
 function filterCompanies(q) {
   if (!q) return allCompanies;
-  const lower = q.toLowerCase();
+  const lower = safeLower(q);
   return allCompanies.filter(c =>
-    c.CompanyName.toLowerCase().includes(lower) ||
-    (c.Country || '').toLowerCase().includes(lower) ||
-    (c.Industry || '').toLowerCase().includes(lower) ||
-    (c.Sector || '').toLowerCase().includes(lower)
+    safeLower(c.CompanyName).includes(lower) ||
+    safeLower(c.Country).includes(lower) ||
+    safeLower(c.Industry).includes(lower) ||
+    safeLower(c.Sector).includes(lower)
   );
 }
 
@@ -54,6 +54,7 @@ function filterCompanies(q) {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allCompanies.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -96,17 +97,22 @@ function renderTable(companies) {
   }
 
   tbody.innerHTML = companies.map(c => {
-    const blacklistedBadge = c.Blacklisted
-      ? '<span class="badge bg-danger ms-1">Blacklisted</span>'
-      : '';
-    const moUBadge = c.SignedMoU ? '<span class="badge bg-success ms-1">MoU</span>' : '';
-    const favBadge = c.FavoriteEmployer ? '<i class="bi bi-star-fill text-warning ms-1" title="Favorite"></i>' : '';
-    const rowClass = c.Blacklisted ? 'table-secondary text-muted' : '';
+    const flagBadges = [
+      c.Blacklisted ? renderStatusBadge('Blacklisted') : '',
+      c.SignedMoU ? renderSemanticBadge('MoU', 'good', { subtle: true, title: 'Signed memorandum of understanding' }) : '',
+      c.FavoriteEmployer
+        ? '<span class="entity-indicator entity-indicator-good" title="Favorite employer" aria-label="Favorite employer"><i class="bi bi-star-fill"></i></span>'
+        : '',
+    ].filter(Boolean).join('');
+    const rowClass = c.Blacklisted ? 'table-secondary' : '';
 
     return `
       <tr class="${rowClass}" style="cursor:pointer" data-id="${c.CompanyID}">
         <td>
-          ${escHtml(c.CompanyName)}${blacklistedBadge}${moUBadge}${favBadge}
+          <div class="name-with-flags">
+            <span class="entity-name">${escHtml(c.CompanyName)}</span>
+            ${flagBadges ? `<span class="badge-stack">${flagBadges}</span>` : ''}
+          </div>
         </td>
         <td>${escHtml(c.Industry)}</td>
         <td>${escHtml(c.Sector)}</td>
@@ -141,6 +147,7 @@ function openModal(company) {
 
   const form = document.getElementById('company-form');
   form.reset();
+  clearFormError(form);
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   document.getElementById('blacklist-warning').classList.add('d-none');
 
@@ -163,7 +170,7 @@ function openModal(company) {
 
 function populateForm(c) {
   document.getElementById('f-name').value         = c.CompanyName || '';
-  document.getElementById('f-date-added').value   = typeof c.DateAdded === 'string' ? c.DateAdded.slice(0,10) : todayStr();
+  document.getElementById('f-date-added').value   = toDateInputValue(c.DateAdded) || todayStr();
   document.getElementById('f-industry').value     = c.Industry || '';
   document.getElementById('f-sector').value       = c.Sector || '';
   document.getElementById('f-country').value      = c.Country || '';
@@ -219,6 +226,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadCompanies();
   } catch (err) {
+    showFormError('company-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;
@@ -300,10 +308,9 @@ function escHtml(str) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayISODate();
 }
 
 function formatDate(str) {
-  if (str === null || str === undefined || str === '') return '—';
-  return String(str).slice(0, 10);
+  return toDateDisplay(str);
 }

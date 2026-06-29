@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt  = require('bcrypt');
 const router  = express.Router();
+const { asyncRoute, requiredTrimmed } = require('./_helpers');
 
 function requireAdminSession(req, res, next) {
   if ((req.session?.role || 'admin') !== 'admin') {
@@ -22,18 +23,19 @@ router.get('/', requireAdminSession, (req, res) => {
 });
 
 // POST /api/users — create user
-router.post('/', requireAdminSession, async (req, res) => {
+router.post('/', requireAdminSession, asyncRoute(async (req, res) => {
   const db = req.app.locals.db;
   const { username, password, role } = req.body;
   if (!username || !password)                      return res.status(400).json({ error: 'Username and password are required.' });
   if (password.length < 6)                         return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   if (!['admin', 'viewer'].includes(role))          return res.status(400).json({ error: 'Role must be admin or viewer.' });
-  if (db.prepare('SELECT UserID FROM Users WHERE Username=?').get(username.trim()))
+  const trimmedUsername = requiredTrimmed(username, 'Username');
+  if (db.prepare('SELECT UserID FROM Users WHERE Username=?').get(trimmedUsername))
                                                     return res.status(409).json({ error: 'Username already exists.' });
   const hash   = await bcrypt.hash(password, 12);
-  const result = db.prepare("INSERT INTO Users (Username,PasswordHash,Role) VALUES (?,?,?)").run(username.trim(), hash, role);
-  res.status(201).json({ UserID: result.lastInsertRowid, Username: username.trim(), Role: role });
-});
+  const result = db.prepare("INSERT INTO Users (Username,PasswordHash,Role) VALUES (?,?,?)").run(trimmedUsername, hash, role);
+  res.status(201).json({ UserID: result.lastInsertRowid, Username: trimmedUsername, Role: role });
+}));
 
 // PATCH /api/users/:id/role — change role
 router.patch('/:id/role', requireAdminSession, (req, res) => {
