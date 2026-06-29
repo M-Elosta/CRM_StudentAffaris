@@ -1,4 +1,5 @@
 let pageInited = false;
+let currentUsers = [];
 
 function applyRole(role) {
   if (pageInited) return;
@@ -57,8 +58,8 @@ function initUsersPage() {
 
 async function loadUsers() {
   try {
-    const users = await fetchAPI('/api/users');
-    renderUsers(users);
+    currentUsers = await fetchAPI('/api/users');
+    renderUsers(currentUsers);
   } catch (err) {
     showToast('Failed to load users: ' + err.message, 'danger');
   }
@@ -88,7 +89,7 @@ function renderUsers(users) {
 
     const deleteBtn = isSelf
       ? ``
-      : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID}, '${escHtml(u.Username)}')" title="Delete"><i class="bi bi-trash"></i></button>`;
+      : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID})" title="Delete"><i class="bi bi-trash"></i></button>`;
 
     const created = u.CreatedAt ? new Date(u.CreatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
@@ -115,7 +116,9 @@ async function changeRole(userId, newRole) {
   }
 }
 
-function deleteUser(userId, username) {
+function deleteUser(userId) {
+  const user = currentUsers.find((candidate) => candidate.UserID === userId);
+  const username = user?.Username || 'this user';
   showConfirmModal(
     'Delete User',
     `<p>Delete user <strong>${escHtml(username)}</strong>? This cannot be undone.</p>`,

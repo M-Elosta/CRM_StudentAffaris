@@ -153,7 +153,7 @@ function renderTable(items) {
       <td>${toDateDisplay(r.DatePosted)}</td>
       <td>${modeBadge}</td>
       <td>${statusBadge}</td>
-      <td>${r.TargetGroup}</td>
+      <td>${escHtml(r.TargetGroup)}</td>
       <td>${hiredBadge}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>

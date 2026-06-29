@@ -55,9 +55,9 @@ function semanticToneForStatus(value) {
     case 'in-progress':
     case 'pending':
     case 'due-soon':
+    case 'not-reported':
       return 'warn';
     case 'no-show':
-    case 'not-reported':
     case 'viewer':
     case 'admin':
     default:
