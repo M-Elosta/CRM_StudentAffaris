@@ -20,7 +20,7 @@ router.param('id', (req, res, next, id) => {
   }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const collaborationOutcome = optionalTrimmedString(req.query.collaborationOutcome, 'collaborationOutcome', 100);
@@ -35,24 +35,23 @@ router.get('/', (req, res) => {
     if (from)                 { sql += ' AND s.ProposalDate>=?';        p.push(from); }
     if (to)                   { sql += ' AND s.ProposalDate<=?';        p.push(to); }
     sql += ' ORDER BY s.ProposalDate DESC';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare(`SELECT s.*, c.CompanyName, co.FirstName||' '||co.LastName AS ContactName FROM StudentLedEvent s JOIN Company c ON s.CompanyID=c.CompanyID JOIN Contact co ON s.ContactID=co.ContactID WHERE s.StudentLedEventID=?`).get(req.recordId);
+  const row = (await db.prepare(`SELECT s.*, c.CompanyName, co.FirstName||' '||co.LastName AS ContactName FROM StudentLedEvent s JOIN Company c ON s.CompanyID=c.CompanyID JOIN Contact co ON s.ContactID=co.ContactID WHERE s.StudentLedEventID=?`).get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'StudentLedEvent', 'StudentLedEventID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const ProposalDate = requireIsoDate(req.body.ProposalDate, 'ProposalDate');
@@ -64,18 +63,19 @@ router.post('/', (req, res) => {
     const EventDate = optionalIsoDate(req.body.EventDate, 'EventDate');
     const EventTitle = optionalTrimmedString(req.body.EventTitle, 'EventTitle', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`INSERT INTO StudentLedEvent (CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate,EventTitle,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    const info = await db.prepare(`INSERT INTO StudentLedEvent (CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate,EventTitle,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     ).run(CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate||null,EventTitle||null,Comment||null);
-    res.status(201).json(db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(info.lastInsertRowid));
+    res.status(201).json((await db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(info.lastInsertRowid)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'StudentLedEvent', 'StudentLedEventID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const ProposalDate = requireIsoDate(req.body.ProposalDate, 'ProposalDate');
@@ -87,20 +87,20 @@ router.put('/:id', (req, res) => {
     const EventDate = optionalIsoDate(req.body.EventDate, 'EventDate');
     const EventTitle = optionalTrimmedString(req.body.EventTitle, 'EventTitle', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`UPDATE StudentLedEvent SET CompanyID=?,ContactID=?,ProposalDate=?,OrganizationName=?,StudentName=?,StudentEmail=?,StudentPhoneNumber=?,CollaborationOutcome=?,EventDate=?,EventTitle=?,Comment=? WHERE StudentLedEventID=?`
+    const info = await db.prepare(`UPDATE StudentLedEvent SET CompanyID=?,ContactID=?,ProposalDate=?,OrganizationName=?,StudentName=?,StudentEmail=?,StudentPhoneNumber=?,CollaborationOutcome=?,EventDate=?,EventTitle=?,Comment=? WHERE StudentLedEventID=?`
     ).run(CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate||null,EventTitle||null,Comment||null,req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
-    res.json(db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(req.recordId));
+    res.json((await db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(req.recordId)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM StudentLedEvent WHERE StudentLedEventID=?').run(req.recordId);
+    const info = (await db.prepare('DELETE FROM StudentLedEvent WHERE StudentLedEventID=?').run(req.recordId));
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
   } catch (err) { req.app.locals.respondServerError(req, res, err); }

@@ -23,25 +23,28 @@ function buildDateRange(field, from, to) {
 }
 
 // GET /api/dashboard/stats
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
     const today = new Date().toISOString().slice(0, 10);
+    const monthStart = `${today.slice(0, 7)}-01`;
     const companyRange = buildDateRange('DateAdded', from, to);
     const contactRange = buildDateRange('DateAdded', from, to);
-    const outreachRange = buildDateRange('InteractionDate', from, to);
+    const outreachRange = from || to
+      ? buildDateRange('InteractionDate', from, to)
+      : buildDateRange('InteractionDate', monthStart, today);
     const followUpRange = from || to
       ? buildDateRange('FollowUpDate', from, to)
       : { sql: ' AND FollowUpDate>=?', params: [today] };
 
     res.json({
-      totalCompanies: db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=0${companyRange.sql}`).get(...companyRange.params).n,
-      totalBlacklisted: db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=1${companyRange.sql}`).get(...companyRange.params).n,
-      totalContacts: db.prepare(`SELECT COUNT(*) AS n FROM Contact WHERE 1=1${contactRange.sql}`).get(...contactRange.params).n,
-      mailableContacts: db.prepare(`SELECT COUNT(*) AS n FROM Contact WHERE Status='Mailable' AND ExcludeFromMailing=0${contactRange.sql}`).get(...contactRange.params).n,
-      outreachThisMonth: db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1=1${outreachRange.sql}`).get(...outreachRange.params).n,
-      upcomingFollowUps: db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionStatus='In-progress'${followUpRange.sql}`).get(...followUpRange.params).n,
+      totalCompanies: (await db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=0${companyRange.sql}`).get(...companyRange.params)).n,
+      totalBlacklisted: (await db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted=1${companyRange.sql}`).get(...companyRange.params)).n,
+      totalContacts: (await db.prepare(`SELECT COUNT(*) AS n FROM Contact WHERE 1=1${contactRange.sql}`).get(...contactRange.params)).n,
+      mailableContacts: (await db.prepare(`SELECT COUNT(*) AS n FROM Contact WHERE Status='Mailable' AND ExcludeFromMailing=0${contactRange.sql}`).get(...contactRange.params)).n,
+      outreachThisMonth: (await db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1=1${outreachRange.sql}`).get(...outreachRange.params)).n,
+      upcomingFollowUps: (await db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionStatus='In-progress'${followUpRange.sql}`).get(...followUpRange.params)).n,
     });
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -50,7 +53,7 @@ router.get('/stats', (req, res) => {
 });
 
 // GET /api/dashboard/companies-by-month
-router.get('/companies-by-month', (req, res) => {
+router.get('/companies-by-month', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -59,7 +62,7 @@ router.get('/companies-by-month', (req, res) => {
   if (from) { sql += ' AND DateAdded>=?'; p.push(from); }
   if (to)   { sql += ' AND DateAdded<=?'; p.push(to); }
   sql += ' GROUP BY month ORDER BY month';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -67,7 +70,7 @@ router.get('/companies-by-month', (req, res) => {
 });
 
 // GET /api/dashboard/outreach-by-month
-router.get('/outreach-by-month', (req, res) => {
+router.get('/outreach-by-month', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -76,7 +79,7 @@ router.get('/outreach-by-month', (req, res) => {
   if (from) { sql += ' AND InteractionDate>=?'; p.push(from); }
   if (to)   { sql += ' AND InteractionDate<=?'; p.push(to); }
   sql += ' GROUP BY month, type ORDER BY month';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -84,12 +87,12 @@ router.get('/outreach-by-month', (req, res) => {
 });
 
 // GET /api/dashboard/companies-by-sector
-router.get('/companies-by-sector', (req, res) => {
+router.get('/companies-by-sector', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
     const range = buildDateRange('DateAdded', from, to);
-    res.json(db.prepare(`SELECT Sector AS label, COUNT(*) AS count FROM Company WHERE Blacklisted=0${range.sql} GROUP BY Sector ORDER BY count DESC`).all(...range.params));
+    res.json((await db.prepare(`SELECT Sector AS label, COUNT(*) AS count FROM Company WHERE Blacklisted=0${range.sql} GROUP BY Sector ORDER BY count DESC`).all(...range.params)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -97,7 +100,7 @@ router.get('/companies-by-sector', (req, res) => {
 });
 
 // GET /api/dashboard/recruitment-by-major
-router.get('/recruitment-by-major', (req, res) => {
+router.get('/recruitment-by-major', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -106,7 +109,7 @@ router.get('/recruitment-by-major', (req, res) => {
   if (from) { sql += ' AND r.DatePosted>=?'; p.push(from); }
   if (to)   { sql += ' AND r.DatePosted<=?'; p.push(to); }
   sql += ' GROUP BY m.Major ORDER BY count DESC';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -114,7 +117,7 @@ router.get('/recruitment-by-major', (req, res) => {
 });
 
 // GET /api/dashboard/event-attendance
-router.get('/event-attendance', (req, res) => {
+router.get('/event-attendance', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -123,7 +126,7 @@ router.get('/event-attendance', (req, res) => {
   if (from) { sql += ' AND EventDate>=?'; p.push(from); }
   if (to)   { sql += ' AND EventDate<=?'; p.push(to); }
   sql += ' GROUP BY EventName, RegisteredStatus ORDER BY EventName';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -131,7 +134,7 @@ router.get('/event-attendance', (req, res) => {
 });
 
 // GET /api/dashboard/top-engaged
-router.get('/top-engaged', (req, res) => {
+router.get('/top-engaged', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -146,7 +149,7 @@ router.get('/top-engaged', (req, res) => {
   if (from) { af+=' AND SessionDate>=?';     p4.push(from); }
   if (to)   { af+=' AND SessionDate<=?';     p4.push(to); }
 
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS company,
         (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${of}) +
         (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${rf}) +
@@ -154,7 +157,7 @@ router.get('/top-engaged', (req, res) => {
         (SELECT COUNT(*) FROM AcademicClassroomEngagement WHERE CompanyID=c.CompanyID${af}) AS total
       FROM Company c
       ORDER BY total DESC LIMIT 10`
-    ).all(...p1,...p2,...p3,...p4);
+    ).all(...p1,...p2,...p3,...p4));
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -163,7 +166,7 @@ router.get('/top-engaged', (req, res) => {
 });
 
 // GET /api/dashboard/hiring-trends
-router.get('/hiring-trends', (req, res) => {
+router.get('/hiring-trends', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { from, to } = parseDateRange(req.query);
@@ -172,7 +175,7 @@ router.get('/hiring-trends', (req, res) => {
   if (from) { sql += ' AND DateReported>=?'; p.push(from); }
   if (to)   { sql += ' AND DateReported<=?'; p.push(to); }
   sql += ' GROUP BY month ORDER BY month';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);

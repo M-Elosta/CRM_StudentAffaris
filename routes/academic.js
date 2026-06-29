@@ -21,7 +21,7 @@ router.param('id', (req, res, next, id) => {
   }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const engagementType = optionalTrimmedString(req.query.engagementType, 'engagementType', 100);
@@ -38,27 +38,26 @@ router.get('/', (req, res) => {
     if (from)           { sql += ' AND a.SessionDate>=?';   p.push(from); }
     if (to)             { sql += ' AND a.SessionDate<=?';   p.push(to); }
     sql += ' ORDER BY a.SessionDate DESC';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare(`
+  const row = (await db.prepare(`
     SELECT a.*, c.CompanyName, co.FirstName||' '||co.LastName AS ContactName
     FROM AcademicClassroomEngagement a JOIN Company c ON a.CompanyID=c.CompanyID JOIN Contact co ON a.ContactID=co.ContactID
-    WHERE a.EngagementID=?`).get(req.recordId);
+    WHERE a.EngagementID=?`).get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'AcademicClassroomEngagement', 'EngagementID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const EngagementType = requireTrimmedString(req.body.EngagementType, 'EngagementType', 100);
@@ -73,21 +72,22 @@ router.post('/', (req, res) => {
     const SessionDate = requireIsoDate(req.body.SessionDate, 'SessionDate');
     const SessionTime = requireIsoTime(req.body.SessionTime, 'SessionTime');
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`
+    const info = await db.prepare(`
       INSERT INTO AcademicClassroomEngagement
         (CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email,PhoneNumber,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email||null,PhoneNumber||null,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment||null);
-    res.status(201).json(db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(info.lastInsertRowid));
+    res.status(201).json((await db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(info.lastInsertRowid)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'AcademicClassroomEngagement', 'EngagementID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const EngagementType = requireTrimmedString(req.body.EngagementType, 'EngagementType', 100);
@@ -102,23 +102,23 @@ router.put('/:id', (req, res) => {
     const SessionDate = requireIsoDate(req.body.SessionDate, 'SessionDate');
     const SessionTime = requireIsoTime(req.body.SessionTime, 'SessionTime');
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`
+    const info = await db.prepare(`
       UPDATE AcademicClassroomEngagement SET
         CompanyID=?,ContactID=?,EngagementType=?,GuestSpeakerName=?,GuestTitle=?,Email=?,PhoneNumber=?,FacultyName=?,CourseNumber=?,CourseTitle=?,TopicTheme=?,SessionDate=?,SessionTime=?,Comment=?
       WHERE EngagementID=?`
     ).run(CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email||null,PhoneNumber||null,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment||null,req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
-    res.json(db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(req.recordId));
+    res.json((await db.prepare('SELECT * FROM AcademicClassroomEngagement WHERE EngagementID=?').get(req.recordId)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM AcademicClassroomEngagement WHERE EngagementID=?').run(req.recordId);
+    const info = (await db.prepare('DELETE FROM AcademicClassroomEngagement WHERE EngagementID=?').run(req.recordId));
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
   } catch (err) { req.app.locals.respondServerError(req, res, err); }

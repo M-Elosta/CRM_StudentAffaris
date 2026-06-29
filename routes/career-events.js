@@ -20,7 +20,7 @@ router.param('id', (req, res, next, id) => {
   }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const eventName = optionalTrimmedString(req.query.eventName, 'eventName', 100);
@@ -40,69 +40,69 @@ router.get('/', (req, res) => {
     if (from)             { sql += ' AND e.EventDate >= ?';       p.push(from); }
     if (to)               { sql += ' AND e.EventDate <= ?';       p.push(to); }
     sql += ' ORDER BY e.EventDate DESC';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare(`
+  const row = (await db.prepare(`
     SELECT e.*, c.CompanyName, co.FirstName || ' ' || co.LastName AS ContactName
     FROM CareerEvent e JOIN Company c ON e.CompanyID=c.CompanyID JOIN Contact co ON e.ContactID=co.ContactID
-    WHERE e.CareerEventID = ?`).get(req.recordId);
+    WHERE e.CareerEventID = ?`).get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'CareerEvent', 'CareerEventID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const EventName = requireTrimmedString(req.body.EventName, 'EventName');
     const EventDate = requireIsoDate(req.body.EventDate, 'EventDate');
     const RegisteredStatus = requireTrimmedString(req.body.RegisteredStatus, 'RegisteredStatus', 100);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`
+    const info = await db.prepare(`
       INSERT INTO CareerEvent (CompanyID, ContactID, EventName, EventDate, RegisteredStatus, CMUQAlumniAtBooth, Comment)
       VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).run(CompanyID, ContactID, EventName, EventDate, RegisteredStatus, parseBoolean(req.body.CMUQAlumniAtBooth)?1:0, Comment||null);
-    res.status(201).json(db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID = ?').get(info.lastInsertRowid));
+    res.status(201).json((await db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID = ?').get(info.lastInsertRowid)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'CareerEvent', 'CareerEventID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const EventName = requireTrimmedString(req.body.EventName, 'EventName');
     const EventDate = requireIsoDate(req.body.EventDate, 'EventDate');
     const RegisteredStatus = requireTrimmedString(req.body.RegisteredStatus, 'RegisteredStatus', 100);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`
+    const info = await db.prepare(`
       UPDATE CareerEvent SET CompanyID=?,ContactID=?,EventName=?,EventDate=?,RegisteredStatus=?,CMUQAlumniAtBooth=?,Comment=?
       WHERE CareerEventID=?`
     ).run(CompanyID, ContactID, EventName, EventDate, RegisteredStatus, parseBoolean(req.body.CMUQAlumniAtBooth)?1:0, Comment||null, req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
-    res.json(db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID=?').get(req.recordId));
+    res.json((await db.prepare('SELECT * FROM CareerEvent WHERE CareerEventID=?').get(req.recordId)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM CareerEvent WHERE CareerEventID=?').run(req.recordId);
+    const info = (await db.prepare('DELETE FROM CareerEvent WHERE CareerEventID=?').run(req.recordId));
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
   } catch (err) { req.app.locals.respondServerError(req, res, err); }

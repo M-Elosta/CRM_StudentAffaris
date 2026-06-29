@@ -15,14 +15,14 @@ router.post('/login', async (req, res) => {
     const username = requireTrimmedString(req.body.username, 'Username', 64);
     const password = requireString(req.body.password, 'Password');
 
-    const user = db.prepare('SELECT * FROM Users WHERE Username = ?').get(username);
+    const user = (await db.prepare('SELECT * FROM Users WHERE Username = ?').get(username));
     const match = user ? await bcrypt.compare(password, user.PasswordHash) : false;
     if (!user || !match) return res.status(401).json({ error: 'Invalid username or password' });
     const role = normalizeRole(user.Role);
     const mustChangePassword = Boolean(user.MustChangePassword) || isInsecurePassword(password);
 
     if (mustChangePassword && !user.MustChangePassword) {
-      db.prepare('UPDATE Users SET MustChangePassword = 1 WHERE UserID = ?').run(user.UserID);
+      (await db.prepare('UPDATE Users SET MustChangePassword = 1 WHERE UserID = ?').run(user.UserID));
     }
 
     req.session.regenerate((err) => {
@@ -39,7 +39,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   req.session.destroy(() => {
     res.clearCookie('ero.sid');
     res.json({ success: true });
@@ -47,7 +47,7 @@ router.post('/logout', (req, res) => {
 });
 
 // GET /api/auth/check
-router.get('/check', (req, res) => {
+router.get('/check', async (req, res) => {
   if (req.session?.userId) {
     res.json({
       authenticated: true,
@@ -76,12 +76,12 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ error: 'New password must be different from the current password.' });
     }
 
-    const user = db.prepare('SELECT * FROM Users WHERE UserID = ?').get(req.session.userId);
+    const user = (await db.prepare('SELECT * FROM Users WHERE UserID = ?').get(req.session.userId));
     const match = user ? await bcrypt.compare(currentPassword, user.PasswordHash) : false;
     if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
 
     const hash = await bcrypt.hash(newPassword, 12);
-    db.prepare('UPDATE Users SET PasswordHash = ?, MustChangePassword = 0 WHERE UserID = ?').run(hash, req.session.userId);
+    (await db.prepare('UPDATE Users SET PasswordHash = ?, MustChangePassword = 0 WHERE UserID = ?').run(hash, req.session.userId));
     req.session.mustChangePassword = false;
     res.json({ success: true });
   } catch (err) {

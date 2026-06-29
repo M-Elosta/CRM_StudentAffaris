@@ -26,7 +26,7 @@ router.param('id', (req, res, next, id) => {
 });
 
 // GET /api/contacts  — optional ?search=, ?companyId=, ?status=
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const search = optionalTrimmedString(req.query.search, 'search', 100);
@@ -55,7 +55,7 @@ router.get('/', (req, res) => {
     }
 
     sql += ' ORDER BY c.LastName ASC, c.FirstName ASC';
-    const rows = db.prepare(sql).all(...params);
+    const rows = (await db.prepare(sql).all(...params));
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -64,23 +64,22 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/contacts/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare(`
+  const row = (await db.prepare(`
     SELECT c.*, co.CompanyName
     FROM Contact c
     JOIN Company co ON c.CompanyID = co.CompanyID
     WHERE c.ContactID = ?
-  `).get(req.recordId);
+  `).get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Contact not found' });
   res.json(row);
 });
 
 // POST /api/contacts
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'Contact', 'ContactID', req.recordId, req.body.UpdatedAt, 'Contact not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');
@@ -105,7 +104,7 @@ router.post('/', (req, res) => {
          ResumeBook, EventInvitation, ExcludeFromMailing)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(
+    const info = await stmt.run(
       CompanyID,
       FirstName, LastName,
       DateAdded || new Date().toISOString().slice(0, 10),
@@ -117,7 +116,7 @@ router.post('/', (req, res) => {
       parseBoolean(req.body.PrimaryContact) ? 1 : 0, resolvedStatus,
       parseBoolean(req.body.ResumeBook) ? 1 : 0, parseBoolean(req.body.EventInvitation) ? 1 : 0, parseBoolean(req.body.ExcludeFromMailing) ? 1 : 0
     );
-    const created = db.prepare('SELECT * FROM Contact WHERE ContactID = ?').get(info.lastInsertRowid);
+    const created = (await db.prepare('SELECT * FROM Contact WHERE ContactID = ?').get(info.lastInsertRowid));
     res.status(201).json(created);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -126,9 +125,10 @@ router.post('/', (req, res) => {
 });
 
 // PUT /api/contacts/:id
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'Contact', 'ContactID', req.recordId, req.body.UpdatedAt, 'Contact not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');
@@ -154,7 +154,7 @@ router.put('/:id', (req, res) => {
         ResumeBook = ?, EventInvitation = ?, ExcludeFromMailing = ?
       WHERE ContactID = ?
     `);
-    const info = stmt.run(
+    const info = await stmt.run(
       CompanyID,
       FirstName, LastName,
       DateAdded || new Date().toISOString().slice(0, 10),
@@ -168,7 +168,7 @@ router.put('/:id', (req, res) => {
       req.recordId
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Contact not found' });
-    const updated = db.prepare('SELECT * FROM Contact WHERE ContactID = ?').get(req.recordId);
+    const updated = (await db.prepare('SELECT * FROM Contact WHERE ContactID = ?').get(req.recordId));
     res.json(updated);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -177,13 +177,13 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /api/contacts/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const contact = db.prepare('SELECT FirstName, LastName FROM Contact WHERE ContactID = ?').get(req.recordId);
+    const contact = (await db.prepare('SELECT FirstName, LastName FROM Contact WHERE ContactID = ?').get(req.recordId));
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-    db.prepare('DELETE FROM Contact WHERE ContactID = ?').run(req.recordId);
+    (await db.prepare('DELETE FROM Contact WHERE ContactID = ?').run(req.recordId));
     res.json({ message: 'Contact deleted', name: `${contact.FirstName} ${contact.LastName}` });
   } catch (err) {
     req.app.locals.respondServerError(req, res, err);

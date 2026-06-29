@@ -7,7 +7,12 @@ async function fetchAPI(url, options = {}) {
   if (config.body && typeof config.body === 'object') {
     config.body = JSON.stringify(config.body);
   }
-  const res = await fetch(url, config);
+  let res;
+  try {
+    res = await fetch(url, config);
+  } catch (_err) {
+    throw new Error('Network error. Please check your connection and try again.');
+  }
   // Session expired → send the user back to the login page instead of showing
   // a cryptic error toast on every action
   if (res.status === 401 && !window.location.pathname.endsWith('login.html')) {
@@ -22,8 +27,53 @@ async function fetchAPI(url, options = {}) {
   return data;
 }
 
+async function fetchFormData(url, options = {}) {
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (_err) {
+    throw new Error('Network error. Please check your connection and try again.');
+  }
+
+  if (res.status === 401 && !window.location.pathname.endsWith('login.html')) {
+    window.location.href = '/login.html';
+    return new Promise(() => {});
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
 let forcedPasswordChangeActive = false;
 let changePasswordModalInstance = null;
+
+function finishPasswordChangeFlow() {
+  const redirectToDashboard = () => {
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+    window.location.replace('/index.html');
+  };
+
+  const modalEl = document.getElementById('change-pw-modal');
+  if (!modalEl || !changePasswordModalInstance) {
+    redirectToDashboard();
+    return;
+  }
+
+  let redirected = false;
+  const completeRedirect = () => {
+    if (redirected) return;
+    redirected = true;
+    redirectToDashboard();
+  };
+
+  modalEl.addEventListener('hidden.bs.modal', completeRedirect, { once: true });
+  changePasswordModalInstance.hide();
+  window.setTimeout(completeRedirect, 400);
+}
 
 function ensureChangePasswordModal() {
   let modal = document.getElementById('change-pw-modal');
@@ -89,9 +139,9 @@ function ensureChangePasswordModal() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       forcedPasswordChangeActive = false;
-      changePasswordModalInstance?.hide();
       showToast('Password updated successfully');
       document.getElementById('change-pw-form').reset();
+      finishPasswordChangeFlow();
     } catch (err) {
       errEl.textContent = err.message;
       errEl.classList.remove('d-none');
@@ -275,6 +325,22 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function safeString(value) {
+  return value == null ? '' : String(value);
+}
+
+function safeTrim(value) {
+  return safeString(value).trim();
+}
+
+function safeLower(value) {
+  return safeString(value).toLowerCase();
+}
+
+function dateKey(value) {
+  return safeString(value).slice(0, 10);
+}
+
 // Returns "15/06/25"; timezone-safe; returns "—" for empty/invalid
 function formatDate(str) {
   if (!str) return '—';
@@ -290,6 +356,43 @@ function debounce(fn, ms = 300) {
     clearTimeout(timer);
     timer = setTimeout(() => fn.apply(this, args), ms);
   };
+}
+
+function focusFirstFieldInModal(modalEl) {
+  if (!modalEl || modalEl.dataset.autoFocusBound === '1') return;
+  modalEl.dataset.autoFocusBound = '1';
+  modalEl.addEventListener('shown.bs.modal', () => {
+    const firstField = modalEl.querySelector('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    firstField?.focus();
+  });
+}
+
+function wireSortableTable(tableEl, onSortChange, initial = { key: '', direction: 'asc' }) {
+  if (!tableEl || typeof onSortChange !== 'function') return initial;
+  const state = { ...initial };
+  tableEl.querySelectorAll('thead th[data-sort]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.setAttribute('role', 'button');
+    th.setAttribute('tabindex', '0');
+    const apply = () => {
+      const key = th.dataset.sort;
+      state.direction = state.key === key && state.direction === 'asc' ? 'desc' : 'asc';
+      state.key = key;
+      tableEl.querySelectorAll('thead th[data-sort]').forEach(other => {
+        const active = other.dataset.sort === state.key;
+        other.setAttribute('aria-sort', active ? (state.direction === 'asc' ? 'ascending' : 'descending') : 'none');
+      });
+      onSortChange({ ...state });
+    };
+    th.addEventListener('click', apply);
+    th.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        apply();
+      }
+    });
+  });
+  return state;
 }
 
 // Update #record-count badge; safe no-op when element absent
@@ -583,7 +686,7 @@ function injectSidebar() {
   });
 
   // Show who is signed in, apply role, populate last-updated indicators
-  fetch('/api/auth/check').then(r => r.ok ? r.json() : null).then(async data => {
+  fetchAPI('/api/auth/check').then(async data => {
     if (!data) return;
     window.appRole   = data.role === 'admin' ? 'admin' : 'viewer';
     window.appUserId = data.userId || null;
@@ -640,8 +743,11 @@ function injectSidebar() {
 
   // Logout
   document.getElementById('btn-logout')?.addEventListener('click', async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login.html';
+    try {
+      await fetchAPI('/api/auth/logout', { method: 'POST' });
+    } finally {
+      window.location.href = '/login.html';
+    }
   });
 
   // Change password modal

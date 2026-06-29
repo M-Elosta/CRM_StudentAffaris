@@ -6,10 +6,15 @@ let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = { key: 'LastName', direction: 'asc' };
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
+  sortState = wireSortableTable(document.getElementById('contacts-table'), (next) => {
+    sortState = next;
+    applyFilters();
+  }, sortState);
 
   document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
 
@@ -28,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('f-cmuq').addEventListener('change', e => {
     document.getElementById('cmuq-fields').classList.toggle('d-none', !e.target.checked);
   });
+  focusFirstFieldInModal(document.getElementById('contact-modal'));
 });
 
 // ── Data loading ───────────────────────────────────────────────────────────────
@@ -69,7 +75,7 @@ function populateCompanyDropdowns() {
 }
 
 function applyFilters() {
-  const q         = document.getElementById('search-input').value.trim();
+  const q         = safeTrim(document.getElementById('search-input').value);
   const status    = document.getElementById('filter-status').value;
   const companyId = document.getElementById('filter-company').value;
   const from      = document.getElementById('filter-from').value;
@@ -78,20 +84,27 @@ function applyFilters() {
   let filtered = filterContacts(q);
   if (status)    filtered = filtered.filter(c => c.Status === status);
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
-  if (from)      filtered = filtered.filter(c => (c.DateAdded || '').slice(0, 10) >= from);
-  if (to)        filtered = filtered.filter(c => (c.DateAdded || '').slice(0, 10) <= to);
+  if (from)      filtered = filtered.filter(c => dateKey(c.DateAdded) >= from);
+  if (to)        filtered = filtered.filter(c => dateKey(c.DateAdded) <= to);
 
-  displayItems = filtered; currentPage = 1; renderCurrentPage();
+  displayItems = filtered.sort((a, b) => {
+    const dir = sortState.direction === 'desc' ? -1 : 1;
+    const left = safeLower(a?.[sortState.key]);
+    const right = safeLower(b?.[sortState.key]);
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+  });
+  currentPage = 1; renderCurrentPage();
   updateRecordCount(filtered.length, allContacts.length);
 }
 
 function filterContacts(q) {
   if (!q) return allContacts;
-  const lower = q.toLowerCase();
+  const lower = safeLower(q);
   return allContacts.filter(c =>
-    c.FirstName.toLowerCase().includes(lower) ||
-    c.LastName.toLowerCase().includes(lower)  ||
-    (c.EmailAddress || '').toLowerCase().includes(lower)
+    safeLower(c.FirstName).includes(lower) ||
+    safeLower(c.LastName).includes(lower)  ||
+    safeLower(c.EmailAddress).includes(lower) ||
+    safeLower(c.CompanyName).includes(lower)
   );
 }
 
@@ -155,8 +168,8 @@ function renderTable(contacts) {
         <td>${escHtml(c.JobTitle || '—')}</td>
         <td><div class="d-flex flex-wrap gap-1">${badges}</div></td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" type="button" title="Edit" aria-label="Edit ${escHtml(`${c.FirstName || ''} ${c.LastName || ''}`.trim() || 'contact')}" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" type="button" title="Delete" aria-label="Delete ${escHtml(`${c.FirstName || ''} ${c.LastName || ''}`.trim() || 'contact')}" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');
@@ -220,7 +233,7 @@ function populateForm(c) {
   document.getElementById('f-firstname').value   = c.FirstName || '';
   document.getElementById('f-lastname').value    = c.LastName || '';
   document.getElementById('f-email').value       = c.EmailAddress || '';
-  document.getElementById('f-date-added').value  = c.DateAdded ? c.DateAdded.slice(0,10) : todayStr();
+  document.getElementById('f-date-added').value  = dateKey(c.DateAdded) || todayStr();
   document.getElementById('f-workphone').value   = c.WorkPhone || '';
   document.getElementById('f-mobile').value      = c.Mobile || '';
   document.getElementById('f-jobtitle').value    = c.JobTitle || '';
@@ -245,19 +258,19 @@ function populateForm(c) {
 function formToPayload() {
   return {
     CompanyID:          document.getElementById('f-company').value,
-    FirstName:          document.getElementById('f-firstname').value.trim(),
-    LastName:           document.getElementById('f-lastname').value.trim(),
-    EmailAddress:       document.getElementById('f-email').value.trim(),
+    FirstName:          safeTrim(document.getElementById('f-firstname').value),
+    LastName:           safeTrim(document.getElementById('f-lastname').value),
+    EmailAddress:       safeTrim(document.getElementById('f-email').value),
     DateAdded:          document.getElementById('f-date-added').value,
-    WorkPhone:          document.getElementById('f-workphone').value.trim(),
-    Mobile:             document.getElementById('f-mobile').value.trim(),
-    JobTitle:           document.getElementById('f-jobtitle').value.trim(),
-    Country:            document.getElementById('f-country').value.trim(),
-    Address:            document.getElementById('f-address').value.trim(),
-    LinkedInURL:        document.getElementById('f-linkedin').value.trim(),
-    HandshakeURL:       document.getElementById('f-handshake').value.trim(),
+    WorkPhone:          safeTrim(document.getElementById('f-workphone').value),
+    Mobile:             safeTrim(document.getElementById('f-mobile').value),
+    JobTitle:           safeTrim(document.getElementById('f-jobtitle').value),
+    Country:            safeTrim(document.getElementById('f-country').value),
+    Address:            safeTrim(document.getElementById('f-address').value),
+    LinkedInURL:        safeTrim(document.getElementById('f-linkedin').value),
+    HandshakeURL:       safeTrim(document.getElementById('f-handshake').value),
     CMUQGraduate:       document.getElementById('f-cmuq').checked,
-    Major:              document.getElementById('f-major').value.trim(),
+    Major:              safeTrim(document.getElementById('f-major').value),
     GraduationYear:     document.getElementById('f-gradyear').value,
     PrimaryContact:     document.getElementById('f-primary').checked,
     Status:             document.getElementById('f-status').checked ? 'Mailable' : 'Non-mailable',

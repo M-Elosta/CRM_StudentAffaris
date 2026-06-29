@@ -1,6 +1,6 @@
 # Employer Relations System
 
-Employer Relations System is a Node.js + SQLite web app for tracking employer relationships in one place. It helps teams manage companies, contacts, outreach, recruitment activity, events, and reports through a simple browser-based interface.
+Employer Relations System is a Node.js + PostgreSQL web app for tracking employer relationships in one place. It helps teams manage companies, contacts, outreach, recruitment activity, events, and reports through a simple browser-based interface.
 
 > **Demo data note**
 >
@@ -30,7 +30,7 @@ Employer Relations System is a Node.js + SQLite web app for tracking employer re
 ## Tech stack
 
 - **Backend:** Node.js, Express
-- **Database:** SQLite via `better-sqlite3`
+- **Database:** PostgreSQL via `pg`
 - **Frontend:** Static HTML, Bootstrap, vanilla JavaScript, Chart.js
 - **Exports:** Excel via `xlsx`
 
@@ -42,19 +42,21 @@ Employer Relations System is a Node.js + SQLite web app for tracking employer re
    npm install
    ```
 
-2. Seed the demo database:
+2. Configure PostgreSQL connection variables (see `.env.example`).
+
+3. Optionally seed demo data:
 
    ```bash
    node database/seed.js
    ```
 
-3. Start the server:
+4. Start the server:
 
    ```bash
    npm start
    ```
 
-4. Open `http://localhost:3000` in your browser.
+5. Open `http://localhost:3000` in your browser.
 
 On a fresh database, set `DEFAULT_ADMIN_PASSWORD` before the first run if you want a predictable admin password.
 
@@ -65,7 +67,7 @@ On a fresh database, set `DEFAULT_ADMIN_PASSWORD` before the first run if you wa
 | `server.js` | App entrypoint and middleware setup |
 | `routes/` | API endpoints |
 | `public/` | Static pages, client-side JS, and styles |
-| `database/schema.sql` | SQLite schema |
+| `database/schema.sql` | PostgreSQL schema |
 | `database/seed.js` | Demo data seeding |
 | `scripts/` | Backup and helper scripts |
 | `ops/` | Example deployment/service files |
@@ -88,4 +90,4 @@ On a fresh database, set `DEFAULT_ADMIN_PASSWORD` before the first run if you wa
 
 - Example production environment variables are in `.env.example`.
 - Example `systemd` service configuration is in `ops/employer-system.service`.
-- Database backup helpers are in `scripts/backup.js` and `scripts/backup-db.sh`.
+- Database backup helpers are in `scripts/backup.js` and `scripts/backup-db.sh` and use `pg_dump`.

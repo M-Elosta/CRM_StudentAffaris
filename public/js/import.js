@@ -75,9 +75,7 @@ async function handleFileUpload(e) {
   showToast('Parsing file…', 'warning');
 
   try {
-    const res = await fetch('/api/import/parse', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    const data = await fetchFormData('/api/import/parse', { method: 'POST', body: formData });
 
     fileHeaders = data.headers;
     parsedRows  = data.allRows;

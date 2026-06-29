@@ -176,8 +176,8 @@ function resolveQuickReportPeriod(query) {
   };
 }
 
-function reportDateBounds(db) {
-  return db.prepare(`
+async function reportDateBounds(db) {
+  return (await db.prepare(`
     SELECT MIN(d) AS minDate, MAX(d) AS maxDate
     FROM (
       SELECT DateAdded AS d FROM Company
@@ -190,11 +190,11 @@ function reportDateBounds(db) {
       UNION ALL SELECT SessionDate FROM AcademicClassroomEngagement
     )
     WHERE d IS NOT NULL AND d != ''
-  `).get();
+  `).get());
 }
 
-function buildReportPeriods(db) {
-  const bounds = reportDateBounds(db);
+async function buildReportPeriods(db) {
+  const bounds = await reportDateBounds(db);
   const currentDate = todayIso();
   const latestDataDate = bounds.maxDate || currentDate;
   const currentSemester = semesterOf(currentDate);
@@ -238,8 +238,8 @@ function semesterSeries(startSemester, endSemester) {
   return semesters;
 }
 
-function reportSemesterSeries(db, from, to) {
-  const bounds = reportDateBounds(db);
+async function reportSemesterSeries(db, from, to) {
+  const bounds = await reportDateBounds(db);
   const currentDate = todayIso();
   const currentSemester = semesterOf(currentDate);
 
@@ -256,8 +256,8 @@ function reportSemesterSeries(db, from, to) {
   return semesterSeries(startSemester, endSemester);
 }
 
-function reportAcademicYearSeries(db, from, to) {
-  const bounds = reportDateBounds(db);
+async function reportAcademicYearSeries(db, from, to) {
+  const bounds = await reportDateBounds(db);
   const currentDate = todayIso();
 
   if (from || to) {
@@ -292,7 +292,7 @@ function academicYearForSemester(semester) {
   return academicYearRange(semester.term === 'fall' ? semester.year : semester.year - 1);
 }
 
-function collectOpportunityEvents(db, from, to) {
+async function collectOpportunityEvents(db, from, to) {
   const sources = [
     { kind: 'recruitment', sql: `SELECT r.DatePosted AS d, c.Industry AS industry, c.CompanyName AS company FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE 1=1`, dateCol: 'DatePosted' },
     { kind: 'engagement', sql: `SELECT o.InteractionDate AS d, c.Industry AS industry, c.CompanyName AS company FROM OutreachEngagement o JOIN Company c ON o.CompanyID=c.CompanyID WHERE 1=1`, dateCol: 'InteractionDate' },
@@ -301,9 +301,9 @@ function collectOpportunityEvents(db, from, to) {
   ];
 
   const events = [];
-  sources.forEach(source => {
+  for (const source of sources) {
     const dc = dateClause(source.dateCol, from, to);
-    db.prepare(`${source.sql}${dc.sql}`).all(...dc.params).forEach(row => {
+    (await db.prepare(`${source.sql}${dc.sql}`).all(...dc.params)).forEach(row => {
       const semester = semesterOf(row.d);
       if (!semester) return;
       const academicYear = academicYearOf(row.d);
@@ -316,7 +316,7 @@ function collectOpportunityEvents(db, from, to) {
         kind: source.kind,
       });
     });
-  });
+  }
   return events;
 }
 
@@ -331,14 +331,14 @@ const QUICK_REPORTS = {
   // These are current-state lists (mailing status, flags, alumni status), so
   // they intentionally ignore the global date filter and always show the live set.
 
-  'mailable-contacts': (db, from, to) => {
-    const rows = db.prepare(`
+  'mailable-contacts': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
              COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
-      ORDER BY c.CompanyName, co.LastName`).all();
+      ORDER BY c.CompanyName, co.LastName`).all());
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -348,14 +348,14 @@ const QUICK_REPORTS = {
     }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
-  'event-invitation': (db, from, to) => {
-    const rows = db.prepare(`
+  'event-invitation': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
              COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.EventInvitation=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
-      ORDER BY c.CompanyName, co.LastName`).all();
+      ORDER BY c.CompanyName, co.LastName`).all());
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
@@ -366,15 +366,15 @@ const QUICK_REPORTS = {
     }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
-  'resume-book': (db, from, to) => {
-    const rows = db.prepare(`
+  'resume-book': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
              COALESCE(co.WorkPhone, co.Mobile) AS "Phone", COALESCE(co.Country, c.Country) AS "Country",
              co.Major AS "Major", co.GraduationYear AS "Grad Year"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.ResumeBook=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
-      ORDER BY co.Major, co.LastName`).all();
+      ORDER BY co.Major, co.LastName`).all());
     const agg = {};
     rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -385,14 +385,14 @@ const QUICK_REPORTS = {
     }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
-  'non-mailable': (db, from, to) => {
-    const rows = db.prepare(`
+  'non-mailable': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email",
              CASE WHEN c.Blacklisted=1 THEN 'Blacklisted Company' ELSE 'Manually Set' END AS "Reason"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.Status='Non-mailable'
-      ORDER BY co.LastName`).all();
+      ORDER BY co.LastName`).all());
     const bl = rows.filter(r => r.Reason === 'Blacklisted Company').length;
     const mn = rows.length - bl;
     return { rows, chartData: {
@@ -401,14 +401,14 @@ const QUICK_REPORTS = {
     }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
-  'primary-contacts': (db, from, to) => {
-    const rows = db.prepare(`
+  'primary-contacts': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title",
              COALESCE(co.WorkPhone, co.Mobile) AS "Phone"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.PrimaryContact=1 AND co.Status='Mailable' AND co.ExcludeFromMailing=0 AND c.Blacklisted=0
-      ORDER BY c.CompanyName, co.LastName`).all();
+      ORDER BY c.CompanyName, co.LastName`).all());
     const agg = {};
     rows.forEach(r => { agg[r.Company] = (agg[r.Company] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]).slice(0, 20);
@@ -419,14 +419,14 @@ const QUICK_REPORTS = {
     }, meta: { periodLabel: 'Current records', periodMode: 'snapshot' }};
   },
 
-  'alumni-contacts': (db, from, to) => {
-    const rows = db.prepare(`
+  'alumni-contacts': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT co.FirstName||' '||co.LastName AS "Name", c.CompanyName AS "Company",
              co.Major AS "Major", co.GraduationYear AS "Grad Year",
              co.EmailAddress AS "Email", co.JobTitle AS "Job Title"
       FROM Contact co JOIN Company c ON co.CompanyID=c.CompanyID
       WHERE co.CMUQGraduate=1 AND c.Blacklisted=0
-      ORDER BY co.GraduationYear DESC, co.LastName`).all();
+      ORDER BY co.GraduationYear DESC, co.LastName`).all());
     const agg = {};
     rows.forEach(r => { const k = r.Major || 'Not Set'; agg[k] = (agg[k] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -439,15 +439,15 @@ const QUICK_REPORTS = {
 
   // ── Company Reports ────────────────────────────────────────────────────────
 
-  'all-companies': (db, from, to) => {
+  'all-companies': async (db, from, to) => {
     const dc = dateClause('c.DateAdded', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
              date(c.DateAdded) AS "Date Added", c.Website,
              CASE WHEN c.SignedMoU=1 THEN 'Yes' ELSE 'No' END AS "Signed MoU",
              CASE WHEN c.FavoriteEmployer=1 THEN 'Yes' ELSE 'No' END AS "Favorite"
       FROM Company c WHERE c.Blacklisted=0${dc.sql}
-      ORDER BY c.CompanyName`).all(...dc.params);
+      ORDER BY c.CompanyName`).all(...dc.params));
     const agg = {};
     rows.forEach(r => { agg[r.Sector] = (agg[r.Sector] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -457,11 +457,11 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'blacklisted-companies': (db, from, to) => {
-    const rows = db.prepare(`
+  'blacklisted-companies': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT CompanyName AS "Name", Industry, Country, Comment
       FROM Company WHERE Blacklisted=1
-      ORDER BY CompanyName`).all();
+      ORDER BY CompanyName`).all());
     const agg = {};
     rows.forEach(r => { agg[r.Industry || 'Unknown'] = (agg[r.Industry || 'Unknown'] || 0) + 1; });
     const sorted = Object.entries(agg).sort((a,b) => b[1]-a[1]);
@@ -472,14 +472,14 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'companies-by-country': (db, from, to) => {
+  'companies-by-country': async (db, from, to) => {
     const dc = dateClause('c.DateAdded', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.Country, COUNT(DISTINCT c.CompanyID) AS "Company Count",
              COUNT(DISTINCT co.ContactID) AS "Contact Count"
       FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
       WHERE c.Blacklisted=0${dc.sql}
-      GROUP BY c.Country ORDER BY "Company Count" DESC`).all(...dc.params);
+      GROUP BY c.Country ORDER BY "Company Count" DESC`).all(...dc.params));
     return { rows, chartData: {
       type: 'bar', indexAxis: 'y', labels: rows.map(r=>r.Country),
       datasets: [{ label: 'Companies', data: rows.map(r=>r['Company Count']),
@@ -487,28 +487,28 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'companies-by-sector': (db, from, to) => {
+  'companies-by-sector': async (db, from, to) => {
     const dc = dateClause('c.DateAdded', from, to);
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM Company c WHERE c.Blacklisted=0${dc.sql}`).get(...dc.params).n;
-    const rows = db.prepare(`
+    const total = (await db.prepare(`SELECT COUNT(*) AS n FROM Company c WHERE c.Blacklisted=0${dc.sql}`).get(...dc.params)).n;
+    const rows = (await db.prepare(`
       SELECT c.Sector AS Sector, COUNT(*) AS "Company Count",
              ROUND(COUNT(*)*100.0/?, 1) AS "Percentage"
       FROM Company c WHERE c.Blacklisted=0${dc.sql}
-      GROUP BY c.Sector ORDER BY "Company Count" DESC`).all(total, ...dc.params);
+      GROUP BY c.Sector ORDER BY "Company Count" DESC`).all(total, ...dc.params));
     return { rows, chartData: {
       type: 'doughnut', labels: rows.map(r=>r.Sector),
       datasets: [{ data: rows.map(r=>r['Company Count']), backgroundColor: PALETTE }]
     }};
   },
 
-  'favorite-employers': (db, from, to) => {
+  'favorite-employers': async (db, from, to) => {
     const dc = dateClause('c.DateAdded', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
              COUNT(co.ContactID) AS "Contact Count"
       FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
       WHERE c.FavoriteEmployer=1${dc.sql}
-      GROUP BY c.CompanyID ORDER BY "Contact Count" DESC`).all(...dc.params);
+      GROUP BY c.CompanyID ORDER BY "Contact Count" DESC`).all(...dc.params));
     const bySector = {};
     rows.forEach(r => { bySector[r.Sector] = (bySector[r.Sector] || 0) + 1; });
     const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
@@ -519,12 +519,12 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'new-companies': (db, from, to) => {
+  'new-companies': async (db, from, to) => {
     const dc = dateClause('c.DateAdded', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country, date(c.DateAdded) AS "Date Added"
       FROM Company c WHERE 1=1${dc.sql}
-      ORDER BY c.DateAdded DESC`).all(...dc.params);
+      ORDER BY c.DateAdded DESC`).all(...dc.params));
     const agg = {};
     rows.forEach(r => {
       const m = (r['Date Added'] || '').slice(0, 7);
@@ -539,13 +539,13 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'mou-partners': (db, from, to) => {
-    const rows = db.prepare(`
+  'mou-partners': async (db, from, to) => {
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Name", c.Industry, c.Sector, c.Country,
              COUNT(co.ContactID) AS "Contact Count"
       FROM Company c LEFT JOIN Contact co ON c.CompanyID=co.CompanyID
       WHERE c.SignedMoU=1
-      GROUP BY c.CompanyID ORDER BY c.CompanyName`).all();
+      GROUP BY c.CompanyID ORDER BY c.CompanyName`).all());
     const bySector = {};
     rows.forEach(r => { bySector[r.Sector] = (bySector[r.Sector] || 0) + 1; });
     const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
@@ -557,10 +557,10 @@ const QUICK_REPORTS = {
 
   // ── Engagement & Activity ──────────────────────────────────────────────────
 
-  'followup-actions': (db, from, to) => {
+  'followup-actions': async (db, from, to) => {
     const today = new Date().toISOString().slice(0,10);
     const weekEnd = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
              o.InteractionType AS "Type", date(o.InteractionDate) AS "Interaction Date",
              date(o.FollowUpDate) AS "Follow-Up Date", o.DiscussionItems AS "Discussion Items",
@@ -575,7 +575,7 @@ const QUICK_REPORTS = {
       JOIN Company c  ON o.CompanyID=c.CompanyID
       JOIN Contact co ON o.ContactID=co.ContactID
       WHERE o.InteractionStatus='In-progress' AND o.FollowUpDate IS NOT NULL
-      ORDER BY o.FollowUpDate ASC`).all();
+      ORDER BY o.FollowUpDate ASC`).all());
     const counts = { overdue:0, 'this-week':0, upcoming:0 };
     rows.forEach(r => { counts[r._urgency] = (counts[r._urgency]||0)+1; });
     return { rows, chartData: {
@@ -585,7 +585,7 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'engagement-summary': (db, from, to) => {
+  'engagement-summary': async (db, from, to) => {
     const makeFilter = (col) => {
       const dc = dateClause(col, from, to);
       return { f: dc.sql, p: dc.params };
@@ -593,7 +593,7 @@ const QUICK_REPORTS = {
     const o = makeFilter('InteractionDate'), r2 = makeFilter('DatePosted'),
           ce = makeFilter('EventDate'),       ac = makeFilter('SessionDate'),
           se = makeFilter('ProposalDate'),    hf = makeFilter('DateReported');
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company",
         (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID=c.CompanyID${o.f}) AS "Outreach",
         (SELECT COUNT(*) FROM Recruitment WHERE CompanyID=c.CompanyID${r2.f}) AS "Recruitment",
@@ -603,7 +603,7 @@ const QUICK_REPORTS = {
         (SELECT COUNT(*) FROM HiringFeedback WHERE CompanyID=c.CompanyID${hf.f}) AS "Hiring Feedback"
       FROM Company c WHERE c.Blacklisted=0
       ORDER BY c.CompanyName`
-    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p).map(r => ({
+    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p)).map(r => ({
       ...r,
       "Total": r.Outreach+r.Recruitment+r['Career Events']+r.Academic+r['Student Events']+r['Hiring Feedback']
     })).sort((a,b)=>b.Total-a.Total);
@@ -615,7 +615,7 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'inactive-companies': (db, from, to) => {
+  'inactive-companies': async (db, from, to) => {
     const makeFilter = (col) => {
       const dc = dateClause(col, from, to);
       return { f: dc.sql, p: dc.params };
@@ -623,7 +623,7 @@ const QUICK_REPORTS = {
     const o = makeFilter('InteractionDate'), r2 = makeFilter('DatePosted'),
           ce = makeFilter('EventDate'),       ac = makeFilter('SessionDate'),
           se = makeFilter('ProposalDate'),    hf = makeFilter('DateReported');
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Name", c.Sector, c.Country,
              date(c.DateAdded) AS "Date Added",
              date((SELECT MAX(o.InteractionDate) FROM OutreachEngagement o WHERE o.CompanyID=c.CompanyID)) AS "Last Outreach"
@@ -635,7 +635,7 @@ const QUICK_REPORTS = {
         AND (SELECT COUNT(*) FROM StudentLedEvent WHERE CompanyID=c.CompanyID${se.f})=0
         AND (SELECT COUNT(*) FROM HiringFeedback WHERE CompanyID=c.CompanyID${hf.f})=0
       ORDER BY c.CompanyName`
-    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p);
+    ).all(...o.p,...r2.p,...ce.p,...ac.p,...se.p,...hf.p));
     const bySector = {};
     rows.forEach(r => { bySector[r.Sector||'Unknown']=(bySector[r.Sector||'Unknown']||0)+1; });
     const sorted = Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
@@ -645,7 +645,7 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'monthly-activity': (db, from, to) => {
+  'monthly-activity': async (db, from, to) => {
     const modules = [
       { name: 'Outreach', table: 'OutreachEngagement', dateCol: 'InteractionDate' },
       { name: 'Recruitment', table: 'Recruitment', dateCol: 'DatePosted' },
@@ -656,9 +656,9 @@ const QUICK_REPORTS = {
     const monthData = {};
     for (const mod of modules) {
       const dc = dateClause(mod.dateCol, from, to);
-      const agg = db.prepare(
+      const agg = (await db.prepare(
         `SELECT strftime('%Y-%m', ${mod.dateCol}) AS m, COUNT(*) AS n FROM ${mod.table} WHERE ${mod.dateCol} IS NOT NULL${dc.sql} GROUP BY m ORDER BY m`
-      ).all(...dc.params);
+      ).all(...dc.params));
       agg.forEach(r => {
         if (!monthData[r.m]) monthData[r.m] = {};
         monthData[r.m][mod.name] = r.n;
@@ -683,15 +683,15 @@ const QUICK_REPORTS = {
 
   // ── Recruitment & Hiring ───────────────────────────────────────────────────
 
-  'recruitment-postings': (db, from, to) => {
+  'recruitment-postings': async (db, from, to) => {
     const dc = dateClause('r.DatePosted', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", r.OpportunityTitle AS "Title",
              date(r.DatePosted) AS "Date", r.Mode, r.Status AS "Paid/Unpaid",
              r.TargetGroup AS "Target Group", r.HiredStudentAlumni AS "Hired",
              r.Country, r.Comment
       FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID
-      WHERE 1=1${dc.sql} ORDER BY r.DatePosted DESC`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY r.DatePosted DESC`).all(...dc.params));
     const byMode = {};
     rows.forEach(r => { byMode[r.Mode] = (byMode[r.Mode]||0)+1; });
     return { rows, chartData: {
@@ -701,16 +701,16 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'recruitment-by-major': (db, from, to) => {
+  'recruitment-by-major': async (db, from, to) => {
     const dc = dateClause('r.DatePosted', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT tm.Major,
              COUNT(*) AS "Posting Count",
              SUM(CASE WHEN r.Status='Paid' THEN 1 ELSE 0 END) AS "Paid Count",
              SUM(CASE WHEN r.Status='Unpaid' THEN 1 ELSE 0 END) AS "Unpaid Count"
       FROM Recruitment_TargetMajors tm JOIN Recruitment r ON tm.RecruitmentID=r.RecruitmentID
       WHERE 1=1${dc.sql}
-      GROUP BY tm.Major ORDER BY "Posting Count" DESC`).all(...dc.params);
+      GROUP BY tm.Major ORDER BY "Posting Count" DESC`).all(...dc.params));
     return { rows, chartData: {
       type: 'bar', labels: rows.map(r=>r.Major),
       datasets: [
@@ -720,15 +720,15 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'hiring-outcomes': (db, from, to) => {
+  'hiring-outcomes': async (db, from, to) => {
     const dc = dateClause('h.DateReported', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
              h.FeedbackProvider AS "Provider", h.HiredStudentAlumni AS "Hired?",
              h.HiredStudentName AS "Student Name", date(h.DateReported) AS "Date"
       FROM HiringFeedback h
       JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID
-      WHERE 1=1${dc.sql} ORDER BY h.DateReported DESC`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY h.DateReported DESC`).all(...dc.params));
     const yes = rows.filter(r=>r['Hired?']==='Yes').length;
     const no  = rows.length - yes;
     return { rows, chartData: {
@@ -737,16 +737,16 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'career-event-attendance': (db, from, to) => {
+  'career-event-attendance': async (db, from, to) => {
     const dc = dateClause('e.EventDate', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", co.FirstName||' '||co.LastName AS "Contact",
              e.EventName AS "Event", date(e.EventDate) AS "Date",
              e.RegisteredStatus AS "Status",
              CASE WHEN e.CMUQAlumniAtBooth=1 THEN 'Yes' ELSE 'No' END AS "Alumni at Booth"
       FROM CareerEvent e
       JOIN Company c ON e.CompanyID=c.CompanyID JOIN Contact co ON e.ContactID=co.ContactID
-      WHERE 1=1${dc.sql} ORDER BY e.EventDate DESC`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY e.EventDate DESC`).all(...dc.params));
     const byStatus = {};
     rows.forEach(r => { byStatus[r.Status] = (byStatus[r.Status]||0)+1; });
     const statuses = ['Attended','No-Show','Cancelled'];
@@ -757,15 +757,15 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'hiring-trends': (db, from, to) => {
+  'hiring-trends': async (db, from, to) => {
     const dc = dateClause('h.DateReported', from, to);
-    const agg = db.prepare(`
+    const agg = (await db.prepare(`
       SELECT strftime('%Y-%m', h.DateReported) AS m,
              COUNT(*) AS n,
              GROUP_CONCAT(DISTINCT c.CompanyName) AS Companies
       FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID
       WHERE h.HiredStudentAlumni='Yes'${dc.sql}
-      GROUP BY m ORDER BY m`).all(...dc.params);
+      GROUP BY m ORDER BY m`).all(...dc.params));
     const rows = agg.map(r => ({
       Month: monthLabel(r.m + '-01'), 'Hired Count': r.n, 'Companies': r.Companies
     }));
@@ -779,15 +779,15 @@ const QUICK_REPORTS = {
 
   // ── Academic & Student Events ──────────────────────────────────────────────
 
-  'academic-engagements': (db, from, to) => {
+  'academic-engagements': async (db, from, to) => {
     const dc = dateClause('a.SessionDate', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", a.EngagementType AS "Type",
              a.GuestSpeakerName AS "Guest Speaker", a.FacultyName AS "Faculty",
              a.CourseNumber||' – '||a.CourseTitle AS "Course", date(a.SessionDate) AS "Date"
       FROM AcademicClassroomEngagement a
       JOIN Company c ON a.CompanyID=c.CompanyID
-      WHERE 1=1${dc.sql} ORDER BY a.SessionDate DESC`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY a.SessionDate DESC`).all(...dc.params));
     const byType = {};
     rows.forEach(r => { byType[r.Type] = (byType[r.Type]||0)+1; });
     const sorted = Object.entries(byType).sort((a,b)=>b[1]-a[1]);
@@ -798,14 +798,14 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'student-led-events': (db, from, to) => {
+  'student-led-events': async (db, from, to) => {
     const dc = dateClause('s.ProposalDate', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT c.CompanyName AS "Company", s.OrganizationName AS "Organization",
              s.StudentName AS "Student Name", s.EventTitle AS "Event Title",
              date(s.EventDate) AS "Date", s.CollaborationOutcome AS "Outcome"
       FROM StudentLedEvent s JOIN Company c ON s.CompanyID=c.CompanyID
-      WHERE 1=1${dc.sql} ORDER BY s.ProposalDate DESC`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY s.ProposalDate DESC`).all(...dc.params));
     const comp = rows.filter(r=>r.Outcome==='Completed').length;
     const pend = rows.length - comp;
     return { rows, chartData: {
@@ -814,14 +814,14 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'guest-speakers': (db, from, to) => {
+  'guest-speakers': async (db, from, to) => {
     const dc = dateClause('a.SessionDate', from, to);
-    const rows = db.prepare(`
+    const rows = (await db.prepare(`
       SELECT a.GuestSpeakerName AS "Name", a.GuestTitle AS "Title",
              c.CompanyName AS "Company", a.CourseNumber||' – '||a.CourseTitle AS "Course",
              a.TopicTheme AS "Topic", date(a.SessionDate) AS "Date"
       FROM AcademicClassroomEngagement a JOIN Company c ON a.CompanyID=c.CompanyID
-      WHERE 1=1${dc.sql} ORDER BY a.GuestSpeakerName`).all(...dc.params);
+      WHERE 1=1${dc.sql} ORDER BY a.GuestSpeakerName`).all(...dc.params));
     const byCompany = {};
     rows.forEach(r => { byCompany[r.Company] = (byCompany[r.Company]||0)+1; });
     const sorted = Object.entries(byCompany).sort((a,b)=>b[1]-a[1]).slice(0,15);
@@ -834,9 +834,9 @@ const QUICK_REPORTS = {
 
   // ── Trends & Insights ─────────────────────────────────────────────────────
 
-  'industry-trends': (db, from, to) => {
+  'industry-trends': async (db, from, to) => {
     // Engagement counts per semester per industry, across three activity types
-    const collect = (sql, col, kind, params) => db.prepare(sql).all(...params)
+    const collect = async (sql, col, kind, params) => (await db.prepare(sql).all(...params))
       .map(r => ({ sem: semesterOf(r.d), industry: r.industry || 'Unknown', kind }))
       .filter(r => r.sem);
 
@@ -860,7 +860,7 @@ const QUICK_REPORTS = {
       ind[ev.kind]++;
     });
 
-    const semesterList = reportSemesterSeries(db, from, to);
+    const semesterList = await reportSemesterSeries(db, from, to);
     const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
     const rows = [];
     semesters.forEach(([sem, data]) => {
@@ -889,9 +889,9 @@ const QUICK_REPORTS = {
     return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
   },
 
-  'opportunities-per-semester': (db, from, to) => {
-    const events = collectOpportunityEvents(db, from, to);
-    const semesterList = reportSemesterSeries(db, from, to);
+  'opportunities-per-semester': async (db, from, to) => {
+    const events = await collectOpportunityEvents(db, from, to);
+    const semesterList = await reportSemesterSeries(db, from, to);
     const buckets = {};
 
     events.forEach(event => {
@@ -948,21 +948,21 @@ const QUICK_REPORTS = {
     return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
   },
 
-  'top-recruiters': (db, from, to, periodCtx) => {
+  'top-recruiters': async (db, from, to, periodCtx) => {
     const current = baseComparisonPeriod(periodCtx, from || todayIso());
     const previous = previousComparisonPeriod(current);
 
-    const countBy = (sql, range, params0 = []) => {
+    const countBy = async (sql, range, params0 = []) => {
       const out = {};
-      db.prepare(sql).all(...params0, range.from, range.to)
+      (await db.prepare(sql).all(...params0, range.from, range.to))
         .forEach(r => { out[r.company] = (out[r.company] || 0) + r.n; });
       return out;
     };
     const postSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID WHERE r.DatePosted>=? AND r.DatePosted<=? GROUP BY c.CompanyName`;
     const hireSql = `SELECT c.CompanyName AS company, COUNT(*) AS n FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID WHERE h.HiredStudentAlumni='Yes' AND h.DateReported>=? AND h.DateReported<=? GROUP BY c.CompanyName`;
 
-    const curPost = countBy(postSql, current),  curHire = countBy(hireSql, current);
-    const prePost = countBy(postSql, previous), preHire = countBy(hireSql, previous);
+    const curPost = await countBy(postSql, current),  curHire = await countBy(hireSql, current);
+    const prePost = await countBy(postSql, previous), preHire = await countBy(hireSql, previous);
 
     const companies = [...new Set([...Object.keys(curPost), ...Object.keys(curHire)])];
     const rows = companies.map(co => {
@@ -988,9 +988,9 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'top-roles-by-program': (db, from, to) => {
+  'top-roles-by-program': async (db, from, to) => {
     const dc = dateClause('r.DatePosted', from, to);
-    const raw = db.prepare(`
+    const raw = (await db.prepare(`
       SELECT DISTINCT r.RecruitmentID AS recruitmentId,
              COALESCE(NULLIF(TRIM(m.Major), ''), 'Unspecified') AS major,
              COALESCE(NULLIF(TRIM(t.Type), ''), 'Unspecified') AS roleType,
@@ -1000,7 +1000,7 @@ const QUICK_REPORTS = {
       FROM Recruitment r
       LEFT JOIN Recruitment_TargetMajors m ON m.RecruitmentID = r.RecruitmentID
       LEFT JOIN Recruitment_OpportunityType t ON t.RecruitmentID = r.RecruitmentID
-      WHERE 1=1${dc.sql}`).all(...dc.params);
+      WHERE 1=1${dc.sql}`).all(...dc.params));
 
     const byMajor = {};
     raw.forEach(r => {
@@ -1059,7 +1059,7 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'activity-mix': (db, from, to) => {
+  'activity-mix': async (db, from, to) => {
     const sources = [
       { label: 'Outreach', dateCol: 'o.InteractionDate', sql: 'SELECT o.InteractionDate AS d FROM OutreachEngagement o WHERE 1=1', color: '#4361ee' },
       { label: 'Recruitment', dateCol: 'r.DatePosted', sql: 'SELECT r.DatePosted AS d FROM Recruitment r WHERE 1=1', color: '#0dcaf0' },
@@ -1070,17 +1070,17 @@ const QUICK_REPORTS = {
     ];
 
     const buckets = {};
-    sources.forEach(source => {
+    for (const source of sources) {
       const dc = dateClause(source.dateCol, from, to);
-      db.prepare(`${source.sql}${dc.sql}`).all(...dc.params).forEach(row => {
+      (await db.prepare(`${source.sql}${dc.sql}`).all(...dc.params)).forEach(row => {
         const semester = semesterOf(row.d);
         if (!semester) return;
         const bucket = buckets[semester.label] = buckets[semester.label] || { order: semester.order, counts: {} };
         bucket.counts[source.label] = (bucket.counts[source.label] || 0) + 1;
       });
-    });
+    }
 
-    const semesterList = reportSemesterSeries(db, from, to);
+    const semesterList = await reportSemesterSeries(db, from, to);
     const rows = semesterList.map(semester => {
       const bucket = buckets[semester.label] || { counts: {} };
       const row = { 'Semester': semester.label };
@@ -1110,7 +1110,7 @@ const QUICK_REPORTS = {
     };
   },
 
-  'sector-engagement': (db, from, to) => {
+  'sector-engagement': async (db, from, to) => {
     // One engagement event per activity record, joined to company sector
     const sources = [
       ['OutreachEngagement o', 'o.InteractionDate', 'o.CompanyID'],
@@ -1121,19 +1121,19 @@ const QUICK_REPORTS = {
       ['HiringFeedback h',     'h.DateReported',    'h.CompanyID'],
     ];
     const events = [];
-    sources.forEach(([tbl, dateCol, idCol]) => {
+    for (const [tbl, dateCol, idCol] of sources) {
       const dc = dateClause(dateCol, from, to);
-      db.prepare(`SELECT ${dateCol} AS d, c.Sector AS sector FROM ${tbl} JOIN Company c ON ${idCol}=c.CompanyID WHERE 1=1${dc.sql}`)
-        .all(...dc.params)
+      (await db.prepare(`SELECT ${dateCol} AS d, c.Sector AS sector FROM ${tbl} JOIN Company c ON ${idCol}=c.CompanyID WHERE 1=1${dc.sql}`)
+        .all(...dc.params))
         .forEach(r => { const s = semesterOf(r.d); if (s) events.push({ sem: s, sector: r.sector || 'Unknown' }); });
-    });
+    }
 
     const buckets = {}; // semLabel → {order, sectors:{}}
     events.forEach(ev => {
       const b = buckets[ev.sem.label] = buckets[ev.sem.label] || { order: ev.sem.order, sectors: {} };
       b.sectors[ev.sector] = (b.sectors[ev.sector] || 0) + 1;
     });
-    const semesterList = reportSemesterSeries(db, from, to);
+    const semesterList = await reportSemesterSeries(db, from, to);
     const semesters = Object.entries(buckets).sort((a, b) => a[1].order - b[1].order);
     const labels    = semesterList.map(sem => sem.label);
     const SECTORS   = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
@@ -1152,11 +1152,11 @@ const QUICK_REPORTS = {
     return { rows, chartData: { type: 'line', labels, datasets } };
   },
 
-  'hiring-conversion': (db, from, to) => {
+  'hiring-conversion': async (db, from, to) => {
     const dcR = dateClause('DatePosted', from, to);
     const dcH = dateClause('DateReported', from, to);
-    const postings = db.prepare(`SELECT DatePosted AS d FROM Recruitment WHERE 1=1${dcR.sql}`).all(...dcR.params);
-    const hires    = db.prepare(`SELECT DateReported AS d FROM HiringFeedback WHERE HiredStudentAlumni='Yes'${dcH.sql}`).all(...dcH.params);
+    const postings = (await db.prepare(`SELECT DatePosted AS d FROM Recruitment WHERE 1=1${dcR.sql}`).all(...dcR.params));
+    const hires    = (await db.prepare(`SELECT DateReported AS d FROM HiringFeedback WHERE HiredStudentAlumni='Yes'${dcH.sql}`).all(...dcH.params));
 
     const buckets = {};
     const add = (list, key) => list.forEach(r => {
@@ -1166,7 +1166,7 @@ const QUICK_REPORTS = {
     });
     add(postings, 'posted'); add(hires, 'hired');
 
-    const semesterList = reportSemesterSeries(db, from, to);
+    const semesterList = await reportSemesterSeries(db, from, to);
     const rows = semesterList.map(semester => {
       const bucket = buckets[semester.label] || { posted: 0, hired: 0 };
       return {
@@ -1183,10 +1183,10 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'year-over-year-comparison': (db, from, to, periodCtx) => {
+  'year-over-year-comparison': async (db, from, to, periodCtx) => {
     const countsByYear = {};
-    const add = (range, key) => {
-      const rows = db.prepare(`
+    const add = async (range, key) => {
+      const rows = (await db.prepare(`
         SELECT d FROM (
           SELECT DatePosted AS d, 'recruitment' AS kind FROM Recruitment WHERE DatePosted >= ? AND DatePosted <= ?
           UNION ALL
@@ -1196,7 +1196,7 @@ const QUICK_REPORTS = {
           UNION ALL
           SELECT SessionDate AS d, 'engagement' AS kind FROM AcademicClassroomEngagement WHERE SessionDate >= ? AND SessionDate <= ?
         ) WHERE kind = ?
-      `).all(range.from, range.to, range.from, range.to, range.from, range.to, range.from, range.to, key);
+      `).all(range.from, range.to, range.from, range.to, range.from, range.to, range.from, range.to, key));
       rows.forEach(row => {
         const academicYear = academicYearOf(row.d);
         if (!academicYear) return;
@@ -1212,30 +1212,27 @@ const QUICK_REPORTS = {
     if (periodCtx?.mode === 'academic-year') {
       const current = academicYearFromKey(periodCtx.academicYear);
       const previous = previousComparisonPeriod(current);
-      add(previous, 'recruitment');
-      add(previous, 'engagement');
-      add(current, 'recruitment');
-      add(current, 'engagement');
+      await add(previous, 'recruitment');
+      await add(previous, 'engagement');
+      await add(current, 'recruitment');
+      await add(current, 'engagement');
     } else if (periodCtx?.mode === 'semester') {
       const current = academicYearForSemester(semesterFromKey(periodCtx.semester));
       const previous = previousComparisonPeriod(current);
-      add(previous, 'recruitment');
-      add(previous, 'engagement');
-      add(current, 'recruitment');
-      add(current, 'engagement');
+      await add(previous, 'recruitment');
+      await add(previous, 'engagement');
+      await add(current, 'recruitment');
+      await add(current, 'engagement');
     } else {
-      add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'recruitment');
-      add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'engagement');
+      await add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'recruitment');
+      await add({ from: from || '0000-01-01', to: to || '9999-12-31' }, 'engagement');
     }
 
     const yearSeries = periodCtx?.mode === 'all'
-      ? reportAcademicYearSeries(db, from, to)
+      ? await reportAcademicYearSeries(db, from, to)
       : Object.entries(countsByYear)
           .sort((a, b) => a[1].order - b[1].order)
-          .map(([label]) => {
-            const match = reportAcademicYearSeries(db, from, to).find(year => year.label === label);
-            return match || null;
-          })
+          .map(([label]) => academicYearRange(Number(label.slice(2, 6))))
           .filter(Boolean);
 
     const rows = yearSeries.map((year, index) => {
@@ -1265,34 +1262,36 @@ const QUICK_REPORTS = {
     }};
   },
 
-  'semester-comparison': (db, from, to, periodCtx) => {
-    const metrics = (r) => ({
-      'Companies Engaged': db.prepare(`
+  'semester-comparison': async (db, from, to, periodCtx) => {
+    const metrics = async (r) => ({
+      'Companies Engaged': (await db.prepare(`
         SELECT COUNT(DISTINCT CompanyID) AS n FROM (
           SELECT CompanyID, InteractionDate AS d FROM OutreachEngagement
           UNION ALL SELECT CompanyID, DatePosted FROM Recruitment
           UNION ALL SELECT CompanyID, EventDate FROM CareerEvent
           UNION ALL SELECT CompanyID, SessionDate FROM AcademicClassroomEngagement
-        ) WHERE d >= ? AND d <= ?`).get(r.from, r.to).n,
-      'New Companies Added':    db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE DateAdded>=? AND DateAdded<=?`).get(r.from, r.to).n,
-      'Recruitment Postings':   db.prepare(`SELECT COUNT(*) AS n FROM Recruitment WHERE DatePosted>=? AND DatePosted<=?`).get(r.from, r.to).n,
-      'Career Events Attended': db.prepare(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate>=? AND EventDate<=?`).get(r.from, r.to).n,
-      'Students Hired':         db.prepare(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes' AND DateReported>=? AND DateReported<=?`).get(r.from, r.to).n,
-      'Academic Engagements':   db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to).n,
-      'Outreach Interactions':  db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to).n,
+        ) WHERE d >= ? AND d <= ?`).get(r.from, r.to)).n,
+      'New Companies Added':    (await db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE DateAdded>=? AND DateAdded<=?`).get(r.from, r.to)).n,
+      'Recruitment Postings':   (await db.prepare(`SELECT COUNT(*) AS n FROM Recruitment WHERE DatePosted>=? AND DatePosted<=?`).get(r.from, r.to)).n,
+      'Career Events Attended': (await db.prepare(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate>=? AND EventDate<=?`).get(r.from, r.to)).n,
+      'Students Hired':         (await db.prepare(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes' AND DateReported>=? AND DateReported<=?`).get(r.from, r.to)).n,
+      'Academic Engagements':   (await db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to)).n,
+      'Outreach Interactions':  (await db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to)).n,
     });
 
     if (periodCtx?.mode === 'all') {
       const series = periodCtx.viewMode === 'academic-year'
-        ? reportAcademicYearSeries(db, from, to)
-        : reportSemesterSeries(db, from, to);
-      const rows = series.map((period, index) => {
-        const currentMetrics = metrics(period);
-        const previousMetrics = index > 0 ? metrics(series[index - 1]) : null;
+        ? await reportAcademicYearSeries(db, from, to)
+        : await reportSemesterSeries(db, from, to);
+      const rows = [];
+      for (let index = 0; index < series.length; index += 1) {
+        const period = series[index];
+        const currentMetrics = await metrics(period);
+        const previousMetrics = index > 0 ? await metrics(series[index - 1]) : null;
         const currentTotal = Object.values(currentMetrics).reduce((sum, value) => sum + value, 0);
         const previousTotal = previousMetrics ? Object.values(previousMetrics).reduce((sum, value) => sum + value, 0) : 0;
         const diff = currentTotal - previousTotal;
-        return {
+        rows.push({
           'Period': period.label,
           'Companies Engaged': currentMetrics['Companies Engaged'],
           'New Companies Added': currentMetrics['New Companies Added'],
@@ -1303,8 +1302,8 @@ const QUICK_REPORTS = {
           'Outreach Interactions': currentMetrics['Outreach Interactions'],
           'Total Activity': currentTotal,
           'Change vs Previous': previousMetrics ? (diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—') : '—',
-        };
-      });
+        });
+      }
       return { rows, chartData: {
         type: 'bar',
         labels: rows.map(row => row.Period),
@@ -1318,7 +1317,7 @@ const QUICK_REPORTS = {
     const A = baseComparisonPeriod(periodCtx, from || todayIso());
     const B = previousComparisonPeriod(A);
 
-    const a = metrics(A), b = metrics(B);
+    const a = await metrics(A), b = await metrics(B);
     const rows = Object.keys(a).map(k => {
       const diff = a[k] - b[k];
       return {
@@ -1572,7 +1571,7 @@ function buildChartData(rows, groupByExpr, chartType) {
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
 // GET /api/reports/schema — entity schema for builder
-router.get('/schema', (req, res) => {
+router.get('/schema', async (req, res) => {
   const schema = {};
   for (const [entity, def] of Object.entries(BUILDER_SCHEMA)) {
     schema[entity] = Object.entries(def.columns).map(([key, col]) => ({
@@ -1583,9 +1582,9 @@ router.get('/schema', (req, res) => {
 });
 
 // GET /api/reports/periods
-router.get('/periods', (req, res) => {
+router.get('/periods', async (req, res) => {
   try {
-    res.json(buildReportPeriods(req.app.locals.db));
+    res.json(await buildReportPeriods(req.app.locals.db));
   } catch (err) {
     req.app.locals.respondServerError(req, res, err);
   }
@@ -1600,7 +1599,7 @@ router.get('/quick/:type', async (req, res) => {
   try {
     const period = resolveQuickReportPeriod(req.query);
     const doExport = req.query.export === '1' ? '1' : null;
-    const result = fn(db, period.from, period.to, period);
+    const result = await fn(db, period.from, period.to, period);
     const rows = formatRowsForOutput(result.rows);
     const meta = {
       periodMode: period.mode,
@@ -1668,7 +1667,7 @@ router.post('/builder', async (req, res) => {
       LIMIT 5000
     `;
 
-    const rows = db.prepare(sql).all(...filterClause.params, ...dateParams);
+    const rows = (await db.prepare(sql).all(...filterClause.params, ...dateParams));
 
     // Build chart data
     let chartData = null;
@@ -1692,15 +1691,15 @@ router.post('/builder', async (req, res) => {
 });
 
 // GET /api/reports/saved
-router.get('/saved', (req, res) => {
+router.get('/saved', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    res.json(db.prepare('SELECT * FROM SavedReports ORDER BY CreatedAt DESC').all());
+    res.json((await db.prepare('SELECT * FROM SavedReports ORDER BY CreatedAt DESC').all()));
   } catch (err) { req.app.locals.respondServerError(req, res, err); }
 });
 
 // POST /api/reports/saved
-router.post('/saved', requireAdminSession, (req, res) => {
+router.post('/saved', requireAdminSession, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const ReportName = requireTrimmedString(req.body.ReportName, 'ReportName', 120);
@@ -1711,12 +1710,12 @@ router.post('/saved', requireAdminSession, (req, res) => {
     const SortOrder = optionalTrimmedString(req.body.SortOrder, 'SortOrder', 4) || 'ASC';
     const ChartType = optionalTrimmedString(req.body.ChartType, 'ChartType', 50);
     const ChartGroupBy = optionalTrimmedString(req.body.ChartGroupBy, 'ChartGroupBy', 100);
-    const info = db.prepare(
+    const info = (await db.prepare(
       'INSERT INTO SavedReports (ReportName,Entity,Columns,Filters,SortBy,SortOrder,ChartType,ChartGroupBy) VALUES (?,?,?,?,?,?,?,?)'
     ).run(ReportName, Entity,
           JSON.stringify(Columns||[]), JSON.stringify(Filters||[]),
-          SortBy||null, SortOrder||'ASC', ChartType||null, ChartGroupBy||null);
-    res.status(201).json(db.prepare('SELECT * FROM SavedReports WHERE ReportID=?').get(info.lastInsertRowid));
+          SortBy||null, SortOrder||'ASC', ChartType||null, ChartGroupBy||null));
+    res.status(201).json((await db.prepare('SELECT * FROM SavedReports WHERE ReportID=?').get(info.lastInsertRowid)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
@@ -1724,10 +1723,10 @@ router.post('/saved', requireAdminSession, (req, res) => {
 });
 
 // DELETE /api/reports/saved/:id
-router.delete('/saved/:id', requireAdminSession, (req, res) => {
+router.delete('/saved/:id', requireAdminSession, async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(requirePositiveInt(req.params.id, 'Report ID'));
+    const info = (await db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(requirePositiveInt(req.params.id, 'Report ID')));
     if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
   } catch (err) {

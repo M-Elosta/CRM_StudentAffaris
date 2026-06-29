@@ -1,14 +1,16 @@
 const crypto   = require('crypto');
 const express  = require('express');
 const path     = require('path');
-const fs       = require('fs');
-const Database = require('better-sqlite3');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const session  = require('express-session');
 const rateLimit = require('express-rate-limit');
 const bcrypt   = require('bcrypt');
+const { createDatabase, loadSchema } = require('./lib/db');
+const { patchExpressAsync } = require('./lib/patch-express-async');
 const { isInsecurePassword } = require('./lib/password-policy');
+
+patchExpressAsync(express);
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -94,115 +96,11 @@ if (!process.env.SESSION_SECRET && !IS_PRODUCTION) {
 }
 
 // ── Database init ──────────────────────────────────────────────────────────────
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH  = path.join(DATA_DIR, 'employer.db');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const db = new Database(DB_PATH);
-const schema = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
-db.exec(schema);
-app.locals.db = db;
-
-// ── Schema migrations for existing databases ───────────────────────────────────
-try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
-try { db.exec("ALTER TABLE Users ADD COLUMN MustChangePassword INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
-try { db.exec("ALTER TABLE PotentialCollaboration ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
-try { db.exec("ALTER TABLE HiringFeedback ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
-try { db.exec("ALTER TABLE CareerEvent ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
-try { db.exec("ALTER TABLE StudentLedEvent ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
-try { db.exec("ALTER TABLE AcademicClassroomEngagement ADD COLUMN UpdatedAt DATETIME"); } catch (_) {}
-
-db.exec(`
-  UPDATE PotentialCollaboration SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
-  UPDATE HiringFeedback SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
-  UPDATE CareerEvent SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
-  UPDATE StudentLedEvent SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
-  UPDATE AcademicClassroomEngagement SET UpdatedAt = COALESCE(UpdatedAt, CreatedAt, datetime('now'));
-
-  CREATE TRIGGER IF NOT EXISTS collaboration_inserted
-  AFTER INSERT ON PotentialCollaboration
-  BEGIN
-      UPDATE PotentialCollaboration
-      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
-      WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS collaboration_updated
-  AFTER UPDATE ON PotentialCollaboration
-  BEGIN
-      UPDATE PotentialCollaboration
-      SET UpdatedAt = datetime('now')
-      WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS hiring_feedback_inserted
-  AFTER INSERT ON HiringFeedback
-  BEGIN
-      UPDATE HiringFeedback
-      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
-      WHERE HiringFeedbackID = NEW.HiringFeedbackID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS hiring_feedback_updated
-  AFTER UPDATE ON HiringFeedback
-  BEGIN
-      UPDATE HiringFeedback
-      SET UpdatedAt = datetime('now')
-      WHERE HiringFeedbackID = NEW.HiringFeedbackID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS career_event_inserted
-  AFTER INSERT ON CareerEvent
-  BEGIN
-      UPDATE CareerEvent
-      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
-      WHERE CareerEventID = NEW.CareerEventID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS career_event_updated
-  AFTER UPDATE ON CareerEvent
-  BEGIN
-      UPDATE CareerEvent
-      SET UpdatedAt = datetime('now')
-      WHERE CareerEventID = NEW.CareerEventID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS student_event_inserted
-  AFTER INSERT ON StudentLedEvent
-  BEGIN
-      UPDATE StudentLedEvent
-      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
-      WHERE StudentLedEventID = NEW.StudentLedEventID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS student_event_updated
-  AFTER UPDATE ON StudentLedEvent
-  BEGIN
-      UPDATE StudentLedEvent
-      SET UpdatedAt = datetime('now')
-      WHERE StudentLedEventID = NEW.StudentLedEventID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS academic_engagement_inserted
-  AFTER INSERT ON AcademicClassroomEngagement
-  BEGIN
-      UPDATE AcademicClassroomEngagement
-      SET UpdatedAt = COALESCE(NEW.UpdatedAt, datetime('now'))
-      WHERE EngagementID = NEW.EngagementID;
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS academic_engagement_updated
-  AFTER UPDATE ON AcademicClassroomEngagement
-  BEGIN
-      UPDATE AcademicClassroomEngagement
-      SET UpdatedAt = datetime('now')
-      WHERE EngagementID = NEW.EngagementID;
-  END;
-`);
+let db;
 
 // ── Seed default admin user on first run ───────────────────────────────────────
 async function bootstrapDefaultAdmin() {
-  const count = db.prepare('SELECT COUNT(*) AS n FROM Users').get().n;
+  const count = (await db.prepare('SELECT COUNT(*) AS n FROM Users').get()).n;
   if (count === 0) {
     if (IS_PRODUCTION && !DEFAULT_ADMIN_PASSWORD) {
       throw new Error('DEFAULT_ADMIN_PASSWORD must be set before first production start');
@@ -210,7 +108,7 @@ async function bootstrapDefaultAdmin() {
 
     const bootstrapPassword = DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
     const hash = await bcrypt.hash(bootstrapPassword, 12);
-    db.prepare('INSERT INTO Users (Username, PasswordHash, Role, MustChangePassword) VALUES (?, ?, ?, ?)')
+    await db.prepare('INSERT INTO Users (Username, PasswordHash, Role, MustChangePassword) VALUES (?, ?, ?, ?)')
       .run(DEFAULT_ADMIN_USERNAME, hash, 'admin', isInsecurePassword(bootstrapPassword) ? 1 : 0);
     if (IS_PRODUCTION) {
       console.log(`Bootstrap admin created for username: ${DEFAULT_ADMIN_USERNAME}. Rotate the bootstrap password after first login.`);
@@ -401,13 +299,14 @@ app.use((err, req, res, next) => {
 });
 
 async function startServer() {
+  db = createDatabase();
+  await loadSchema(db);
+  app.locals.db = db;
   await bootstrapDefaultAdmin();
 
   app.listen(PORT, () => {
     console.log(`Employer Relations System running at http://localhost:${PORT}`);
-    if (!IS_PRODUCTION) {
-      console.log(`Database: ${DB_PATH}`);
-    }
+    console.log(`Database: postgres://${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`);
   });
 }
 

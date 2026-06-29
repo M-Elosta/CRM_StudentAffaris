@@ -19,7 +19,7 @@ router.param('id', (req, res, next, id) => {
   }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const feedbackProvider = optionalTrimmedString(req.query.feedbackProvider, 'feedbackProvider', 100);
@@ -36,24 +36,23 @@ router.get('/', (req, res) => {
     if (from)                { sql += ' AND h.DateReported>=?';      p.push(from); }
     if (to)                  { sql += ' AND h.DateReported<=?';      p.push(to); }
     sql += ' ORDER BY h.DateReported DESC';
-    res.json(db.prepare(sql).all(...p));
+    res.json((await db.prepare(sql).all(...p)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare(`SELECT h.*, c.CompanyName, co.FirstName||' '||co.LastName AS ContactName FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID WHERE h.HiringFeedbackID=?`).get(req.recordId);
+  const row = (await db.prepare(`SELECT h.*, c.CompanyName, co.FirstName||' '||co.LastName AS ContactName FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID JOIN Contact co ON h.ContactID=co.ContactID WHERE h.HiringFeedbackID=?`).get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'HiringFeedback', 'HiringFeedbackID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const FeedbackProvider = requireTrimmedString(req.body.FeedbackProvider, 'FeedbackProvider', 100);
@@ -61,18 +60,19 @@ router.post('/', (req, res) => {
     const DateReported = requireIsoDate(req.body.DateReported, 'DateReported');
     const HiredStudentName = optionalTrimmedString(req.body.HiredStudentName, 'HiredStudentName', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`INSERT INTO HiringFeedback (CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName,Comment) VALUES (?,?,?,?,?,?,?)`
+    const info = await db.prepare(`INSERT INTO HiringFeedback (CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName,Comment) VALUES (?,?,?,?,?,?,?)`
     ).run(CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName||null,Comment||null);
-    res.status(201).json(db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(info.lastInsertRowid));
+    res.status(201).json((await db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(info.lastInsertRowid)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'HiringFeedback', 'HiringFeedbackID', req.recordId, req.body.UpdatedAt, 'Not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const ContactID = requirePositiveInt(req.body.ContactID, 'ContactID');
     const FeedbackProvider = requireTrimmedString(req.body.FeedbackProvider, 'FeedbackProvider', 100);
@@ -80,20 +80,20 @@ router.put('/:id', (req, res) => {
     const DateReported = requireIsoDate(req.body.DateReported, 'DateReported');
     const HiredStudentName = optionalTrimmedString(req.body.HiredStudentName, 'HiredStudentName', 255);
     const Comment = optionalTrimmedString(req.body.Comment, 'Comment', 2000);
-    const info = db.prepare(`UPDATE HiringFeedback SET CompanyID=?,ContactID=?,FeedbackProvider=?,HiredStudentAlumni=?,DateReported=?,HiredStudentName=?,Comment=? WHERE HiringFeedbackID=?`
+    const info = await db.prepare(`UPDATE HiringFeedback SET CompanyID=?,ContactID=?,FeedbackProvider=?,HiredStudentAlumni=?,DateReported=?,HiredStudentName=?,Comment=? WHERE HiringFeedbackID=?`
     ).run(CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName||null,Comment||null,req.recordId);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
-    res.json(db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(req.recordId));
+    res.json((await db.prepare('SELECT * FROM HiringFeedback WHERE HiringFeedbackID=?').get(req.recordId)));
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
     req.app.locals.respondServerError(req, res, err);
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const info = db.prepare('DELETE FROM HiringFeedback WHERE HiringFeedbackID=?').run(req.recordId);
+    const info = (await db.prepare('DELETE FROM HiringFeedback WHERE HiringFeedbackID=?').run(req.recordId));
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json({ message: 'Deleted' });
   } catch (err) { req.app.locals.respondServerError(req, res, err); }

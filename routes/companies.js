@@ -24,7 +24,7 @@ router.param('id', (req, res, next, id) => {
 });
 
 // GET /api/companies  — list all, optional ?search=
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
     const search = optionalTrimmedString(req.query.search, 'search', 100);
@@ -37,7 +37,7 @@ router.get('/', (req, res) => {
     }
 
     sql += ' ORDER BY CompanyName ASC';
-    const rows = db.prepare(sql).all(...params);
+    const rows = (await db.prepare(sql).all(...params));
     res.json(rows);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -46,18 +46,17 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/companies/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const db = req.app.locals.db;
-  const row = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.recordId);
+  const row = (await db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.recordId));
   if (!row) return res.status(404).json({ error: 'Company not found' });
   res.json(row);
 });
 
 // POST /api/companies
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'Company', 'CompanyID', req.recordId, req.body.UpdatedAt, 'Company not found');
     const CompanyName = requireTrimmedString(req.body.CompanyName, 'CompanyName');
     const DateAdded = optionalIsoDate(req.body.DateAdded, 'DateAdded');
     const Industry = requireTrimmedString(req.body.Industry, 'Industry');
@@ -78,7 +77,7 @@ router.post('/', (req, res) => {
          LinkedInURL, HandshakeURL, SignedMoU, FavoriteEmployer, Blacklisted, Comment)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(
+    const info = await stmt.run(
       CompanyName,
       DateAdded || new Date().toISOString().slice(0, 10),
       Industry, Sector, Country,
@@ -86,7 +85,7 @@ router.post('/', (req, res) => {
       SignedMoU ? 1 : 0, FavoriteEmployer ? 1 : 0, Blacklisted ? 1 : 0,
       Comment || null
     );
-    const created = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(info.lastInsertRowid);
+    const created = (await db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(info.lastInsertRowid));
     res.status(201).json(created);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -95,9 +94,10 @@ router.post('/', (req, res) => {
 });
 
 // PUT /api/companies/:id
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const db = req.app.locals.db;
   try {
+    await ensureRecordNotStale(db, 'Company', 'CompanyID', req.recordId, req.body.UpdatedAt, 'Company not found');
     const CompanyName = requireTrimmedString(req.body.CompanyName, 'CompanyName');
     const DateAdded = optionalIsoDate(req.body.DateAdded, 'DateAdded');
     const Industry = requireTrimmedString(req.body.Industry, 'Industry');
@@ -119,7 +119,7 @@ router.put('/:id', (req, res) => {
         SignedMoU = ?, FavoriteEmployer = ?, Blacklisted = ?, Comment = ?
       WHERE CompanyID = ?
     `);
-    const info = stmt.run(
+    const info = await stmt.run(
       CompanyName,
       DateAdded || new Date().toISOString().slice(0, 10),
       Industry, Sector, Country,
@@ -130,9 +130,9 @@ router.put('/:id', (req, res) => {
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Company not found' });
     if (Blacklisted) {
-      db.prepare("UPDATE Contact SET Status='Non-mailable' WHERE CompanyID=?").run(req.recordId);
+      await db.prepare("UPDATE Contact SET Status='Non-mailable' WHERE CompanyID=?").run(req.recordId);
     }
-    const updated = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.recordId);
+    const updated = (await db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.recordId));
     res.json(updated);
   } catch (err) {
     if (err.statusCode) return sendValidationError(res, err);
@@ -141,17 +141,17 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /api/companies/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const db = req.app.locals.db;
   const id = req.recordId;
 
-  const contactCount  = db.prepare('SELECT COUNT(*) AS n FROM Contact WHERE CompanyID = ?').get(id).n;
-  const outreachCount = db.prepare('SELECT COUNT(*) AS n FROM OutreachEngagement WHERE CompanyID = ?').get(id).n;
-  const recruitCount  = db.prepare('SELECT COUNT(*) AS n FROM Recruitment WHERE CompanyID = ?').get(id).n;
-  const eventCount    = db.prepare('SELECT COUNT(*) AS n FROM CareerEvent WHERE CompanyID = ?').get(id).n;
+  const contactCount  = (await db.prepare('SELECT COUNT(*) AS n FROM Contact WHERE CompanyID = ?').get(id)).n;
+  const outreachCount = (await db.prepare('SELECT COUNT(*) AS n FROM OutreachEngagement WHERE CompanyID = ?').get(id)).n;
+  const recruitCount  = (await db.prepare('SELECT COUNT(*) AS n FROM Recruitment WHERE CompanyID = ?').get(id)).n;
+  const eventCount    = (await db.prepare('SELECT COUNT(*) AS n FROM CareerEvent WHERE CompanyID = ?').get(id)).n;
 
   try {
-    const info = db.prepare('DELETE FROM Company WHERE CompanyID = ?').run(id);
+    const info = (await db.prepare('DELETE FROM Company WHERE CompanyID = ?').run(id));
     if (info.changes === 0) return res.status(404).json({ error: 'Company not found' });
     res.json({
       message: 'Company deleted',
@@ -163,20 +163,20 @@ router.delete('/:id', (req, res) => {
 });
 
 // GET /api/companies/:id/related-counts  — pre-delete warning counts
-router.get('/:id/related-counts', (req, res) => {
+router.get('/:id/related-counts', async (req, res) => {
   const db = req.app.locals.db;
   const id = req.recordId;
-  const company = db.prepare('SELECT CompanyName FROM Company WHERE CompanyID = ?').get(id);
+  const company = (await db.prepare('SELECT CompanyName FROM Company WHERE CompanyID = ?').get(id));
   if (!company) return res.status(404).json({ error: 'Company not found' });
 
   res.json({
     companyName: company.CompanyName,
-    contacts:    db.prepare('SELECT COUNT(*) AS n FROM Contact WHERE CompanyID = ?').get(id).n,
-    outreach:    db.prepare('SELECT COUNT(*) AS n FROM OutreachEngagement WHERE CompanyID = ?').get(id).n,
-    recruitment: db.prepare('SELECT COUNT(*) AS n FROM Recruitment WHERE CompanyID = ?').get(id).n,
-    events:      db.prepare('SELECT COUNT(*) AS n FROM CareerEvent WHERE CompanyID = ?').get(id).n,
-    academic:    db.prepare('SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE CompanyID = ?').get(id).n,
-    studentEvents: db.prepare('SELECT COUNT(*) AS n FROM StudentLedEvent WHERE CompanyID = ?').get(id).n,
+    contacts:    (await db.prepare('SELECT COUNT(*) AS n FROM Contact WHERE CompanyID = ?').get(id)).n,
+    outreach:    (await db.prepare('SELECT COUNT(*) AS n FROM OutreachEngagement WHERE CompanyID = ?').get(id)).n,
+    recruitment: (await db.prepare('SELECT COUNT(*) AS n FROM Recruitment WHERE CompanyID = ?').get(id)).n,
+    events:      (await db.prepare('SELECT COUNT(*) AS n FROM CareerEvent WHERE CompanyID = ?').get(id)).n,
+    academic:    (await db.prepare('SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE CompanyID = ?').get(id)).n,
+    studentEvents: (await db.prepare('SELECT COUNT(*) AS n FROM StudentLedEvent WHERE CompanyID = ?').get(id)).n,
   });
 });
 

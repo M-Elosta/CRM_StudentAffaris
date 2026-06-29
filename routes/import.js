@@ -109,8 +109,26 @@ function parseDate(val) {
   }
   const s = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(s)) {
+    const [year, month, day] = s.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
   const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (slash) return `${slash[3]}-${slash[1].padStart(2,'0')}-${slash[2].padStart(2,'0')}`;
+  if (slash) {
+    const first = Number(slash[1]);
+    const second = Number(slash[2]);
+    const month = first > 12 && second <= 12 ? second : first;
+    const day = first > 12 && second <= 12 ? first : second;
+    return `${slash[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  const dash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (dash) {
+    const first = Number(dash[1]);
+    const second = Number(dash[2]);
+    const month = first > 12 && second <= 12 ? second : first;
+    const day = first > 12 && second <= 12 ? first : second;
+    return `${dash[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
   const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
   const mon = s.match(/^(\d{1,2})-([a-zA-Z]{3})-(\d{4})$/);
   if (mon) return `${mon[3]}-${months[mon[2].toLowerCase()]||'01'}-${mon[1].padStart(2,'0')}`;
@@ -158,56 +176,56 @@ function findCanonical(value, allowed) {
 
 // ── Duplicate detection ─────────────────────────────────────────────────────────
 // Returns { id, reason } when a matching record already exists in the database.
-function findExistingDuplicate(db, entity, row) {
+async function findExistingDuplicate(db, entity, row) {
   const lc = v => String(v ?? '').trim().toLowerCase();
   try {
     switch (entity) {
       case 'Company':
         if (!row.CompanyName) return null;
-        { const r = db.prepare('SELECT CompanyID AS id FROM Company WHERE LOWER(TRIM(CompanyName))=?').get(lc(row.CompanyName));
+        { const r = (await db.prepare('SELECT CompanyID AS id FROM Company WHERE LOWER(TRIM(CompanyName))=?').get(lc(row.CompanyName)));
           if (r) return { id: r.id, reason: `Company "${row.CompanyName}" already exists` }; }
         return null;
       case 'Contact':
         if (!row.EmailAddress || !row.CompanyID) return null;
-        { const r = db.prepare('SELECT ContactID AS id FROM Contact WHERE LOWER(TRIM(EmailAddress))=? AND CompanyID=?').get(lc(row.EmailAddress), row.CompanyID);
+        { const r = (await db.prepare('SELECT ContactID AS id FROM Contact WHERE LOWER(TRIM(EmailAddress))=? AND CompanyID=?').get(lc(row.EmailAddress), row.CompanyID));
           if (r) return { id: r.id, reason: `Contact with email "${row.EmailAddress}" already exists at this company` }; }
         return null;
       case 'Outreach':
         if (!row.CompanyID || !row.ContactID || !row.InteractionDate) return null;
-        { const r = db.prepare('SELECT OutreachEngagementID AS id FROM OutreachEngagement WHERE CompanyID=? AND ContactID=? AND InteractionDate=? AND InteractionType=?')
+        { const r = await db.prepare('SELECT OutreachEngagementID AS id FROM OutreachEngagement WHERE CompanyID=? AND ContactID=? AND InteractionDate=? AND InteractionType=?')
             .get(row.CompanyID, row.ContactID, row.InteractionDate, row.InteractionType || '');
           if (r) return { id: r.id, reason: `Same contact, date and interaction type already recorded` }; }
         return null;
       case 'Recruitment':
         if (!row.CompanyID || !row.OpportunityTitle) return null;
         { const r = row.DatePosted
-            ? db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=? AND DatePosted=?').get(row.CompanyID, lc(row.OpportunityTitle), row.DatePosted)
-            : db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=?').get(row.CompanyID, lc(row.OpportunityTitle));
+            ? (await db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=? AND DatePosted=?').get(row.CompanyID, lc(row.OpportunityTitle), row.DatePosted))
+            : (await db.prepare('SELECT RecruitmentID AS id FROM Recruitment WHERE CompanyID=? AND LOWER(TRIM(OpportunityTitle))=?').get(row.CompanyID, lc(row.OpportunityTitle)));
           if (r) return { id: r.id, reason: `Posting "${row.OpportunityTitle}" already exists for this company` }; }
         return null;
       case 'Career Event':
         if (!row.CompanyID || !row.EventName || !row.EventDate) return null;
-        { const r = db.prepare('SELECT CareerEventID AS id FROM CareerEvent WHERE CompanyID=? AND LOWER(TRIM(EventName))=? AND EventDate=?').get(row.CompanyID, lc(row.EventName), row.EventDate);
+        { const r = (await db.prepare('SELECT CareerEventID AS id FROM CareerEvent WHERE CompanyID=? AND LOWER(TRIM(EventName))=? AND EventDate=?').get(row.CompanyID, lc(row.EventName), row.EventDate));
           if (r) return { id: r.id, reason: `This company is already registered for "${row.EventName}" on ${row.EventDate}` }; }
         return null;
       case 'Student-Led Event':
         if (!row.CompanyID || !row.ProposalDate || !row.StudentEmail) return null;
-        { const r = db.prepare('SELECT StudentLedEventID AS id FROM StudentLedEvent WHERE CompanyID=? AND ProposalDate=? AND LOWER(TRIM(StudentEmail))=?').get(row.CompanyID, row.ProposalDate, lc(row.StudentEmail));
+        { const r = (await db.prepare('SELECT StudentLedEventID AS id FROM StudentLedEvent WHERE CompanyID=? AND ProposalDate=? AND LOWER(TRIM(StudentEmail))=?').get(row.CompanyID, row.ProposalDate, lc(row.StudentEmail)));
           if (r) return { id: r.id, reason: `Same student proposal for this company on ${row.ProposalDate} already exists` }; }
         return null;
       case 'Academic Engagement':
         if (!row.CompanyID || !row.SessionDate || !row.GuestSpeakerName) return null;
-        { const r = db.prepare('SELECT EngagementID AS id FROM AcademicClassroomEngagement WHERE CompanyID=? AND SessionDate=? AND LOWER(TRIM(GuestSpeakerName))=?').get(row.CompanyID, row.SessionDate, lc(row.GuestSpeakerName));
+        { const r = (await db.prepare('SELECT EngagementID AS id FROM AcademicClassroomEngagement WHERE CompanyID=? AND SessionDate=? AND LOWER(TRIM(GuestSpeakerName))=?').get(row.CompanyID, row.SessionDate, lc(row.GuestSpeakerName)));
           if (r) return { id: r.id, reason: `${row.GuestSpeakerName} already has a session on ${row.SessionDate}` }; }
         return null;
       case 'Hiring Feedback':
         if (!row.CompanyID || !row.ContactID || !row.DateReported) return null;
-        { const r = db.prepare('SELECT HiringFeedbackID AS id FROM HiringFeedback WHERE CompanyID=? AND ContactID=? AND DateReported=?').get(row.CompanyID, row.ContactID, row.DateReported);
+        { const r = (await db.prepare('SELECT HiringFeedbackID AS id FROM HiringFeedback WHERE CompanyID=? AND ContactID=? AND DateReported=?').get(row.CompanyID, row.ContactID, row.DateReported));
           if (r) return { id: r.id, reason: `Feedback from this contact on ${row.DateReported} already exists` }; }
         return null;
       case 'Potential Collaboration':
         if (!row.CompanyID) return null;
-        { const r = db.prepare('SELECT PotentialCollaborationID AS id FROM PotentialCollaboration WHERE CompanyID=?').get(row.CompanyID);
+        { const r = (await db.prepare('SELECT PotentialCollaborationID AS id FROM PotentialCollaboration WHERE CompanyID=?').get(row.CompanyID));
           if (r) return { id: r.id, reason: `A collaboration record already exists for this company` }; }
         return null;
       default: return null;
@@ -262,7 +280,7 @@ router.post('/parse', upload.single('file'), async (req, res) => {
 });
 
 // POST /api/import/validate
-router.post('/validate', (req, res) => {
+router.post('/validate', async (req, res) => {
   const db = req.app.locals.db;
   const { entity, rows, mapping } = req.body;
   if (!entity || !rows || !mapping) return res.status(400).json({ error: 'entity, rows, mapping required' });
@@ -276,7 +294,8 @@ router.post('/validate', (req, res) => {
   const def = ENTITY_FIELDS[entity];
   const seenKeys = new Map(); // in-file duplicate tracking: key → first row number
 
-  const result = rows.map((raw, idx) => {
+  const result = [];
+  for (const [idx, raw] of rows.entries()) {
     // Apply mapping
     const row = Object.create(null);
     const errors = [];
@@ -314,8 +333,8 @@ router.post('/validate', (req, res) => {
     for (const field of BOOL_FIELDS) {
       if (row[field] !== undefined && row[field] !== '') {
         const v = String(row[field]).trim().toLowerCase();
-        if      (v === 'true' || v === 'yes' || v === '1') row[field] = 1;
-        else if (v === 'false' || v === 'no'  || v === '0') row[field] = 0;
+        if      (['true', 'yes', 'y', '1', 'on'].includes(v)) row[field] = 1;
+        else if (['false', 'no', 'n', '0', 'off'].includes(v)) row[field] = 0;
       }
     }
 
@@ -339,9 +358,9 @@ router.post('/validate', (req, res) => {
     // Resolve CompanyID: numeric → use as-is; string → lookup by CompanyName
     if (row.CompanyID !== undefined && row.CompanyID !== '' && isNaN(Number(row.CompanyID))) {
       try {
-        const company = db.prepare(
+        const company = (await db.prepare(
           'SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName))=LOWER(TRIM(?))'
-        ).get(String(row.CompanyID));
+        ).get(String(row.CompanyID)));
         if (company) {
           row.CompanyID = company.CompanyID;
         } else {
@@ -355,9 +374,9 @@ router.post('/validate', (req, res) => {
     if (row.ContactID !== undefined && row.ContactID !== '' && isNaN(Number(row.ContactID))) {
       try {
         const val = String(row.ContactID).trim();
-        let contact = db.prepare(
+        let contact = (await db.prepare(
           'SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress))=LOWER(TRIM(?))'
-        ).get(val);
+        ).get(val));
 
         if (!contact) {
           // Try "FirstName LastName" full-name match
@@ -365,9 +384,9 @@ router.post('/validate', (req, res) => {
           if (parts.length >= 2) {
             const lastName  = parts[parts.length - 1];
             const firstName = parts.slice(0, -1).join(' ');
-            contact = db.prepare(
+            contact = (await db.prepare(
               'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
-            ).get(firstName.toLowerCase(), lastName.toLowerCase());
+            ).get(firstName.toLowerCase(), lastName.toLowerCase()));
           }
         }
 
@@ -377,9 +396,9 @@ router.post('/validate', (req, res) => {
           if (commaIdx > -1) {
             const ln = val.slice(0, commaIdx).trim();
             const fn = val.slice(commaIdx + 1).trim();
-            contact = db.prepare(
+            contact = (await db.prepare(
               'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
-            ).get(fn.toLowerCase(), ln.toLowerCase());
+            ).get(fn.toLowerCase(), ln.toLowerCase()));
           }
         }
 
@@ -420,7 +439,7 @@ router.post('/validate', (req, res) => {
 
     // Duplicate detection — against the database (all entities)
     let duplicate = false, dupReason = null;
-    const existing = findExistingDuplicate(db, entity, row);
+    const existing = await findExistingDuplicate(db, entity, row);
     if (existing) {
       duplicate = true;
       row.__existingId = existing.id;
@@ -438,8 +457,8 @@ router.post('/validate', (req, res) => {
       }
     }
 
-    return { rowIndex: idx, row, errors, duplicate, dupReason, status: errors.length > 0 ? 'error' : (duplicate ? 'duplicate' : 'valid') };
-  });
+    result.push({ rowIndex: idx, row, errors, duplicate, dupReason, status: errors.length > 0 ? 'error' : (duplicate ? 'duplicate' : 'valid') });
+  }
 
   res.json(result);
 });
@@ -460,47 +479,47 @@ router.post('/confirm', async (req, res) => {
   const failedRows = [];
 
   const insertFns = {
-    Company: (db, r) => db.prepare(
+    Company: async (db, r) => db.prepare(
       `INSERT INTO Company (CompanyName,DateAdded,Industry,Sector,Country,Address,Website,LinkedInURL,HandshakeURL,SignedMoU,FavoriteEmployer,Blacklisted,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(r.CompanyName,r.DateAdded||new Date().toISOString().slice(0,10),r.Industry,r.Sector,r.Country,r.Address||null,r.Website||null,r.LinkedInURL||null,r.HandshakeURL||null,r.SignedMoU?1:0,r.FavoriteEmployer?1:0,r.Blacklisted?1:0,r.Comment||null),
 
-    Contact: (db, r) => db.prepare(
+    Contact: async (db, r) => db.prepare(
       `INSERT INTO Contact (CompanyID,FirstName,LastName,DateAdded,JobTitle,EmailAddress,Address,Country,WorkPhone,Mobile,Status,CMUQGraduate,Major,GraduationYear,PrimaryContact,ResumeBook,EventInvitation,ExcludeFromMailing) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.FirstName,r.LastName,r.DateAdded||new Date().toISOString().slice(0,10),r.JobTitle||null,r.EmailAddress,r.Address||null,r.Country||null,r.WorkPhone||null,r.Mobile||null,r.Status||'Mailable',r.CMUQGraduate?1:0,r.Major||null,r.GraduationYear||null,r.PrimaryContact?1:0,r.ResumeBook?1:0,r.EventInvitation?1:0,r.ExcludeFromMailing?1:0),
 
-    Outreach: (db, r) => db.prepare(
+    Outreach: async (db, r) => db.prepare(
       `INSERT INTO OutreachEngagement (CompanyID,ContactID,InteractionType,InteractionDate,DiscussionItems,ActionPlan,FollowUpDate,InteractionStatus) VALUES (?,?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.InteractionType,r.InteractionDate,r.DiscussionItems,r.ActionPlan||null,r.FollowUpDate||null,r.InteractionStatus||'In-progress'),
 
-    Recruitment: (db, r) => db.prepare(
+    Recruitment: async (db, r) => db.prepare(
       `INSERT INTO Recruitment (CompanyID,ContactID,DatePosted,OpportunityTitle,Duration,HiringStartDate,HiringEndDate,Country,Mode,Status,PayAmount,TargetGroup,ArabicSpeaker,HiredStudentAlumni,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.DatePosted||new Date().toISOString().slice(0,10),r.OpportunityTitle,r.Duration||null,r.HiringStartDate||null,r.HiringEndDate||null,r.Country||null,r.Mode,r.Status,r.PayAmount||null,r.TargetGroup,r.ArabicSpeaker?1:0,r.HiredStudentAlumni||'Not Reported',r.Comment||null),
 
-    'Career Event': (db, r) => db.prepare(
+    'Career Event': async (db, r) => db.prepare(
       `INSERT INTO CareerEvent (CompanyID,ContactID,EventName,EventDate,RegisteredStatus,CMUQAlumniAtBooth,Comment) VALUES (?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.EventName,r.EventDate,r.RegisteredStatus,r.CMUQAlumniAtBooth?1:0,r.Comment||null),
 
-    'Student-Led Event': (db, r) => db.prepare(
+    'Student-Led Event': async (db, r) => db.prepare(
       `INSERT INTO StudentLedEvent (CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate,EventTitle,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.ProposalDate,r.OrganizationName,r.StudentName,r.StudentEmail,r.StudentPhoneNumber,r.CollaborationOutcome||'Pending',r.EventDate||null,r.EventTitle||null,r.Comment||null),
 
-    'Academic Engagement': (db, r) => db.prepare(
+    'Academic Engagement': async (db, r) => db.prepare(
       `INSERT INTO AcademicClassroomEngagement (CompanyID,ContactID,EngagementType,GuestSpeakerName,GuestTitle,Email,PhoneNumber,FacultyName,CourseNumber,CourseTitle,TopicTheme,SessionDate,SessionTime,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.EngagementType,r.GuestSpeakerName,r.GuestTitle,r.Email||null,r.PhoneNumber||null,r.FacultyName,r.CourseNumber,r.CourseTitle,r.TopicTheme,r.SessionDate,r.SessionTime,r.Comment||null),
 
-    'Hiring Feedback': (db, r) => db.prepare(
+    'Hiring Feedback': async (db, r) => db.prepare(
       `INSERT INTO HiringFeedback (CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName,Comment) VALUES (?,?,?,?,?,?,?)`
     ).run(r.CompanyID,r.ContactID,r.FeedbackProvider,r.HiredStudentAlumni,r.DateReported,r.HiredStudentName||null,r.Comment||null),
 
-    'Potential Collaboration': (db, r) => {
-      const info = db.prepare(
+    'Potential Collaboration': async (db, r) => {
+      const info = await db.prepare(
         'INSERT INTO PotentialCollaboration (CompanyID,Comment) VALUES (?,?)'
       ).run(r.CompanyID, r.Comment||null);
       const ins = db.prepare(
         'INSERT INTO PotentialCollaboration_Opportunities (PotentialCollaborationID,OpportunityType) VALUES (?,?)'
       );
       for (const opp of COLLAB_OPPS) {
-        if (r[opp] && r[opp] !== 0) ins.run(info.lastInsertRowid, opp);
+        if (r[opp] && r[opp] !== 0) await ins.run(info.lastInsertRowid, opp);
       }
     },
   };
@@ -527,22 +546,25 @@ router.post('/confirm', async (req, res) => {
     }
     if (action === 'skip') { skipped++; continue; }
     try {
-      if (action === 'overwrite' && row.__existingId) {
-        if (entity === 'Company') {
-          db.prepare(`UPDATE Company SET CompanyName=?,Industry=?,Sector=?,Country=?,Address=?,Website=?,Comment=? WHERE CompanyID=?`).run(row.CompanyName,row.Industry,row.Sector,row.Country,row.Address||null,row.Website||null,row.Comment||null,row.__existingId);
-        } else if (entity === 'Contact') {
-          db.prepare(`UPDATE Contact SET FirstName=?,LastName=?,JobTitle=?,WorkPhone=?,Mobile=?,Status=? WHERE ContactID=?`).run(row.FirstName,row.LastName,row.JobTitle||null,row.WorkPhone||null,row.Mobile||null,row.Status||'Mailable',row.__existingId);
-        } else if (DELETE_BY_PK[entity]) {
-          db.prepare(DELETE_BY_PK[entity]).run(row.__existingId);
-          insertFns[entity](db, row);
+      await db.withTransaction(async (tx) => {
+        if (action === 'overwrite' && row.__existingId) {
+          if (entity === 'Company') {
+            await tx.prepare(`UPDATE Company SET CompanyName=?,Industry=?,Sector=?,Country=?,Address=?,Website=?,Comment=? WHERE CompanyID=?`).run(row.CompanyName,row.Industry,row.Sector,row.Country,row.Address||null,row.Website||null,row.Comment||null,row.__existingId);
+          } else if (entity === 'Contact') {
+            await tx.prepare(`UPDATE Contact SET FirstName=?,LastName=?,JobTitle=?,WorkPhone=?,Mobile=?,Status=? WHERE ContactID=?`).run(row.FirstName,row.LastName,row.JobTitle||null,row.WorkPhone||null,row.Mobile||null,row.Status||'Mailable',row.__existingId);
+          } else if (DELETE_BY_PK[entity]) {
+            await tx.prepare(DELETE_BY_PK[entity]).run(row.__existingId);
+            await insertFns[entity](tx, row);
+          }
+          updated++;
+          return;
         }
-        updated++;
-      } else {
+
         const fn = insertFns[entity];
         if (!fn) throw new Error(`Import not supported for entity "${entity}"`);
-        fn(db, row);
+        await fn(tx, row);
         imported++;
-      }
+      });
     } catch (err) {
       failed++;
       failedRows.push({ row, error: err.message });

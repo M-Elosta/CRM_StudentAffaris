@@ -10,7 +10,7 @@ if [ ! -d node_modules ]; then
   npm install
 fi
 
-if [ ! -f data/employer.db ]; then
+if [ "${SEED_DEMO_DATA:-0}" = "1" ]; then
   echo "Seeding database..."
   node database/seed.js
 fi

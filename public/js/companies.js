@@ -5,10 +5,15 @@ let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = { key: 'CompanyName', direction: 'asc' };
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCompanies();
+  sortState = wireSortableTable(document.getElementById('companies-table'), (next) => {
+    sortState = next;
+    applyFilters();
+  }, sortState);
 
   document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('filter-sector').addEventListener('change', applyFilters);
@@ -27,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const warn = document.getElementById('blacklist-warning');
     warn.classList.toggle('d-none', !e.target.checked);
   });
+  focusFirstFieldInModal(document.getElementById('company-modal'));
 });
 
 // ── Data loading ───────────────────────────────────────────────────────────────
@@ -43,27 +49,32 @@ async function loadCompanies() {
 }
 
 function applyFilters() {
-  const q      = document.getElementById('search-input').value.trim().toLowerCase();
+  const q      = safeLower(document.getElementById('search-input').value);
   const sector = document.getElementById('filter-sector').value;
   const state  = document.getElementById('filter-state').value;
   const from   = document.getElementById('filter-from').value;
   const to     = document.getElementById('filter-to').value;
 
   const filtered = allCompanies.filter(c => {
-    if (q && !c.CompanyName.toLowerCase().includes(q) &&
-             !(c.Country || '').toLowerCase().includes(q) &&
-             !(c.Industry || '').toLowerCase().includes(q) &&
-             !(c.Sector || '').toLowerCase().includes(q)) return false;
+    if (q && !safeLower(c.CompanyName).includes(q) &&
+             !safeLower(c.Country).includes(q) &&
+             !safeLower(c.Industry).includes(q) &&
+             !safeLower(c.Sector).includes(q)) return false;
     if (sector && c.Sector !== sector) return false;
     if (state === 'Active' && c.Blacklisted) return false;
     if (state === 'Blacklisted' && !c.Blacklisted) return false;
     if (state === 'Favorite' && !c.FavoriteEmployer) return false;
     if (state === 'Signed MoU' && !c.SignedMoU) return false;
-    if (from && c.DateAdded && c.DateAdded.slice(0, 10) < from) return false;
-    if (to   && c.DateAdded && c.DateAdded.slice(0, 10) > to)   return false;
+    if (from && dateKey(c.DateAdded) && dateKey(c.DateAdded) < from) return false;
+    if (to   && dateKey(c.DateAdded) && dateKey(c.DateAdded) > to)   return false;
     return true;
   });
-  displayItems = filtered;
+  displayItems = filtered.sort((a, b) => {
+    const dir = sortState.direction === 'desc' ? -1 : 1;
+    const left = safeLower(a?.[sortState.key]);
+    const right = safeLower(b?.[sortState.key]);
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+  });
   currentPage = 1;
   renderCurrentPage();
   updateRecordCount(filtered.length, allCompanies.length);
@@ -133,8 +144,8 @@ function renderTable(companies) {
         <td>${formatDate(c.DateAdded)}</td>
         <td>${c.Website ? `<a href="${escHtml(c.Website)}" target="_blank" rel="noopener" title="Open website in new tab" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" type="button" title="Edit" aria-label="Edit ${escHtml(c.CompanyName)}" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" type="button" title="Delete" aria-label="Delete ${escHtml(c.CompanyName)}" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');
@@ -190,7 +201,7 @@ function openModal(company) {
 
 function populateForm(c) {
   document.getElementById('f-name').value         = c.CompanyName || '';
-  document.getElementById('f-date-added').value   = typeof c.DateAdded === 'string' ? c.DateAdded.slice(0,10) : todayStr();
+  document.getElementById('f-date-added').value   = dateKey(c.DateAdded) || todayStr();
   document.getElementById('f-industry').value     = c.Industry || '';
   document.getElementById('f-sector').value       = c.Sector || '';
   document.getElementById('f-country').value      = c.Country || '';
@@ -210,19 +221,19 @@ function populateForm(c) {
 
 function formToPayload() {
   return {
-    CompanyName:     document.getElementById('f-name').value.trim(),
+    CompanyName:     safeTrim(document.getElementById('f-name').value),
     DateAdded:       document.getElementById('f-date-added').value,
-    Industry:        document.getElementById('f-industry').value.trim(),
+    Industry:        safeTrim(document.getElementById('f-industry').value),
     Sector:          document.getElementById('f-sector').value,
-    Country:         document.getElementById('f-country').value.trim(),
-    Address:         document.getElementById('f-address').value.trim(),
-    Website:         document.getElementById('f-website').value.trim(),
-    LinkedInURL:     document.getElementById('f-linkedin').value.trim(),
-    HandshakeURL:    document.getElementById('f-handshake').value.trim(),
+    Country:         safeTrim(document.getElementById('f-country').value),
+    Address:         safeTrim(document.getElementById('f-address').value),
+    Website:         safeTrim(document.getElementById('f-website').value),
+    LinkedInURL:     safeTrim(document.getElementById('f-linkedin').value),
+    HandshakeURL:    safeTrim(document.getElementById('f-handshake').value),
     SignedMoU:       document.getElementById('f-mou').checked,
     FavoriteEmployer:document.getElementById('f-favorite').checked,
     Blacklisted:     document.getElementById('f-blacklisted').checked,
-    Comment:         document.getElementById('f-comment').value.trim(),
+    Comment:         safeTrim(document.getElementById('f-comment').value),
   };
 }
 

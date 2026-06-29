@@ -6,7 +6,7 @@ if not exist node_modules (
   npm install
 )
 
-if not exist data\employer.db (
+if "%SEED_DEMO_DATA%"=="1" (
   echo Seeding database...
   node database\seed.js
 )

@@ -18,8 +18,8 @@ function requireLoadedUpdatedAt(value) {
   return normalized;
 }
 
-function ensureRecordNotStale(db, tableName, idColumn, idValue, loadedUpdatedAt, notFoundMessage = 'Record not found') {
-  const row = db.prepare(`SELECT UpdatedAt FROM ${tableName} WHERE ${idColumn} = ?`).get(idValue);
+async function ensureRecordNotStale(db, tableName, idColumn, idValue, loadedUpdatedAt, notFoundMessage = 'Record not found') {
+  const row = (await db.prepare(`SELECT UpdatedAt FROM ${tableName} WHERE ${idColumn} = ?`).get(idValue));
   if (!row) {
     const err = new Error(notFoundMessage);
     err.statusCode = 404;
