@@ -74,12 +74,14 @@ function renderUsers(users) {
 
   tbody.innerHTML = users.map(u => {
     const isSelf = u.UserID === selfId;
-    const roleBadge = u.Role === 'admin'
-      ? `<span class="badge bg-primary">Admin</span>`
-      : `<span class="badge bg-secondary">Viewer</span>`;
+    const roleBadge = renderSemanticBadge(
+      u.Role === 'admin' ? 'Admin' : 'Viewer',
+      'neutral',
+      { subtle: u.Role !== 'admin' }
+    );
 
     const roleSwitch = isSelf
-      ? `<span class="badge bg-light text-muted border" title="You cannot change your own role">You</span>`
+      ? renderSemanticBadge('You', 'neutral', { subtle: true, title: 'You cannot change your own role' })
       : u.Role === 'admin'
         ? `<button class="btn btn-sm btn-outline-secondary" onclick="changeRole(${u.UserID}, 'viewer')" title="Demote to Viewer"><i class="bi bi-arrow-down-circle me-1"></i>Set Viewer</button>`
         : `<button class="btn btn-sm btn-outline-primary"   onclick="changeRole(${u.UserID}, 'admin')"  title="Promote to Admin"><i class="bi bi-arrow-up-circle me-1"></i>Set Admin</button>`;
@@ -94,7 +96,7 @@ function renderUsers(users) {
       <tr${isSelf ? ' class="table-active"' : ''}>
         <td class="px-3 fw-semibold">
           <i class="bi bi-person-circle me-2 text-muted"></i>${escHtml(u.Username)}
-          ${isSelf ? '<span class="badge bg-light text-muted border ms-1 small">you</span>' : ''}
+          ${isSelf ? renderSemanticBadge('You', 'neutral', { subtle: true, extraClasses: 'ms-1', title: 'Current signed-in user' }) : ''}
         </td>
         <td>${roleBadge}</td>
         <td class="text-muted small">${created}</td>

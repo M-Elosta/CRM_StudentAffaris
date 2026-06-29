@@ -122,9 +122,7 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const statusBadge = r.InteractionStatus === 'Complete'
-      ? '<span class="badge bg-success">Complete</span>'
-      : '<span class="badge bg-warning text-dark">In-progress</span>';
+    const statusBadge = renderStatusBadge(r.InteractionStatus);
 
     const followUp = r.FollowUpDate
       ? (isOverdue(r)
@@ -132,14 +130,12 @@ function renderTable(items) {
           : toDateDisplay(r.FollowUpDate))
       : '—';
 
-    const typeBadge = {
-      'Call': 'bg-info', 'Meeting': 'bg-primary', 'Company Visit': 'bg-secondary'
-    }[r.InteractionType] || 'bg-secondary';
+    const typeBadge = renderSemanticBadge(r.InteractionType, 'neutral', { subtle: true });
 
     return `<tr style="cursor:pointer" data-id="${r.OutreachEngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td><span class="badge ${typeBadge}">${escHtml(r.InteractionType)}</span></td>
+      <td>${typeBadge}</td>
       <td>${toDateDisplay(r.InteractionDate)}</td>
       <td>${statusBadge}</td>
       <td>${followUp}</td>

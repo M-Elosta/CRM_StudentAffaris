@@ -95,7 +95,7 @@ function renderTable(items) {
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.FeedbackProvider)}</td>
-      <td><span class="badge ${r.HiredStudentAlumni==='Yes'?'bg-success':'bg-secondary'}">${r.HiredStudentAlumni}</span></td>
+      <td>${renderStatusBadge(r.HiredStudentAlumni)}</td>
       <td>${toDateDisplay(r.DateReported)}</td>
       <td>${escHtml(r.HiredStudentName||'—')}</td>
       <td class="text-end">

@@ -140,15 +140,21 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const hired = { 'Yes':'bg-success','No':'bg-secondary','Not Reported':'bg-warning text-dark' }[r.HiredStudentAlumni] || 'bg-secondary';
+    const hiredBadge = renderStatusBadge(r.HiredStudentAlumni);
+    const modeBadge = renderSemanticBadge(r.Mode, 'neutral', { subtle: true });
+    const statusBadge = renderSemanticBadge(
+      r.Status,
+      r.Status === 'Paid' ? 'good' : 'neutral',
+      { subtle: r.Status !== 'Paid' }
+    );
     return `<tr style="cursor:pointer" data-id="${r.RecruitmentID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.OpportunityTitle)}</td>
       <td>${toDateDisplay(r.DatePosted)}</td>
-      <td><span class="badge bg-secondary">${r.Mode}</span></td>
-      <td><span class="badge ${r.Status==='Paid'?'bg-success':'bg-secondary'}">${r.Status}</span></td>
+      <td>${modeBadge}</td>
+      <td>${statusBadge}</td>
       <td>${r.TargetGroup}</td>
-      <td><span class="badge ${hired}">${r.HiredStudentAlumni}</span></td>
+      <td>${hiredBadge}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>

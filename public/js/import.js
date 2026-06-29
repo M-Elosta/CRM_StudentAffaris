@@ -51,14 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
 function markStepDone(n) {
   const badge = document.getElementById(`step-badge-${n}`);
   if (!badge) return;
-  badge.className = 'badge bg-success me-2';
+  badge.className = `${semanticBadgeClass('good')} me-2`;
   badge.innerHTML = '<i class="bi bi-check-lg"></i>';
 }
 
 function resetStepBadge(n) {
   const badge = document.getElementById(`step-badge-${n}`);
   if (!badge) return;
-  badge.className = 'badge bg-primary me-2';
+  badge.className = `${semanticBadgeClass('neutral', true)} me-2`;
   badge.textContent = String(n);
 }
 
@@ -141,7 +141,7 @@ function buildMappingTable(headers, entity) {
     return `
       <div class="row g-2 align-items-center mb-2">
         <div class="col-md-4">
-          <span class="badge ${isMapped ? 'bg-success' : 'bg-secondary'} me-2 map-icon" id="map-icon-${idx}"><i class="bi bi-${isMapped ? 'check' : 'x'}"></i></span>
+          <span class="${semanticBadgeClass(isMapped ? 'good' : 'neutral', true, 'me-2 map-icon')}" id="map-icon-${idx}"><i class="bi bi-${isMapped ? 'check' : 'x'}"></i></span>
           <span class="small fw-semibold">${escHtml(h)}</span>
         </div>
         <div class="col-auto text-muted small"><i class="bi bi-arrow-right"></i></div>
@@ -159,7 +159,7 @@ function buildMappingTable(headers, entity) {
       const icon = container.querySelector(`#map-icon-${sel.dataset.iconIdx}`);
       if (!icon) return;
       const mapped = sel.value && sel.value !== '__ignore__';
-      icon.className = `badge ${mapped ? 'bg-success' : 'bg-secondary'} me-2 map-icon`;
+      icon.className = semanticBadgeClass(mapped ? 'good' : 'neutral', true, 'me-2 map-icon');
       icon.innerHTML = `<i class="bi bi-${mapped ? 'check' : 'x'}"></i>`;
     });
   });
@@ -204,9 +204,9 @@ function renderPreview(rows) {
   const errors = rows.filter(r => r.status === 'error').length;
 
   document.getElementById('summary-badges').innerHTML = `
-    <span class="badge bg-success fs-6">${valid} ready</span>
-    <span class="badge bg-warning text-dark fs-6">${dups} duplicate${dups !== 1 ? 's' : ''}</span>
-    <span class="badge bg-danger fs-6">${errors} error${errors !== 1 ? 's' : ''}</span>
+    ${renderSemanticBadge(`${valid} ready`, 'good', { extraClasses: 'fs-6' })}
+    ${renderSemanticBadge(`${dups} duplicate${dups !== 1 ? 's' : ''}`, 'warn', { extraClasses: 'fs-6' })}
+    ${renderSemanticBadge(`${errors} error${errors !== 1 ? 's' : ''}`, 'bad', { extraClasses: 'fs-6' })}
     ${dups > 0 ? '<span class="text-muted small ms-1 align-self-center"><i class="bi bi-info-circle me-1"></i>Check rows to apply a bulk action to duplicates</span>' : ''}`;
 
   // Reset bulk toolbar
@@ -227,10 +227,10 @@ function renderPreview(rows) {
   document.getElementById('preview-tbody').innerHTML = rows.map((r, i) => {
     const rowClass = r.status === 'error' ? 'table-danger' : r.status === 'duplicate' ? 'table-warning' : '';
     const statusBadge = r.status === 'error'
-      ? `<span class="badge bg-danger" title="${escHtml(r.errors.join('; '))}">Error <i class="bi bi-info-circle"></i></span>`
+    ? renderSemanticBadge('Error', 'bad', { title: r.errors.join('; ') })
       : r.status === 'duplicate'
-        ? `<span class="badge bg-warning text-dark" title="${escHtml(r.dupReason || 'Already exists in the database')}">Duplicate <i class="bi bi-info-circle"></i></span>`
-        : '<span class="badge bg-success">Valid</span>';
+      ? renderSemanticBadge('Duplicate', 'warn', { title: r.dupReason || 'Already exists in the database' })
+      : renderSemanticBadge('Valid', 'good');
 
     const cells = cols.map(c => `<td class="small">${escHtml(String(r.row[c] ?? ''))}</td>`).join('');
 

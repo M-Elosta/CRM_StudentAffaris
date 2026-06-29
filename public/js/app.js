@@ -27,6 +27,66 @@ function safeLower(value) {
   return safeText(value).toLowerCase();
 }
 
+function escapeHtml(value) {
+  return safeText(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function semanticToneForStatus(value) {
+  const normalized = safeLower(value).replace(/\s+/g, '-');
+  switch (normalized) {
+    case 'mailable':
+    case 'complete':
+    case 'completed':
+    case 'attended':
+    case 'yes':
+    case 'paid':
+    case 'favorite':
+      return 'good';
+    case 'non-mailable':
+    case 'blacklisted':
+    case 'cancelled':
+    case 'overdue':
+    case 'no':
+      return 'bad';
+    case 'in-progress':
+    case 'pending':
+    case 'due-soon':
+      return 'warn';
+    case 'no-show':
+    case 'not-reported':
+    case 'viewer':
+    case 'admin':
+    default:
+      return 'neutral';
+  }
+}
+
+function semanticBadgeClass(tone = 'neutral', subtle = false, extraClasses = '') {
+  const toneClass = `badge-semantic-${tone}`;
+  return ['badge', 'badge-semantic', toneClass, subtle ? 'badge-semantic-subtle' : '', extraClasses]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function renderSemanticBadge(label, tone = 'neutral', options = {}) {
+  const { subtle = false, extraClasses = '', title = '' } = options;
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  return `<span class="${semanticBadgeClass(tone, subtle, extraClasses)}"${titleAttr}>${escapeHtml(label)}</span>`;
+}
+
+function renderPrimaryIndicator(title = 'Primary contact') {
+  const safeTitle = escapeHtml(title);
+  return `<span class="entity-indicator entity-indicator-primary" title="${safeTitle}" aria-label="${safeTitle}"><i class="bi bi-star-fill"></i></span>`;
+}
+
+function renderStatusBadge(label, options = {}) {
+  return renderSemanticBadge(label, semanticToneForStatus(label), options);
+}
+
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }

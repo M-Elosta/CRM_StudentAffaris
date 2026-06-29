@@ -114,12 +114,6 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const badgeClass = {
-      'Attended':  'bg-success',
-      'No-Show':   'bg-danger',
-      'Cancelled': 'bg-danger'
-    }[r.RegisteredStatus] || 'bg-secondary';
-
     const alumniBooth = r.CMUQAlumniAtBooth ? '&#10003;' : '&mdash;';
     const eventDate = toDateDisplay(r.EventDate);
 
@@ -128,7 +122,7 @@ function renderTable(items) {
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.EventName)}</td>
       <td>${eventDate}</td>
-      <td><span class="badge ${badgeClass}">${escHtml(r.RegisteredStatus)}</span></td>
+      <td>${renderStatusBadge(r.RegisteredStatus)}</td>
       <td class="text-center">${alumniBooth}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.CareerEventID})"><i class="bi bi-pencil"></i></button>

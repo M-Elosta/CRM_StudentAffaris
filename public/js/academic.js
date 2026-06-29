@@ -127,7 +127,7 @@ function renderTable(items) {
     const sessionDate = toDateDisplay(r.SessionDate);
     return `<tr style="cursor:pointer" data-id="${r.EngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
-      <td><span class="badge bg-secondary">${escHtml(r.EngagementType)}</span></td>
+      <td>${renderSemanticBadge(r.EngagementType, 'neutral', { subtle: true })}</td>
       <td>${escHtml(r.GuestSpeakerName)}</td>
       <td>${escHtml(r.FacultyName)}</td>
       <td>${escHtml(r.CourseNumber)}${r.CourseTitle ? ' – ' + escHtml(r.CourseTitle) : ''}</td>

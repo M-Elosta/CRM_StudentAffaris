@@ -116,7 +116,7 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const badgeClass = r.CollaborationOutcome === 'Completed' ? 'bg-success' : 'bg-warning text-dark';
+    const outcomeBadge = renderStatusBadge(r.CollaborationOutcome);
     const proposalDate = toDateDisplay(r.ProposalDate);
     return `<tr style="cursor:pointer" data-id="${r.StudentLedEventID}">
       <td>${escHtml(r.CompanyName)}</td>
@@ -124,7 +124,7 @@ function renderTable(items) {
       <td>${escHtml(r.StudentName)}</td>
       <td>${proposalDate}</td>
       <td>${escHtml(r.EventTitle || '—')}</td>
-      <td><span class="badge ${badgeClass}">${escHtml(r.CollaborationOutcome)}</span></td>
+      <td>${outcomeBadge}</td>
       <td>
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.StudentLedEventID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.StudentLedEventID})"><i class="bi bi-trash"></i></button>

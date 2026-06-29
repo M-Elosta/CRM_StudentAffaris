@@ -134,25 +134,19 @@ function renderTable(contacts) {
   }
 
   tbody.innerHTML = contacts.map(c => {
-    const statusBadge = c.Status === 'Mailable'
-      ? '<span class="badge bg-success">Mailable</span>'
-      : '<span class="badge bg-danger">Non-mailable</span>';
-
-    const primaryBadge = c.PrimaryContact
-      ? '<i class="bi bi-star-fill text-warning ms-1" title="Primary Contact"></i>'
-      : '';
-
+    const statusBadge = renderStatusBadge(c.Status);
+    const primaryBadge = c.PrimaryContact ? renderPrimaryIndicator() : '';
     const excludeBadge = c.ExcludeFromMailing
-      ? '<span class="badge bg-warning text-dark ms-1">Excluded from Mailing</span>'
+      ? renderSemanticBadge('Excluded', 'neutral', { subtle: true, title: 'Excluded from mailing' })
       : '';
 
     return `
       <tr style="cursor:pointer" data-id="${c.ContactID}">
-        <td>${escHtml(c.LastName)}, ${escHtml(c.FirstName)}${primaryBadge}</td>
+        <td><span class="name-with-indicator">${primaryBadge}<span class="entity-name">${escHtml(c.LastName)}, ${escHtml(c.FirstName)}</span></span></td>
         <td>${escHtml(c.CompanyName || '—')}</td>
         <td>${escHtml(c.EmailAddress)}</td>
         <td>${escHtml(c.JobTitle || '—')}</td>
-        <td>${statusBadge}${excludeBadge}</td>
+        <td><span class="badge-stack">${statusBadge}${excludeBadge}</span></td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
