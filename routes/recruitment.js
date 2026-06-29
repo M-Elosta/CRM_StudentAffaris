@@ -1,5 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalDateString,
+  optionalTrimmed,
+  parseBooleanFlag,
+  requiredTrimmed,
+  todayDate,
+} = require('./_helpers');
+
+const VALID_MODES = ['Onsite', 'Hybrid', 'Remote'];
+const VALID_PAY_STATUSES = ['Paid', 'Unpaid'];
+const VALID_TARGET_GROUPS = ['Qatari only', 'Open to all'];
+const VALID_HIRING_OUTCOMES = ['Yes', 'No', 'Not Reported'];
 
 function getJunction(db, table, col, id) {
   return db.prepare(`SELECT ${col} FROM ${table} WHERE RecruitmentID = ?`).all(id).map(r => r[col]);
@@ -75,10 +88,16 @@ router.post('/', (req, res) => {
     OpportunityTypes, CollectApplications, TargetMajors, ClassLevels
   } = req.body;
 
-  if (!CompanyID || !ContactID || !OpportunityTitle || !Mode || !Status || !TargetGroup)
-    return res.status(400).json({ error: 'CompanyID, ContactID, OpportunityTitle, Mode, Status, and TargetGroup are required' });
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const opportunityTitle = requiredTrimmed(OpportunityTitle, 'OpportunityTitle');
+    const mode = ensureEnum(Mode, VALID_MODES, 'Mode');
+    const status = ensureEnum(Status, VALID_PAY_STATUSES, 'Status');
+    const targetGroup = ensureEnum(TargetGroup, VALID_TARGET_GROUPS, 'TargetGroup');
+    const hiredStudentAlumni = HiredStudentAlumni
+      ? ensureEnum(HiredStudentAlumni, VALID_HIRING_OUTCOMES, 'HiredStudentAlumni')
+      : 'Not Reported';
     const info = db.prepare(`
       INSERT INTO Recruitment
         (CompanyID, ContactID, DatePosted, OpportunityTitle, Duration,
@@ -86,14 +105,21 @@ router.post('/', (req, res) => {
          TargetGroup, ArabicSpeaker, HiredStudentAlumni, Comment)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      CompanyID, ContactID,
-      DatePosted || new Date().toISOString().slice(0,10),
-      OpportunityTitle.trim(), Duration || null,
-      HiringStartDate || null, HiringEndDate || null, Country || null,
-      Mode, Status, PayAmount || null, TargetGroup,
-      ArabicSpeaker ? 1 : 0,
-      HiredStudentAlumni || 'Not Reported',
-      Comment || null
+      companyId,
+      contactId,
+      optionalDateString(DatePosted) || todayDate(),
+      opportunityTitle,
+      optionalTrimmed(Duration),
+      optionalDateString(HiringStartDate),
+      optionalDateString(HiringEndDate),
+      optionalTrimmed(Country),
+      mode,
+      status,
+      optionalTrimmed(PayAmount),
+      targetGroup,
+      parseBooleanFlag(ArabicSpeaker),
+      hiredStudentAlumni,
+      optionalTrimmed(Comment)
     );
     const id = info.lastInsertRowid;
     setJunction(db, 'Recruitment_OpportunityType', 'Type', id, OpportunityTypes);
@@ -117,10 +143,16 @@ router.put('/:id', (req, res) => {
     OpportunityTypes, CollectApplications, TargetMajors, ClassLevels
   } = req.body;
 
-  if (!CompanyID || !ContactID || !OpportunityTitle || !Mode || !Status || !TargetGroup)
-    return res.status(400).json({ error: 'CompanyID, ContactID, OpportunityTitle, Mode, Status, and TargetGroup are required' });
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const opportunityTitle = requiredTrimmed(OpportunityTitle, 'OpportunityTitle');
+    const mode = ensureEnum(Mode, VALID_MODES, 'Mode');
+    const status = ensureEnum(Status, VALID_PAY_STATUSES, 'Status');
+    const targetGroup = ensureEnum(TargetGroup, VALID_TARGET_GROUPS, 'TargetGroup');
+    const hiredStudentAlumni = HiredStudentAlumni
+      ? ensureEnum(HiredStudentAlumni, VALID_HIRING_OUTCOMES, 'HiredStudentAlumni')
+      : 'Not Reported';
     const info = db.prepare(`
       UPDATE Recruitment SET
         CompanyID = ?, ContactID = ?, DatePosted = ?, OpportunityTitle = ?, Duration = ?,
@@ -128,14 +160,21 @@ router.put('/:id', (req, res) => {
         TargetGroup = ?, ArabicSpeaker = ?, HiredStudentAlumni = ?, Comment = ?
       WHERE RecruitmentID = ?
     `).run(
-      CompanyID, ContactID,
-      DatePosted || new Date().toISOString().slice(0,10),
-      OpportunityTitle.trim(), Duration || null,
-      HiringStartDate || null, HiringEndDate || null, Country || null,
-      Mode, Status, PayAmount || null, TargetGroup,
-      ArabicSpeaker ? 1 : 0,
-      HiredStudentAlumni || 'Not Reported',
-      Comment || null,
+      companyId,
+      contactId,
+      optionalDateString(DatePosted) || todayDate(),
+      opportunityTitle,
+      optionalTrimmed(Duration),
+      optionalDateString(HiringStartDate),
+      optionalDateString(HiringEndDate),
+      optionalTrimmed(Country),
+      mode,
+      status,
+      optionalTrimmed(PayAmount),
+      targetGroup,
+      parseBooleanFlag(ArabicSpeaker),
+      hiredStudentAlumni,
+      optionalTrimmed(Comment),
       req.params.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Record not found' });

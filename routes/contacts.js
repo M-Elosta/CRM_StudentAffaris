@@ -1,5 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const {
+  optionalDateString,
+  optionalInteger,
+  optionalTrimmed,
+  parseBooleanFlag,
+  requiredTrimmed,
+  resolveContactStatus,
+  todayDate,
+} = require('./_helpers');
 
 // GET /api/contacts  — optional ?search=, ?companyId=, ?status=
 router.get('/', (req, res) => {
@@ -60,18 +69,12 @@ router.post('/', (req, res) => {
     PrimaryContact, Status, ResumeBook, EventInvitation, ExcludeFromMailing
   } = req.body;
 
-  if (!CompanyID)    return res.status(400).json({ error: 'CompanyID is required' });
-  if (!FirstName)    return res.status(400).json({ error: 'FirstName is required' });
-  if (!LastName)     return res.status(400).json({ error: 'LastName is required' });
-  if (!EmailAddress) return res.status(400).json({ error: 'EmailAddress is required' });
-
-  const validStatuses = ['Mailable', 'Non-mailable'];
-  const resolvedStatus = Status || 'Mailable';
-  if (!validStatuses.includes(resolvedStatus)) {
-    return res.status(400).json({ error: 'Status must be Mailable or Non-mailable' });
-  }
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const firstName = requiredTrimmed(FirstName, 'FirstName');
+    const lastName = requiredTrimmed(LastName, 'LastName');
+    const emailAddress = requiredTrimmed(EmailAddress, 'EmailAddress');
+    const resolvedStatus = resolveContactStatus(db, companyId, Status);
     const stmt = db.prepare(`
       INSERT INTO Contact
         (CompanyID, FirstName, LastName, DateAdded, JobTitle, EmailAddress,
@@ -81,16 +84,26 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
-      CompanyID,
-      FirstName.trim(), LastName.trim(),
-      DateAdded || new Date().toISOString().slice(0, 10),
-      JobTitle || null, EmailAddress.trim(),
-      Address || null, Country || null, WorkPhone || null, Mobile || null,
-      LinkedInURL || null, HandshakeURL || null,
-      CMUQGraduate ? 1 : 0, Major || null,
-      GraduationYear ? parseInt(GraduationYear) : null,
-      PrimaryContact ? 1 : 0, resolvedStatus,
-      ResumeBook ? 1 : 0, EventInvitation ? 1 : 0, ExcludeFromMailing ? 1 : 0
+      companyId,
+      firstName,
+      lastName,
+      optionalDateString(DateAdded) || todayDate(),
+      optionalTrimmed(JobTitle),
+      emailAddress,
+      optionalTrimmed(Address),
+      optionalTrimmed(Country),
+      optionalTrimmed(WorkPhone),
+      optionalTrimmed(Mobile),
+      optionalTrimmed(LinkedInURL),
+      optionalTrimmed(HandshakeURL),
+      parseBooleanFlag(CMUQGraduate),
+      optionalTrimmed(Major),
+      optionalInteger(GraduationYear, 'GraduationYear'),
+      parseBooleanFlag(PrimaryContact),
+      resolvedStatus,
+      parseBooleanFlag(ResumeBook),
+      parseBooleanFlag(EventInvitation),
+      parseBooleanFlag(ExcludeFromMailing)
     );
     const created = db.prepare('SELECT * FROM Contact WHERE ContactID = ?').get(info.lastInsertRowid);
     res.status(201).json(created);
@@ -109,17 +122,12 @@ router.put('/:id', (req, res) => {
     PrimaryContact, Status, ResumeBook, EventInvitation, ExcludeFromMailing
   } = req.body;
 
-  if (!CompanyID)    return res.status(400).json({ error: 'CompanyID is required' });
-  if (!FirstName)    return res.status(400).json({ error: 'FirstName is required' });
-  if (!LastName)     return res.status(400).json({ error: 'LastName is required' });
-  if (!EmailAddress) return res.status(400).json({ error: 'EmailAddress is required' });
-
-  const validStatuses = ['Mailable', 'Non-mailable'];
-  if (Status && !validStatuses.includes(Status)) {
-    return res.status(400).json({ error: 'Status must be Mailable or Non-mailable' });
-  }
-
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const firstName = requiredTrimmed(FirstName, 'FirstName');
+    const lastName = requiredTrimmed(LastName, 'LastName');
+    const emailAddress = requiredTrimmed(EmailAddress, 'EmailAddress');
+    const resolvedStatus = resolveContactStatus(db, companyId, Status);
     const stmt = db.prepare(`
       UPDATE Contact SET
         CompanyID = ?, FirstName = ?, LastName = ?, DateAdded = ?, JobTitle = ?,
@@ -130,16 +138,26 @@ router.put('/:id', (req, res) => {
       WHERE ContactID = ?
     `);
     const info = stmt.run(
-      CompanyID,
-      FirstName.trim(), LastName.trim(),
-      DateAdded || new Date().toISOString().slice(0, 10),
-      JobTitle || null, EmailAddress.trim(),
-      Address || null, Country || null, WorkPhone || null, Mobile || null,
-      LinkedInURL || null, HandshakeURL || null,
-      CMUQGraduate ? 1 : 0, Major || null,
-      GraduationYear ? parseInt(GraduationYear) : null,
-      PrimaryContact ? 1 : 0, Status || 'Mailable',
-      ResumeBook ? 1 : 0, EventInvitation ? 1 : 0, ExcludeFromMailing ? 1 : 0,
+      companyId,
+      firstName,
+      lastName,
+      optionalDateString(DateAdded) || todayDate(),
+      optionalTrimmed(JobTitle),
+      emailAddress,
+      optionalTrimmed(Address),
+      optionalTrimmed(Country),
+      optionalTrimmed(WorkPhone),
+      optionalTrimmed(Mobile),
+      optionalTrimmed(LinkedInURL),
+      optionalTrimmed(HandshakeURL),
+      parseBooleanFlag(CMUQGraduate),
+      optionalTrimmed(Major),
+      optionalInteger(GraduationYear, 'GraduationYear'),
+      parseBooleanFlag(PrimaryContact),
+      resolvedStatus,
+      parseBooleanFlag(ResumeBook),
+      parseBooleanFlag(EventInvitation),
+      parseBooleanFlag(ExcludeFromMailing),
       req.params.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Contact not found' });

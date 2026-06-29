@@ -19,10 +19,117 @@ async function fetchAPI(url, options = {}) {
   return data;
 }
 
+function safeText(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function safeLower(value) {
+  return safeText(value).toLowerCase();
+}
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toDateInputValue(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    excelEpoch.setUTCDate(excelEpoch.getUTCDate() + value);
+    return excelEpoch.toISOString().slice(0, 10);
+  }
+
+  const text = safeText(value).trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return '';
+}
+
+function toDateDisplay(value) {
+  return toDateInputValue(value) || '—';
+}
+
+function bindDebouncedInput(elementOrId, handler, delay = 300) {
+  const element = typeof elementOrId === 'string'
+    ? document.getElementById(elementOrId)
+    : elementOrId;
+  if (!element) return;
+
+  let timer = null;
+  element.addEventListener('input', event => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => handler(event), delay);
+  });
+}
+
+function ensureRecordCountBadge() {
+  let badge = document.getElementById('record-count');
+  if (badge) return badge;
+
+  const sticky = document.querySelector('.page-sticky-top');
+  if (!sticky) return null;
+
+  const searchInput = sticky.querySelector('#search-input');
+  if (!searchInput) return null;
+
+  const filterRow = searchInput.closest('.d-flex')
+    || searchInput.closest('.filter-bar')
+    || searchInput.closest('.mb-3')
+    || searchInput.parentElement;
+  if (!filterRow || filterRow.querySelector('#record-count')) return document.getElementById('record-count');
+  if (!filterRow.classList.contains('d-flex')) {
+    filterRow.classList.add('d-flex', 'align-items-center', 'gap-2', 'flex-wrap');
+  }
+
+  badge = document.createElement('span');
+  badge.id = 'record-count';
+  badge.className = 'badge bg-secondary ms-auto';
+  filterRow.appendChild(badge);
+  return badge;
+}
+
+function updateRecordCountBadge(shown, total = shown) {
+  const badge = ensureRecordCountBadge();
+  if (!badge) return;
+
+  const label = shown === total
+    ? `${total} record${total === 1 ? '' : 's'}`
+    : `${shown} of ${total}`;
+  badge.textContent = label;
+}
+
+function clearFormError(formOrId) {
+  const form = typeof formOrId === 'string' ? document.getElementById(formOrId) : formOrId;
+  const errorEl = form?.querySelector('.form-inline-error');
+  if (!errorEl) return;
+  errorEl.classList.add('d-none');
+  errorEl.textContent = '';
+}
+
+function showFormError(formOrId, message) {
+  const form = typeof formOrId === 'string' ? document.getElementById(formOrId) : formOrId;
+  const modalBody = form?.querySelector('.modal-body');
+  if (!form || !modalBody) return;
+
+  let errorEl = form.querySelector('.form-inline-error');
+  if (!errorEl) {
+    errorEl = document.createElement('div');
+    errorEl.className = 'alert alert-danger small py-2 form-inline-error';
+    modalBody.prepend(errorEl);
+  }
+
+  errorEl.textContent = message;
+  errorEl.classList.remove('d-none');
+}
+
 // ── Form validation ────────────────────────────────────────────────────────────
 // Marks every [required] field in the form invalid if empty; returns true if all
 // pass. Clears the red border automatically when the user edits the field.
 function validateForm(formEl) {
+  clearFormError(formEl);
   let valid = true;
   formEl.querySelectorAll('[required]').forEach(el => {
     const empty = el.tagName === 'SELECT' ? !el.value : !(el.value || '').trim();
@@ -125,9 +232,17 @@ function showConfirmModal(title, body, onConfirm, confirmLabel = 'Delete', confi
   // Replace listener
   const newBtn = btn.cloneNode(true);
   btn.parentNode.replaceChild(newBtn, btn);
-  newBtn.addEventListener('click', () => {
-    bsModal.hide();
-    onConfirm();
+  newBtn.addEventListener('click', async () => {
+    const idleHtml = newBtn.innerHTML;
+    newBtn.disabled = true;
+    newBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working…';
+    try {
+      bsModal.hide();
+      await onConfirm();
+    } finally {
+      newBtn.disabled = false;
+      newBtn.innerHTML = idleHtml;
+    }
   });
 
   bsModal.show();
@@ -377,12 +492,23 @@ function injectSidebar() {
         freshEl.innerHTML = `<i class="bi bi-clock-history me-1 text-muted"></i><span class="text-muted small">Recently updated: </span>${parts}`;
       }
     }
-  }).catch(() => {});
+  }).catch(() => {
+    if (!window.location.pathname.endsWith('login.html')) {
+      showToast('Could not verify your session. Refresh or sign in again.', 'danger');
+    }
+  });
 
   // Logout
   document.getElementById('btn-logout')?.addEventListener('click', async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login.html';
+    try {
+      await fetchAPI('/api/auth/logout', {
+        method: 'POST',
+        headers: {},
+      });
+      window.location.href = '/login.html';
+    } catch (err) {
+      showToast('Logout failed: ' + err.message, 'danger');
+    }
   });
 
   // Change password modal
@@ -451,3 +577,28 @@ function injectSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', injectSidebar);
+document.addEventListener('DOMContentLoaded', () => {
+  ensureRecordCountBadge();
+
+  document.querySelectorAll('label.form-label').forEach(label => {
+    const control = label.parentElement?.querySelector('[required]');
+    if (!control || label.querySelector('.required-indicator')) return;
+    const star = document.createElement('span');
+    star.className = 'text-danger required-indicator';
+    star.textContent = ' *';
+    label.appendChild(star);
+  });
+
+  document.querySelectorAll('[title]:is(button, .btn)').forEach(button => {
+    if (!button.getAttribute('aria-label')) {
+      button.setAttribute('aria-label', button.getAttribute('title'));
+    }
+  });
+
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('shown.bs.modal', () => {
+      const firstField = modal.querySelector('input, select, textarea, button');
+      firstField?.focus();
+    });
+  });
+});

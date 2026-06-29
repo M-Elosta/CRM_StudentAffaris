@@ -1,5 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalDateString,
+  optionalTrimmed,
+  parseBooleanFlag,
+  requiredTrimmed,
+  todayDate,
+} = require('./_helpers');
 
 // GET /api/companies  — list all, optional ?search=
 router.get('/', (req, res) => {
@@ -41,17 +49,11 @@ router.post('/', (req, res) => {
     SignedMoU, FavoriteEmployer, Blacklisted, Comment
   } = req.body;
 
-  if (!CompanyName) return res.status(400).json({ error: 'CompanyName is required' });
-  if (!Industry)   return res.status(400).json({ error: 'Industry is required' });
-  if (!Sector)     return res.status(400).json({ error: 'Sector is required' });
-  if (!Country)    return res.status(400).json({ error: 'Country is required' });
-
-  const validSectors = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
-  if (!validSectors.includes(Sector)) {
-    return res.status(400).json({ error: `Sector must be one of: ${validSectors.join(', ')}` });
-  }
-
   try {
+    const companyName = requiredTrimmed(CompanyName, 'CompanyName');
+    const industry = requiredTrimmed(Industry, 'Industry');
+    const sector = ensureEnum(Sector, ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'], 'Sector');
+    const country = requiredTrimmed(Country, 'Country');
     const stmt = db.prepare(`
       INSERT INTO Company
         (CompanyName, DateAdded, Industry, Sector, Country, Address, Website,
@@ -59,12 +61,19 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
-      CompanyName.trim(),
-      DateAdded || new Date().toISOString().slice(0, 10),
-      Industry.trim(), Sector, Country.trim(),
-      Address || null, Website || null, LinkedInURL || null, HandshakeURL || null,
-      SignedMoU ? 1 : 0, FavoriteEmployer ? 1 : 0, Blacklisted ? 1 : 0,
-      Comment || null
+      companyName,
+      optionalDateString(DateAdded) || todayDate(),
+      industry,
+      sector,
+      country,
+      optionalTrimmed(Address),
+      optionalTrimmed(Website),
+      optionalTrimmed(LinkedInURL),
+      optionalTrimmed(HandshakeURL),
+      parseBooleanFlag(SignedMoU),
+      parseBooleanFlag(FavoriteEmployer),
+      parseBooleanFlag(Blacklisted),
+      optionalTrimmed(Comment)
     );
     const created = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(info.lastInsertRowid);
     res.status(201).json(created);
@@ -82,17 +91,11 @@ router.put('/:id', (req, res) => {
     SignedMoU, FavoriteEmployer, Blacklisted, Comment
   } = req.body;
 
-  if (!CompanyName) return res.status(400).json({ error: 'CompanyName is required' });
-  if (!Industry)   return res.status(400).json({ error: 'Industry is required' });
-  if (!Sector)     return res.status(400).json({ error: 'Sector is required' });
-  if (!Country)    return res.status(400).json({ error: 'Country is required' });
-
-  const validSectors = ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'];
-  if (!validSectors.includes(Sector)) {
-    return res.status(400).json({ error: `Sector must be one of: ${validSectors.join(', ')}` });
-  }
-
   try {
+    const companyName = requiredTrimmed(CompanyName, 'CompanyName');
+    const industry = requiredTrimmed(Industry, 'Industry');
+    const sector = ensureEnum(Sector, ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'], 'Sector');
+    const country = requiredTrimmed(Country, 'Country');
     const stmt = db.prepare(`
       UPDATE Company SET
         CompanyName = ?, DateAdded = ?, Industry = ?, Sector = ?, Country = ?,
@@ -101,16 +104,23 @@ router.put('/:id', (req, res) => {
       WHERE CompanyID = ?
     `);
     const info = stmt.run(
-      CompanyName.trim(),
-      DateAdded || new Date().toISOString().slice(0, 10),
-      Industry.trim(), Sector, Country.trim(),
-      Address || null, Website || null, LinkedInURL || null, HandshakeURL || null,
-      SignedMoU ? 1 : 0, FavoriteEmployer ? 1 : 0, Blacklisted ? 1 : 0,
-      Comment || null,
+      companyName,
+      optionalDateString(DateAdded) || todayDate(),
+      industry,
+      sector,
+      country,
+      optionalTrimmed(Address),
+      optionalTrimmed(Website),
+      optionalTrimmed(LinkedInURL),
+      optionalTrimmed(HandshakeURL),
+      parseBooleanFlag(SignedMoU),
+      parseBooleanFlag(FavoriteEmployer),
+      parseBooleanFlag(Blacklisted),
+      optionalTrimmed(Comment),
       req.params.id
     );
     if (info.changes === 0) return res.status(404).json({ error: 'Company not found' });
-    if (Blacklisted) {
+    if (parseBooleanFlag(Blacklisted)) {
       db.prepare("UPDATE Contact SET Status='Non-mailable' WHERE CompanyID=?").run(req.params.id);
     }
     const updated = db.prepare('SELECT * FROM Company WHERE CompanyID = ?').get(req.params.id);

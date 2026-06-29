@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCompanies();
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
   document.getElementById('collaboration-form').addEventListener('submit', handleSave);
   document.getElementById('btn-delete').addEventListener('click', handleDelete);
@@ -73,9 +73,9 @@ async function loadItems() {
 }
 
 function applyFilters() {
-  const q = document.getElementById('search-input').value.toLowerCase();
+  const q = safeLower(document.getElementById('search-input').value);
   const filtered = allItems.filter(r => {
-    if (q && !r.CompanyName?.toLowerCase().includes(q)) return false;
+    if (q && !safeLower(r.CompanyName).includes(q)) return false;
     return true;
   });
   displayItems = filtered; currentPage = 1; renderCurrentPage();
@@ -84,6 +84,7 @@ function applyFilters() {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allItems.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -120,7 +121,7 @@ function renderTable(items) {
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(opps)}</td>
       <td style="max-width:200px" class="text-truncate">${escHtml(r.Comment)}</td>
-      <td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.PotentialCollaborationID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.PotentialCollaborationID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -147,7 +148,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.PotentialCollaborationID : null;
-  document.getElementById('collaboration-form').reset();
+  const form = document.getElementById('collaboration-form');
+  form.reset();
+  clearFormError(form);
   document.querySelectorAll('input[name="opp"]').forEach(el => el.checked = false);
 
   const isEdit = !!item;
@@ -172,7 +175,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('collaboration-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -187,6 +190,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
+    showFormError('collaboration-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;

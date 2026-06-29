@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
   document.getElementById('filter-mode').addEventListener('change', applyFilters);
   document.getElementById('filter-status').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
@@ -73,7 +73,7 @@ async function loadItems() {
   setLoading(true);
   try {
     allItems = await fetchAPI('/api/recruitment');
-    renderTable(allItems);
+    applyFilters();
   } catch (err) { showToast('Failed to load: ' + err.message, 'danger'); }
   finally { setLoading(false); }
 }
@@ -88,24 +88,27 @@ function updateContactDropdown(companyId, selectedId = null) {
 }
 
 function applyFilters() {
-  const q = document.getElementById('search-input').value.toLowerCase();
+  const q = safeLower(document.getElementById('search-input').value);
   const mode   = document.getElementById('filter-mode').value;
   const status = document.getElementById('filter-status').value;
   const from   = document.getElementById('filter-from').value;
   const to     = document.getElementById('filter-to').value;
-  renderTable(allItems.filter(r => {
-    if (q && !r.CompanyName?.toLowerCase().includes(q) && !r.OpportunityTitle?.toLowerCase().includes(q)) return false;
+  displayItems = allItems.filter(r => {
+    if (q && !safeLower(r.CompanyName).includes(q) && !safeLower(r.OpportunityTitle).includes(q)) return false;
     if (mode   && r.Mode   !== mode)   return false;
     if (status && r.Status !== status) return false;
     if (from   && r.DatePosted < from) return false;
     if (to     && r.DatePosted > to)   return false;
     return true;
-  }));
+  });
+  currentPage = 1;
+  renderCurrentPage();
 }
 
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allItems.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -141,7 +144,7 @@ function renderTable(items) {
     return `<tr style="cursor:pointer" data-id="${r.RecruitmentID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.OpportunityTitle)}</td>
-      <td>${r.DatePosted}</td>
+      <td>${toDateDisplay(r.DatePosted)}</td>
       <td><span class="badge bg-secondary">${r.Mode}</span></td>
       <td><span class="badge ${r.Status==='Paid'?'bg-success':'bg-secondary'}">${r.Status}</span></td>
       <td>${r.TargetGroup}</td>
@@ -169,7 +172,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.RecruitmentID : null;
-  document.getElementById('recruitment-form').reset();
+  const form = document.getElementById('recruitment-form');
+  form.reset();
+  clearFormError(form);
   document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
   document.getElementById('pay-amount-row').classList.add('d-none');
 
@@ -179,11 +184,11 @@ function openModal(item) {
   if (item) {
     document.getElementById('f-company').value        = item.CompanyID;
     updateContactDropdown(item.CompanyID, item.ContactID);
-    document.getElementById('f-date').value           = item.DatePosted;
+    document.getElementById('f-date').value           = toDateInputValue(item.DatePosted);
     document.getElementById('f-title').value          = item.OpportunityTitle;
     document.getElementById('f-duration').value       = item.Duration || '';
-    document.getElementById('f-hire-start').value     = item.HiringStartDate || '';
-    document.getElementById('f-hire-end').value       = item.HiringEndDate || '';
+    document.getElementById('f-hire-start').value     = toDateInputValue(item.HiringStartDate);
+    document.getElementById('f-hire-end').value       = toDateInputValue(item.HiringEndDate);
     document.getElementById('f-country').value        = item.Country || '';
     document.getElementById('f-mode').value           = item.Mode;
     document.getElementById('f-pay-status').value     = item.Status;
@@ -199,7 +204,7 @@ function openModal(item) {
     setChecked('cls',     item.ClassLevels);
   } else {
     updateContactDropdown('');
-    document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('f-date').value = todayISODate();
     document.getElementById('f-hired').value = 'Not Reported';
   }
   new bootstrap.Modal(document.getElementById('the-modal')).show();
@@ -207,7 +212,7 @@ function openModal(item) {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('recruitment-form'))) return;
   const payload = {
     CompanyID: document.getElementById('f-company').value,
     ContactID: document.getElementById('f-contact').value,
@@ -238,7 +243,10 @@ async function handleSave(e) {
     bootstrap.Modal.getInstance(document.getElementById('the-modal')).hide();
     showToast('Record saved successfully');
     await loadItems();
-  } catch (err) { showToast('Save failed: ' + err.message, 'danger'); }
+  } catch (err) {
+    showFormError('recruitment-form', 'Save failed: ' + err.message);
+    showToast('Save failed: ' + err.message, 'danger');
+  }
   finally { btn.disabled = false; btn.innerHTML = 'Save'; }
 }
 

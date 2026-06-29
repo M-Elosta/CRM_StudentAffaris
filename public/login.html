@@ -77,12 +77,13 @@
             password: document.getElementById('f-password').value,
           })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Login failed');
         window.location.href = '/index.html';
       } catch (e) {
         err.textContent = e.message;
         err.classList.remove('d-none');
+      } finally {
         btn.disabled = false;
         btn.innerHTML = 'Sign In';
       }

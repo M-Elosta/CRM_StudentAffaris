@@ -107,6 +107,15 @@ app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (req.path.startsWith('/api/')) {
+    const status = Number.isInteger(err?.status) ? err.status : 500;
+    return res.status(status).json({ error: err?.message || 'Internal server error' });
+  }
+  next(err);
+});
+
 app.listen(PORT, () => {
   console.log(`Employer Relations System running at http://localhost:${PORT}`);
   console.log(`Database: ${DB_PATH}`);

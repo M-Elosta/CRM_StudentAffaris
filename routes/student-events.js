@@ -1,5 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const {
+  ensureEnum,
+  optionalDateString,
+  optionalTrimmed,
+  requiredTrimmed,
+} = require('./_helpers');
+
+const VALID_OUTCOMES = ['Completed', 'Pending'];
 
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
@@ -27,11 +35,19 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, ProposalDate, OrganizationName, StudentName, StudentEmail, StudentPhoneNumber, CollaborationOutcome, EventDate, EventTitle, Comment } = req.body;
-  if (!CompanyID||!ContactID||!ProposalDate||!OrganizationName||!StudentName||!StudentEmail||!StudentPhoneNumber)
-    return res.status(400).json({ error: 'Required fields missing' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const proposalDate = requiredTrimmed(ProposalDate, 'ProposalDate');
+    const organizationName = requiredTrimmed(OrganizationName, 'OrganizationName');
+    const studentName = requiredTrimmed(StudentName, 'StudentName');
+    const studentEmail = requiredTrimmed(StudentEmail, 'StudentEmail');
+    const studentPhoneNumber = requiredTrimmed(StudentPhoneNumber, 'StudentPhoneNumber');
+    const collaborationOutcome = CollaborationOutcome
+      ? ensureEnum(CollaborationOutcome, VALID_OUTCOMES, 'CollaborationOutcome')
+      : 'Pending';
     const info = db.prepare(`INSERT INTO StudentLedEvent (CompanyID,ContactID,ProposalDate,OrganizationName,StudentName,StudentEmail,StudentPhoneNumber,CollaborationOutcome,EventDate,EventTitle,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(CompanyID,ContactID,ProposalDate,OrganizationName.trim(),StudentName.trim(),StudentEmail.trim(),StudentPhoneNumber.trim(),CollaborationOutcome||'Pending',EventDate||null,EventTitle||null,Comment||null);
+    ).run(companyId, contactId, proposalDate, organizationName, studentName, studentEmail, studentPhoneNumber, collaborationOutcome, optionalDateString(EventDate), optionalTrimmed(EventTitle), optionalTrimmed(Comment));
     res.status(201).json(db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(info.lastInsertRowid));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -39,11 +55,19 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, ProposalDate, OrganizationName, StudentName, StudentEmail, StudentPhoneNumber, CollaborationOutcome, EventDate, EventTitle, Comment } = req.body;
-  if (!CompanyID||!ContactID||!ProposalDate||!OrganizationName||!StudentName||!StudentEmail||!StudentPhoneNumber)
-    return res.status(400).json({ error: 'Required fields missing' });
   try {
+    const companyId = requiredTrimmed(CompanyID, 'CompanyID');
+    const contactId = requiredTrimmed(ContactID, 'ContactID');
+    const proposalDate = requiredTrimmed(ProposalDate, 'ProposalDate');
+    const organizationName = requiredTrimmed(OrganizationName, 'OrganizationName');
+    const studentName = requiredTrimmed(StudentName, 'StudentName');
+    const studentEmail = requiredTrimmed(StudentEmail, 'StudentEmail');
+    const studentPhoneNumber = requiredTrimmed(StudentPhoneNumber, 'StudentPhoneNumber');
+    const collaborationOutcome = CollaborationOutcome
+      ? ensureEnum(CollaborationOutcome, VALID_OUTCOMES, 'CollaborationOutcome')
+      : 'Pending';
     const info = db.prepare(`UPDATE StudentLedEvent SET CompanyID=?,ContactID=?,ProposalDate=?,OrganizationName=?,StudentName=?,StudentEmail=?,StudentPhoneNumber=?,CollaborationOutcome=?,EventDate=?,EventTitle=?,Comment=? WHERE StudentLedEventID=?`
-    ).run(CompanyID,ContactID,ProposalDate,OrganizationName.trim(),StudentName.trim(),StudentEmail.trim(),StudentPhoneNumber.trim(),CollaborationOutcome||'Pending',EventDate||null,EventTitle||null,Comment||null,req.params.id);
+    ).run(companyId, contactId, proposalDate, organizationName, studentName, studentEmail, studentPhoneNumber, collaborationOutcome, optionalDateString(EventDate), optionalTrimmed(EventTitle), optionalTrimmed(Comment), req.params.id);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     res.json(db.prepare('SELECT * FROM StudentLedEvent WHERE StudentLedEventID=?').get(req.params.id));
   } catch (err) { res.status(500).json({ error: err.message }); }

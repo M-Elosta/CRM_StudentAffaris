@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const multer  = require('multer');
 const XLSX    = require('xlsx');
+const { parseBooleanFlag, todayDate } = require('./_helpers');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -75,32 +76,105 @@ const ENTITY_FIELDS = {
 };
 
 // ── Date parsing ────────────────────────────────────────────────────────────────
+function normalizeLookupToken(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
 function parseDate(val) {
-  if (!val) return null;
-  if (typeof val === 'number') {
-    const d = XLSX.SSF.parse_date_code(val);
+  if (val === undefined || val === null || val === '') return null;
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    return val.toISOString().slice(0, 10);
+  }
+
+  const numeric = typeof val === 'number' ? val : Number(normalizeLookupToken(val));
+  if (Number.isFinite(numeric) && numeric > 59 && numeric < 60000) {
+    const d = XLSX.SSF.parse_date_code(numeric);
     if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
   }
-  const s = String(val).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (slash) return `${slash[3]}-${slash[1].padStart(2,'0')}-${slash[2].padStart(2,'0')}`;
+
+  const s = normalizeLookupToken(val);
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2,'0')}-${iso[3].padStart(2,'0')}`;
+
+  const slash = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slash) {
+    const first = Number(slash[1]);
+    const second = Number(slash[2]);
+    const month = first > 12 && second <= 12 ? second : first;
+    const day = first > 12 && second <= 12 ? first : second;
+    return `${slash[3]}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+
   const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
-  const mon = s.match(/^(\d{1,2})-([a-zA-Z]{3})-(\d{4})$/);
+  const mon = s.match(/^(\d{1,2})[- ]([a-zA-Z]{3,})[- ,](\d{4})$/);
   if (mon) return `${mon[3]}-${months[mon[2].toLowerCase()]||'01'}-${mon[1].padStart(2,'0')}`;
   const d = new Date(s);
-  if (!isNaN(d)) return d.toISOString().slice(0,10);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0,10);
   return null;
 }
 
 // ── Enum canonical lookup (case-insensitive + space/hyphen-insensitive) ─────────
 function findCanonical(value, allowed) {
   const norm = s => s.toLowerCase().replace(/[\s\-]/g, '');
-  const v = String(value);
+  const v = normalizeLookupToken(value);
   return allowed.find(a => a === v) ||
          allowed.find(a => a.toLowerCase() === v.toLowerCase()) ||
          allowed.find(a => norm(a) === norm(v)) ||
          null;
+}
+
+function resolveCompanyId(db, value) {
+  const raw = normalizeLookupToken(value);
+  if (!raw) return { companyId: null };
+  if (!Number.isNaN(Number(raw))) return { companyId: Number(raw) };
+
+  const company = db.prepare(
+    'SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName)) = LOWER(TRIM(?))'
+  ).get(raw);
+
+  return company
+    ? { companyId: company.CompanyID }
+    : { companyId: null, error: `Company "${raw}" not found in database` };
+}
+
+function resolveContactId(db, value, companyId) {
+  const raw = normalizeLookupToken(value);
+  if (!raw) return { contactId: null };
+  if (!Number.isNaN(Number(raw))) return { contactId: Number(raw) };
+
+  const companyFilter = companyId ? ' AND CompanyID = ?' : '';
+  const emailParams = companyId ? [raw, companyId] : [raw];
+  let contact = db.prepare(
+    `SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress)) = LOWER(TRIM(?))${companyFilter}`
+  ).get(...emailParams);
+
+  if (!contact) {
+    const fullName = raw.split(/\s+/);
+    if (fullName.length >= 2) {
+      const lastName = fullName.pop();
+      const firstName = fullName.join(' ');
+      const nameParams = companyId ? [firstName, lastName, companyId] : [firstName, lastName];
+      contact = db.prepare(
+        `SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName)) = LOWER(TRIM(?)) AND LOWER(TRIM(LastName)) = LOWER(TRIM(?))${companyFilter}`
+      ).get(...nameParams);
+    }
+  }
+
+  if (!contact && raw.includes(',')) {
+    const [lastName, firstName] = raw.split(',').map(part => normalizeLookupToken(part));
+    if (firstName && lastName) {
+      const nameParams = companyId ? [firstName, lastName, companyId] : [firstName, lastName];
+      contact = db.prepare(
+        `SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName)) = LOWER(TRIM(?)) AND LOWER(TRIM(LastName)) = LOWER(TRIM(?))${companyFilter}`
+      ).get(...nameParams);
+    }
+  }
+
+  return contact
+    ? { contactId: contact.ContactID }
+    : { contactId: null, error: `Contact "${raw}" not found in database` };
 }
 
 // ── Duplicate detection ─────────────────────────────────────────────────────────
@@ -257,9 +331,7 @@ router.post('/validate', (req, res) => {
       'ArabicSpeaker', ...COLLAB_OPPS];
     for (const field of BOOL_FIELDS) {
       if (row[field] !== undefined && row[field] !== '') {
-        const v = String(row[field]).trim().toLowerCase();
-        if      (v === 'true' || v === 'yes' || v === '1') row[field] = 1;
-        else if (v === 'false' || v === 'no'  || v === '0') row[field] = 0;
+        row[field] = parseBooleanFlag(row[field]);
       }
     }
 
@@ -272,68 +344,26 @@ router.post('/validate', (req, res) => {
 
     // Resolve CompanyID: numeric → use as-is; string → lookup by CompanyName
     if (row.CompanyID !== undefined && row.CompanyID !== '' && isNaN(Number(row.CompanyID))) {
-      try {
-        const company = db.prepare(
-          'SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName))=LOWER(TRIM(?))'
-        ).get(String(row.CompanyID));
-        if (company) {
-          row.CompanyID = company.CompanyID;
-        } else {
-          row.__companyLookupFailed = row.CompanyID;
-          row.CompanyID = null;
-        }
-      } catch (_) {}
+      const resolved = resolveCompanyId(db, row.CompanyID);
+      row.CompanyID = resolved.companyId;
+      if (resolved.error) row.__companyLookupFailed = resolved.error;
     }
 
     // Resolve ContactID: numeric → use as-is; string → lookup by email, then by full name
     if (row.ContactID !== undefined && row.ContactID !== '' && isNaN(Number(row.ContactID))) {
-      try {
-        const val = String(row.ContactID).trim();
-        let contact = db.prepare(
-          'SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress))=LOWER(TRIM(?))'
-        ).get(val);
-
-        if (!contact) {
-          // Try "FirstName LastName" full-name match
-          const parts = val.split(/\s+/);
-          if (parts.length >= 2) {
-            const lastName  = parts[parts.length - 1];
-            const firstName = parts.slice(0, -1).join(' ');
-            contact = db.prepare(
-              'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
-            ).get(firstName.toLowerCase(), lastName.toLowerCase());
-          }
-        }
-
-        if (!contact) {
-          // Try "LastName, FirstName" format
-          const commaIdx = val.indexOf(',');
-          if (commaIdx > -1) {
-            const ln = val.slice(0, commaIdx).trim();
-            const fn = val.slice(commaIdx + 1).trim();
-            contact = db.prepare(
-              'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName))=LOWER(?) AND LOWER(TRIM(LastName))=LOWER(?)'
-            ).get(fn.toLowerCase(), ln.toLowerCase());
-          }
-        }
-
-        if (contact) {
-          row.ContactID = contact.ContactID;
-        } else {
-          row.__contactLookupFailed = val;
-          row.ContactID = null;
-        }
-      } catch (_) {}
+      const resolved = resolveContactId(db, row.ContactID, row.CompanyID);
+      row.ContactID = resolved.contactId;
+      if (resolved.error) row.__contactLookupFailed = resolved.error;
     }
 
     const errors = [];
 
     if (row.__companyLookupFailed) {
-      errors.push(`Company "${row.__companyLookupFailed}" not found in database`);
+      errors.push(row.__companyLookupFailed);
       delete row.__companyLookupFailed;
     }
     if (row.__contactLookupFailed) {
-      errors.push(`Contact "${row.__contactLookupFailed}" not found in database`);
+      errors.push(row.__contactLookupFailed);
       delete row.__contactLookupFailed;
     }
 
@@ -392,11 +422,11 @@ router.post('/confirm', (req, res) => {
   const insertFns = {
     Company: (db, r) => db.prepare(
       `INSERT INTO Company (CompanyName,DateAdded,Industry,Sector,Country,Address,Website,LinkedInURL,HandshakeURL,SignedMoU,FavoriteEmployer,Blacklisted,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(r.CompanyName,r.DateAdded||new Date().toISOString().slice(0,10),r.Industry,r.Sector,r.Country,r.Address||null,r.Website||null,r.LinkedInURL||null,r.HandshakeURL||null,r.SignedMoU?1:0,r.FavoriteEmployer?1:0,r.Blacklisted?1:0,r.Comment||null),
+    ).run(r.CompanyName,r.DateAdded||todayDate(),r.Industry,r.Sector,r.Country,r.Address||null,r.Website||null,r.LinkedInURL||null,r.HandshakeURL||null,r.SignedMoU?1:0,r.FavoriteEmployer?1:0,r.Blacklisted?1:0,r.Comment||null),
 
     Contact: (db, r) => db.prepare(
       `INSERT INTO Contact (CompanyID,FirstName,LastName,DateAdded,JobTitle,EmailAddress,Address,Country,WorkPhone,Mobile,Status,CMUQGraduate,Major,GraduationYear,PrimaryContact,ResumeBook,EventInvitation,ExcludeFromMailing) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(r.CompanyID,r.FirstName,r.LastName,r.DateAdded||new Date().toISOString().slice(0,10),r.JobTitle||null,r.EmailAddress,r.Address||null,r.Country||null,r.WorkPhone||null,r.Mobile||null,r.Status||'Mailable',r.CMUQGraduate?1:0,r.Major||null,r.GraduationYear||null,r.PrimaryContact?1:0,r.ResumeBook?1:0,r.EventInvitation?1:0,r.ExcludeFromMailing?1:0),
+    ).run(r.CompanyID,r.FirstName,r.LastName,r.DateAdded||todayDate(),r.JobTitle||null,r.EmailAddress,r.Address||null,r.Country||null,r.WorkPhone||null,r.Mobile||null,r.Status||'Mailable',r.CMUQGraduate?1:0,r.Major||null,r.GraduationYear||null,r.PrimaryContact?1:0,r.ResumeBook?1:0,r.EventInvitation?1:0,r.ExcludeFromMailing?1:0),
 
     Outreach: (db, r) => db.prepare(
       `INSERT INTO OutreachEngagement (CompanyID,ContactID,InteractionType,InteractionDate,DiscussionItems,ActionPlan,FollowUpDate,InteractionStatus) VALUES (?,?,?,?,?,?,?,?)`
@@ -404,7 +434,7 @@ router.post('/confirm', (req, res) => {
 
     Recruitment: (db, r) => db.prepare(
       `INSERT INTO Recruitment (CompanyID,ContactID,DatePosted,OpportunityTitle,Duration,HiringStartDate,HiringEndDate,Country,Mode,Status,PayAmount,TargetGroup,ArabicSpeaker,HiredStudentAlumni,Comment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(r.CompanyID,r.ContactID,r.DatePosted||new Date().toISOString().slice(0,10),r.OpportunityTitle,r.Duration||null,r.HiringStartDate||null,r.HiringEndDate||null,r.Country||null,r.Mode,r.Status,r.PayAmount||null,r.TargetGroup,r.ArabicSpeaker?1:0,r.HiredStudentAlumni||'Not Reported',r.Comment||null),
+    ).run(r.CompanyID,r.ContactID,r.DatePosted||todayDate(),r.OpportunityTitle,r.Duration||null,r.HiringStartDate||null,r.HiringEndDate||null,r.Country||null,r.Mode,r.Status,r.PayAmount||null,r.TargetGroup,r.ArabicSpeaker?1:0,r.HiredStudentAlumni||'Not Reported',r.Comment||null),
 
     'Career Event': (db, r) => db.prepare(
       `INSERT INTO CareerEvent (CompanyID,ContactID,EventName,EventDate,RegisteredStatus,CMUQAlumniAtBooth,Comment) VALUES (?,?,?,?,?,?,?)`

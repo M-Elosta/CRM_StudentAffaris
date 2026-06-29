@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
-  document.getElementById('search-input').addEventListener('input', applyFilters);
+  bindDebouncedInput('search-input', applyFilters);
   document.getElementById('filter-type').addEventListener('change', applyFilters);
   document.getElementById('filter-from').addEventListener('change', applyFilters);
   document.getElementById('filter-to').addEventListener('change', applyFilters);
@@ -73,15 +73,15 @@ function updateContactDropdown(companyId, selectedId = null) {
 }
 
 function applyFilters() {
-  const q    = document.getElementById('search-input').value.toLowerCase();
+  const q    = safeLower(document.getElementById('search-input').value);
   const type = document.getElementById('filter-type').value;
   const from = document.getElementById('filter-from').value;
   const to   = document.getElementById('filter-to').value;
 
   const filtered = allItems.filter(r => {
-    if (q && !r.CompanyName?.toLowerCase().includes(q) && !r.GuestSpeakerName?.toLowerCase().includes(q)) return false;
+    if (q && !safeLower(r.CompanyName).includes(q) && !safeLower(r.GuestSpeakerName).includes(q)) return false;
     if (type && r.EngagementType !== type) return false;
-    const sessionDate = r.SessionDate ? r.SessionDate.substring(0, 10) : '';
+    const sessionDate = toDateInputValue(r.SessionDate);
     if (from && sessionDate < from) return false;
     if (to   && sessionDate > to)   return false;
     return true;
@@ -92,6 +92,7 @@ function applyFilters() {
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
   renderTable(displayItems.slice(start, start + PAGE_SIZE));
+  updateRecordCountBadge(displayItems.length, allItems.length);
 
   let pEl = document.getElementById('pagination-controls');
   if (!pEl) {
@@ -123,7 +124,7 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const sessionDate = r.SessionDate ? r.SessionDate.substring(0, 10) : '—';
+    const sessionDate = toDateDisplay(r.SessionDate);
     return `<tr style="cursor:pointer" data-id="${r.EngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td><span class="badge bg-secondary">${escHtml(r.EngagementType)}</span></td>
@@ -131,7 +132,7 @@ function renderTable(items) {
       <td>${escHtml(r.FacultyName)}</td>
       <td>${escHtml(r.CourseNumber)}${r.CourseTitle ? ' – ' + escHtml(r.CourseTitle) : ''}</td>
       <td>${sessionDate}</td>
-      <td>
+      <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.EngagementID})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.EngagementID})"><i class="bi bi-trash"></i></button>
       </td>
@@ -158,7 +159,9 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.EngagementID : null;
-  document.getElementById('academic-form').reset();
+  const form = document.getElementById('academic-form');
+  form.reset();
+  clearFormError(form);
 
   const isEdit = !!item;
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Academic Engagement' : 'Add Academic Engagement';
@@ -176,7 +179,7 @@ function openModal(item) {
     document.getElementById('f-course-num').value   = item.CourseNumber || '';
     document.getElementById('f-course-title').value = item.CourseTitle || '';
     document.getElementById('f-topic').value        = item.TopicTheme || '';
-    document.getElementById('f-session-date').value = item.SessionDate ? item.SessionDate.substring(0, 10) : '';
+    document.getElementById('f-session-date').value = toDateInputValue(item.SessionDate);
     document.getElementById('f-session-time').value = item.SessionTime || '';
     document.getElementById('f-comment').value      = item.Comment || '';
   } else {
@@ -206,7 +209,7 @@ function formToPayload() {
 
 async function handleSave(e) {
   e.preventDefault();
-  if (!validateForm(document.getElementById('the-form'))) return;
+  if (!validateForm(document.getElementById('academic-form'))) return;
   const payload = formToPayload();
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
@@ -221,6 +224,7 @@ async function handleSave(e) {
     showToast('Record saved successfully');
     await loadItems();
   } catch (err) {
+    showFormError('academic-form', 'Save failed: ' + err.message);
     showToast('Save failed: ' + err.message, 'danger');
   } finally {
     btn.disabled = false;

@@ -457,7 +457,7 @@ const QUICK_REPORTS = {
     return { rows, chartData: {
       type: 'bar', labels: statuses,
       datasets: [{ label: 'Events', data: statuses.map(s=>byStatus[s]||0),
-                   backgroundColor: ['#2ec4b6','#e71d36','#adb5bd'], borderRadius: 4 }]
+                   backgroundColor: ['#2ec4b6','#e71d36','#dc3545'], borderRadius: 4 }]
     }};
   },
 
