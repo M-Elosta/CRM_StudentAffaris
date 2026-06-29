@@ -94,9 +94,9 @@ function renderTable(items) {
     <tr style="cursor:pointer" data-id="${r.HiringFeedbackID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td>${statusBadge(r.FeedbackProvider, BADGE_STYLES.hiringProvider)}</td>
-      <td>${statusBadge(r.HiredStudentAlumni, BADGE_STYLES.hiringOutcome)}</td>
-      <td>${formatDate(r.DateReported)}</td>
+      <td>${escHtml(r.FeedbackProvider)}</td>
+      <td>${renderStatusBadge(r.HiredStudentAlumni)}</td>
+      <td>${toDateDisplay(r.DateReported)}</td>
       <td>${escHtml(r.HiredStudentName||'—')}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>

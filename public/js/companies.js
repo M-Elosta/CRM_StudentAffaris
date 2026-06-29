@@ -126,17 +126,22 @@ function renderTable(companies) {
   }
 
   tbody.innerHTML = companies.map(c => {
-    const stateBadges = [
-      c.Blacklisted ? statusBadge('Blacklisted', BADGE_STYLES.companyState) : '',
-      c.SignedMoU ? statusBadge('Signed MoU', BADGE_STYLES.companyState) : '',
-      c.FavoriteEmployer ? statusBadge('Favorite', BADGE_STYLES.companyState) : '',
-    ].filter(Boolean).join(' ');
-    const rowClass = c.Blacklisted ? 'table-secondary text-muted' : '';
+    const flagBadges = [
+      c.Blacklisted ? renderStatusBadge('Blacklisted') : '',
+      c.SignedMoU ? renderSemanticBadge('MoU', 'good', { subtle: true, title: 'Signed memorandum of understanding' }) : '',
+      c.FavoriteEmployer
+        ? '<span class="entity-indicator entity-indicator-good" title="Favorite employer" aria-label="Favorite employer"><i class="bi bi-star-fill"></i></span>'
+        : '',
+    ].filter(Boolean).join('');
+    const rowClass = c.Blacklisted ? 'table-secondary' : '';
 
     return `
       <tr class="${rowClass}" style="cursor:pointer" data-id="${c.CompanyID}">
         <td>
-          ${escHtml(c.CompanyName)}${stateBadges ? `<div class="d-flex flex-wrap gap-1 mt-1">${stateBadges}</div>` : ''}
+          <div class="name-with-flags">
+            <span class="entity-name">${escHtml(c.CompanyName)}</span>
+            ${flagBadges ? `<span class="badge-stack">${flagBadges}</span>` : ''}
+          </div>
         </td>
         <td>${escHtml(c.Industry)}</td>
         <td>${escHtml(c.Sector)}</td>

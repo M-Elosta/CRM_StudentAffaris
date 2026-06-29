@@ -127,7 +127,7 @@ function renderTable(items) {
   tbody.innerHTML = items.map(r => {
     return `<tr style="cursor:pointer" data-id="${r.EngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
-      <td>${statusBadge(r.EngagementType, BADGE_STYLES.academicType)}</td>
+      <td>${renderSemanticBadge(r.EngagementType, 'neutral', { subtle: true })}</td>
       <td>${escHtml(r.GuestSpeakerName)}</td>
       <td>${escHtml(r.FacultyName)}</td>
       <td>${escHtml(r.CourseNumber)}${r.CourseTitle ? ' – ' + escHtml(r.CourseTitle) : ''}</td>

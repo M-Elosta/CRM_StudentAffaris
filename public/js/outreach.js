@@ -123,18 +123,21 @@ function renderTable(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
+    const statusBadge = renderStatusBadge(r.InteractionStatus);
     const followUp = r.FollowUpDate
       ? (isOverdue(r)
           ? `<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>${formatDate(r.FollowUpDate)}</span>`
           : formatDate(r.FollowUpDate))
       : '—';
 
+    const typeBadge = renderSemanticBadge(r.InteractionType, 'neutral', { subtle: true });
+
     return `<tr style="cursor:pointer" data-id="${r.OutreachEngagementID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
-      <td>${statusBadge(r.InteractionType, BADGE_STYLES.outreachType)}</td>
-      <td>${formatDate(r.InteractionDate)}</td>
-      <td>${statusBadge(r.InteractionStatus, BADGE_STYLES.outreachStatus)}</td>
+      <td>${typeBadge}</td>
+      <td>${toDateDisplay(r.InteractionDate)}</td>
+      <td>${statusBadge}</td>
       <td>${followUp}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.OutreachEngagementID})"><i class="bi bi-pencil"></i></button>

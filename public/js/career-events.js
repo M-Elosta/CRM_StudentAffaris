@@ -116,13 +116,14 @@ function renderTable(items) {
   }
   tbody.innerHTML = items.map(r => {
     const alumniBooth = r.CMUQAlumniAtBooth ? '&#10003;' : '&mdash;';
+    const eventDate = toDateDisplay(r.EventDate);
 
     return `<tr style="cursor:pointer" data-id="${r.CareerEventID}">
       <td>${escHtml(r.CompanyName)}</td>
       <td>${escHtml(r.ContactName)}</td>
       <td>${escHtml(r.EventName)}</td>
-      <td>${formatDate(r.EventDate)}</td>
-      <td>${statusBadge(r.RegisteredStatus, BADGE_STYLES.careerEventStatus)}</td>
+      <td>${eventDate}</td>
+      <td>${renderStatusBadge(r.RegisteredStatus)}</td>
       <td class="text-center">${alumniBooth}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.CareerEventID})"><i class="bi bi-pencil"></i></button>

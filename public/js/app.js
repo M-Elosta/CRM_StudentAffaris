@@ -45,6 +45,99 @@ async function fetchFormData(url, options = {}) {
   return data;
 }
 
+function safeText(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function safeLower(value) {
+  return safeText(value).toLowerCase();
+}
+
+function escapeHtml(value) {
+  return safeText(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function semanticToneForStatus(value) {
+  const normalized = safeLower(value).replace(/\s+/g, '-');
+  switch (normalized) {
+    case 'mailable':
+    case 'complete':
+    case 'completed':
+    case 'attended':
+    case 'yes':
+    case 'paid':
+    case 'favorite':
+      return 'good';
+    case 'non-mailable':
+    case 'blacklisted':
+    case 'cancelled':
+    case 'overdue':
+    case 'no':
+      return 'bad';
+    case 'in-progress':
+    case 'pending':
+    case 'due-soon':
+      return 'warn';
+    case 'no-show':
+    case 'not-reported':
+    case 'viewer':
+    case 'admin':
+    default:
+      return 'neutral';
+  }
+}
+
+function semanticBadgeClass(tone = 'neutral', subtle = false, extraClasses = '') {
+  const toneClass = `badge-semantic-${tone}`;
+  return ['badge', 'badge-semantic', toneClass, subtle ? 'badge-semantic-subtle' : '', extraClasses]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function renderSemanticBadge(label, tone = 'neutral', options = {}) {
+  const { subtle = false, extraClasses = '', title = '' } = options;
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  return `<span class="${semanticBadgeClass(tone, subtle, extraClasses)}"${titleAttr}>${escapeHtml(label)}</span>`;
+}
+
+function renderPrimaryIndicator(title = 'Primary contact') {
+  const safeTitle = escapeHtml(title);
+  return `<span class="entity-indicator entity-indicator-primary" title="${safeTitle}" aria-label="${safeTitle}"><i class="bi bi-star-fill"></i></span>`;
+}
+
+function renderStatusBadge(label, options = {}) {
+  return renderSemanticBadge(label, semanticToneForStatus(label), options);
+}
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toDateInputValue(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    excelEpoch.setUTCDate(excelEpoch.getUTCDate() + value);
+    return excelEpoch.toISOString().slice(0, 10);
+  }
+
+  const text = safeText(value).trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return '';
+}
+
+function toDateDisplay(value) {
+  return toDateInputValue(value) || '—';
+}
+
 let forcedPasswordChangeActive = false;
 let changePasswordModalInstance = null;
 
@@ -415,81 +508,6 @@ function setFormReadOnly(formOrId, readOnly) {
     if (el.type === 'hidden') return;
     el.disabled = !!readOnly;
   });
-}
-
-const BADGE_STYLES = {
-  companyState: {
-    'Active': 'bg-primary',
-    'Blacklisted': 'bg-danger',
-    'Favorite': 'bg-warning text-dark',
-    'Signed MoU': 'bg-success',
-  },
-  contactStatus: {
-    'Mailable': 'bg-success',
-    'Non-mailable': 'bg-danger',
-    'Excluded from Mailing': 'bg-warning text-dark',
-  },
-  outreachStatus: {
-    'Complete': 'bg-success',
-    'In-progress': 'bg-warning text-dark',
-  },
-  outreachType: {
-    'Call': 'bg-info text-dark',
-    'Meeting': 'bg-primary',
-    'Company Visit': 'bg-secondary',
-  },
-  recruitmentMode: {
-    'Onsite': 'bg-primary',
-    'Hybrid': 'bg-info text-dark',
-    'Remote': 'bg-secondary',
-  },
-  recruitmentStatus: {
-    'Paid': 'bg-success',
-    'Unpaid': 'bg-secondary',
-  },
-  recruitmentHired: {
-    'Yes': 'bg-success',
-    'No': 'bg-secondary',
-    'Not Reported': 'bg-warning text-dark',
-  },
-  careerEventStatus: {
-    'Attended': 'bg-success',
-    'No-Show': 'bg-danger',
-    'Cancelled': 'bg-secondary',
-  },
-  studentOutcome: {
-    'Completed': 'bg-success',
-    'Pending': 'bg-warning text-dark',
-  },
-  academicType: {
-    'Guest Lecture': 'bg-primary',
-    'Panel Discussion': 'bg-info text-dark',
-    'Community Project Partnership': 'bg-success',
-    'Mock Interviews': 'bg-warning text-dark',
-    'Research Collaboration': 'bg-secondary',
-    'Competition/Hackathon Sponsorship': 'bg-dark',
-    'Other': 'bg-secondary',
-  },
-  hiringProvider: {
-    'Company': 'bg-primary',
-    'Student/Alumni': 'bg-info text-dark',
-    'Other': 'bg-secondary',
-  },
-  hiringOutcome: {
-    'Yes': 'bg-success',
-    'No': 'bg-secondary',
-  },
-};
-
-function getBadgeClass(group, value, fallback = 'bg-secondary') {
-  return BADGE_STYLES[group]?.[String(value)] || fallback;
-}
-
-// Returns a Bootstrap badge <span>; classMap maps value → 'bg-*' class
-function statusBadge(value, classMap = {}) {
-  if (value === null || value === undefined || value === '') return '<span class="badge bg-secondary">—</span>';
-  const cls = classMap[String(value)] || 'bg-secondary';
-  return `<span class="badge ${cls}">${escHtml(String(value))}</span>`;
 }
 
 function clearFormError(formOrId) {
