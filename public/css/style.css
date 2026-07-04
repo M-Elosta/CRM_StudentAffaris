@@ -57,6 +57,12 @@ body {
   background: rgba(0,0,0,0.5);
   z-index: 1050;
 }
+/* Keep the overlay inert when hidden even if the Bootstrap CDN stylesheet
+   fails to load (its .d-none rule is what normally hides it) */
+.sidebar-overlay.d-none {
+  display: none;
+  pointer-events: none;
+}
 
 /* ── Cards ───────────────────────────────────────────────────────────────────── */
 .card {
@@ -235,6 +241,22 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* ── Sortable column headers ─────────────────────────────────────────────────── */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.th-sortable:hover,
+.th-sortable:focus-visible {
+  color: #343a40;
+  background-color: #eef1f4;
+}
+.th-sortable .sort-caret {
+  font-size: 0.7em;
+  margin-left: 0.25rem;
+  opacity: 0.75;
 }
 
 /* ── Table action buttons ────────────────────────────────────────────────────── */

@@ -1,9 +1,16 @@
 let allItems=[], allCompanies=[], allContacts=[], editingId=null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = null;
+
+function applySort(items) {
+  return sortState?.key ? sortByKey(items, sortState.key, sortState.dir) : items;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
+  sortState = initSortableHeaders(document.querySelector('.table thead'), applyFilters);
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
   bindDebouncedInput('search-input', applyFilters);
@@ -57,7 +64,7 @@ function applyFilters() {
     if(to       && r.DateReported>to)              return false;
     return true;
   });
-  displayItems = filtered; currentPage = 1; renderCurrentPage();
+  displayItems = applySort(filtered); currentPage = 1; renderCurrentPage();
 }
 function renderCurrentPage() {
   const start = (currentPage - 1) * PAGE_SIZE;
@@ -99,8 +106,8 @@ function renderTable(items) {
       <td>${toDateDisplay(r.DateReported)}</td>
       <td>${escHtml(r.HiredStudentName||'—')}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.HiringFeedbackID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" aria-label="Edit hiring feedback" onclick="event.stopPropagation();openModalById(${r.HiringFeedbackID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" aria-label="Delete hiring feedback" onclick="event.stopPropagation();handleDeleteById(${r.HiringFeedbackID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
   tbody.querySelectorAll('tr[data-id]').forEach(row=>row.addEventListener('click',()=>openModal(allItems.find(r=>r.HiringFeedbackID==row.dataset.id))));
@@ -109,6 +116,7 @@ function setLoading(on){ if(on) document.getElementById('tbody').innerHTML=`<tr>
 function openModalById(id){ const item=allItems.find(r=>r.HiringFeedbackID==id); if(item) openModal(item); }
 function openModal(item) {
   editingId = item?item.HiringFeedbackID:null;
+  editingUpdatedAt = item ? (item.UpdatedAt ?? null) : null;
   document.getElementById('the-form').reset();
   clearFormError('the-form');
   document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
@@ -145,6 +153,7 @@ async function handleSave(e) {
   const btn=document.getElementById('btn-save');
   btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
   try {
+    if (editingId) payload.UpdatedAt = editingUpdatedAt; // concurrent-edit check: server returns 409 on conflict
     editingId ? await fetchAPI(`/api/hiring-feedback/${editingId}`,{method:'PUT',body:payload}) : await fetchAPI('/api/hiring-feedback',{method:'POST',body:payload});
     bootstrap.Modal.getInstance(document.getElementById('the-modal')).hide();
     showToast('Record saved successfully');

@@ -28,19 +28,19 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company or contact…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company or contact…" aria-label="Search outreach records">
     </div>
-    <select id="filter-type" class="form-select" style="max-width:180px">
+    <select id="filter-type" class="form-select" style="max-width:180px" aria-label="Filter by interaction type">
       <option value="">All types</option>
       <option>Call</option><option>Meeting</option><option>Company Visit</option>
     </select>
-    <select id="filter-status" class="form-select" style="max-width:160px">
+    <select id="filter-status" class="form-select" style="max-width:160px" aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="In-progress">In-progress</option>
       <option value="Complete">Complete</option>
     </select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date">  </div>
+    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date" aria-label="To date">  </div>
 
   </div><!-- /.page-sticky-top -->
 
@@ -49,18 +49,22 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Company</th><th>Contact</th><th>Type</th>
-            <th>Date</th><th>Status</th><th>Follow-up</th><th class="text-end">Actions</th>
+            <th data-sort-key="CompanyName">Company</th><th data-sort-key="ContactName">Contact</th><th data-sort-key="InteractionType">Type</th>
+            <th data-sort-key="InteractionDate">Date</th><th data-sort-key="InteractionStatus">Status</th><th data-sort-key="FollowUpDate">Follow-up</th><th class="text-end">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -71,38 +75,38 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select company…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select contact…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Interaction Type <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-type">Interaction Type <span class="text-danger">*</span></label>
               <select id="f-type" class="form-select" required>
                 <option value="">Select type…</option>
                 <option>Call</option><option>Meeting</option><option>Company Visit</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Interaction Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date">Interaction Date <span class="text-danger">*</span></label>
               <input type="date" id="f-date" class="form-control" required>
             </div>
             <div class="col-12">
-              <label class="form-label">Discussion Items <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-discussion">Discussion Items <span class="text-danger">*</span></label>
               <textarea id="f-discussion" class="form-control" rows="3" required placeholder="What was discussed?"></textarea>
             </div>
             <div class="col-12">
-              <label class="form-label">Action Plan</label>
+              <label class="form-label" for="f-action">Action Plan</label>
               <textarea id="f-action" class="form-control" rows="2" placeholder="Next steps…"></textarea>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Follow-up Date</label>
+              <label class="form-label" for="f-followup">Follow-up Date</label>
               <input type="date" id="f-followup" class="form-control">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Status</label>
+              <label class="form-label" for="f-status">Status</label>
               <select id="f-status" class="form-select">
                 <option value="In-progress">In-progress</option>
                 <option value="Complete">Complete</option>

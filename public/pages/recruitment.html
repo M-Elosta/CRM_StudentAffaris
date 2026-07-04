@@ -26,12 +26,12 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:260px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company or title…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company or title…" aria-label="Search recruitment postings">
     </div>
-    <select id="filter-mode"   class="form-select" style="max-width:150px"><option value="">All modes</option><option>Onsite</option><option>Hybrid</option><option>Remote</option></select>
-    <select id="filter-status" class="form-select" style="max-width:140px"><option value="">All compensation</option><option>Paid</option><option>Unpaid</option></select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date">  </div>
+    <select id="filter-mode"   class="form-select" style="max-width:150px" aria-label="Filter by mode"><option value="">All modes</option><option>Onsite</option><option>Hybrid</option><option>Remote</option></select>
+    <select id="filter-status" class="form-select" style="max-width:140px" aria-label="Filter by compensation"><option value="">All compensation</option><option>Paid</option><option>Unpaid</option></select>
+    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date" aria-label="To date">  </div>
 
   </div><!-- /.page-sticky-top -->
 
@@ -39,16 +39,20 @@
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Company</th><th>Title</th><th>Date Posted</th><th>Mode</th><th>Status</th><th>Target</th><th>Hired</th><th class="text-end">Actions</th></tr>
+          <tr><th data-sort-key="CompanyName">Company</th><th data-sort-key="OpportunityTitle">Title</th><th data-sort-key="DatePosted">Date Posted</th><th data-sort-key="Mode">Mode</th><th data-sort-key="Status">Status</th><th data-sort-key="TargetGroup">Target</th><th data-sort-key="HiredStudentAlumni">Hired</th><th class="text-end">Actions</th></tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="8" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -59,77 +63,77 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select…</option></select>
             </div>
 
             <div class="col-12">
-              <label class="form-label fw-semibold">Opportunity Type (select all that apply)</label>
+              <span class="form-label fw-semibold d-block">Opportunity Type (select all that apply)</span>
               <div id="chk-opp-types" class="border rounded p-2"></div>
             </div>
 
             <div class="col-md-4">
-              <label class="form-label">Date Posted <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date">Date Posted <span class="text-danger">*</span></label>
               <input type="date" id="f-date" class="form-control" required>
             </div>
             <div class="col-md-8">
-              <label class="form-label">Opportunity Title <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-title">Opportunity Title <span class="text-danger">*</span></label>
               <input type="text" id="f-title" class="form-control" required>
             </div>
 
             <div class="col-12">
-              <label class="form-label fw-semibold">Collect Applications Via</label>
+              <span class="form-label fw-semibold d-block">Collect Applications Via</span>
               <div id="chk-collect" class="border rounded p-2"></div>
             </div>
 
             <div class="col-md-4">
-              <label class="form-label">Duration</label>
+              <label class="form-label" for="f-duration">Duration</label>
               <input type="text" id="f-duration" class="form-control" placeholder="e.g. 3 months">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Hiring Start Date</label>
+              <label class="form-label" for="f-hire-start">Hiring Start Date</label>
               <input type="date" id="f-hire-start" class="form-control">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Hiring End Date</label>
+              <label class="form-label" for="f-hire-end">Hiring End Date</label>
               <input type="date" id="f-hire-end" class="form-control">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Country</label>
+              <label class="form-label" for="f-country">Country</label>
               <input type="text" id="f-country" class="form-control">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Mode <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-mode">Mode <span class="text-danger">*</span></label>
               <select id="f-mode" class="form-select" required>
                 <option value="">Select…</option><option>Onsite</option><option>Hybrid</option><option>Remote</option>
               </select>
             </div>
             <div class="col-md-4">
-              <label class="form-label">Status <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-pay-status">Status <span class="text-danger">*</span></label>
               <select id="f-pay-status" class="form-select" required>
                 <option value="">Select…</option><option>Paid</option><option>Unpaid</option>
               </select>
             </div>
             <div class="col-md-4 d-none" id="pay-amount-row">
-              <label class="form-label">Pay Amount</label>
+              <label class="form-label" for="f-pay-amount">Pay Amount</label>
               <input type="text" id="f-pay-amount" class="form-control" placeholder="e.g. QAR 5,000/month">
             </div>
 
             <div class="col-12">
-              <label class="form-label fw-semibold">Target Majors</label>
+              <span class="form-label fw-semibold d-block">Target Majors</span>
               <div id="chk-majors" class="border rounded p-2"></div>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Class Level</label>
+              <span class="form-label fw-semibold d-block">Class Level</span>
               <div id="chk-classlevel" class="border rounded p-2"></div>
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">Target Group <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-target-group">Target Group <span class="text-danger">*</span></label>
               <select id="f-target-group" class="form-select" required>
                 <option value="">Select…</option><option>Qatari only</option><option>Open to all</option>
               </select>
@@ -141,13 +145,13 @@
               </div>
             </div>
             <div class="col-md-3">
-              <label class="form-label">Hired Student/Alumni</label>
+              <label class="form-label" for="f-hired">Hired Student/Alumni</label>
               <select id="f-hired" class="form-select">
                 <option value="Not Reported">Not Reported</option><option>Yes</option><option>No</option>
               </select>
             </div>
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="2"></textarea>
             </div>
           </div>

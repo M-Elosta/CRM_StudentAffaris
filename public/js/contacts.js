@@ -2,12 +2,20 @@
 let allContacts  = [];
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = null;
+
+function applySort(items) {
+  return sortState?.key ? sortByKey(items, sortState.key, sortState.dir) : items;
+}
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  sortState = initSortableHeaders(document.querySelector('.table thead'), applyFilters);
+
   await Promise.all([loadCompanies(), loadContacts()]);
 
   bindDebouncedInput('search-input', applyFilters);
@@ -74,7 +82,7 @@ function applyFilters() {
   if (status)    filtered = filtered.filter(c => c.Status === status);
   if (companyId) filtered = filtered.filter(c => String(c.CompanyID) === companyId);
 
-  displayItems = filtered; currentPage = 1; renderCurrentPage();
+  displayItems = applySort(filtered); currentPage = 1; renderCurrentPage();
 }
 
 function filterContacts(q) {
@@ -148,8 +156,8 @@ function renderTable(contacts) {
         <td>${escHtml(c.JobTitle || '—')}</td>
         <td><span class="badge-stack">${statusBadge}${excludeBadge}</span></td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" aria-label="Edit contact" onclick="event.stopPropagation();openModalById(${c.ContactID})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Delete" aria-label="Delete contact" onclick="event.stopPropagation();handleDeleteById(${c.ContactID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');
@@ -177,6 +185,7 @@ function openModalById(id) {
 
 function openModal(contact) {
   editingId = contact ? contact.ContactID : null;
+  editingUpdatedAt = contact ? (contact.UpdatedAt ?? null) : null;
 
   const form = document.getElementById('contact-form');
   form.reset();
@@ -265,6 +274,7 @@ async function handleSave(e) {
 
   try {
     if (editingId) {
+      payload.UpdatedAt = editingUpdatedAt; // concurrent-edit check: server returns 409 on conflict
       await fetchAPI(`/api/contacts/${editingId}`, { method: 'PUT', body: payload });
     } else {
       await fetchAPI('/api/contacts', { method: 'POST', body: payload });

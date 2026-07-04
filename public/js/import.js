@@ -146,7 +146,7 @@ function buildMappingTable(headers, entity) {
         </div>
         <div class="col-auto text-muted small"><i class="bi bi-arrow-right"></i></div>
         <div class="col-md-4">
-          <select class="form-select form-select-sm mapping-sel" data-file-col="${escHtml(h)}" data-icon-idx="${idx}">${options}</select>
+          <select class="form-select form-select-sm mapping-sel" data-file-col="${escHtml(h)}" data-icon-idx="${idx}" aria-label="Map column ${escHtml(h)}">${options}</select>
         </div>
       </div>`;
   }).join('');
@@ -217,7 +217,7 @@ function renderPreview(rows) {
   // Header: checkbox column only shown if there are duplicates
   const checkboxTh = dups > 0
     ? `<th style="width:36px" title="Select all duplicates">
-         <input type="checkbox" class="dup-check" id="check-all-dups" title="Select all duplicates">
+         <input type="checkbox" class="dup-check" id="check-all-dups" title="Select all duplicates" aria-label="Select all duplicates">
        </th>`
     : '<th></th>';
 
@@ -235,11 +235,11 @@ function renderPreview(rows) {
     const cells = cols.map(c => `<td class="small">${escHtml(String(r.row[c] ?? ''))}</td>`).join('');
 
     const checkboxCell = r.status === 'duplicate'
-      ? `<td class="text-center"><input type="checkbox" class="dup-check row-select" data-index="${r.rowIndex ?? i}" title="Select this row"></td>`
+      ? `<td class="text-center"><input type="checkbox" class="dup-check row-select" data-index="${r.rowIndex ?? i}" title="Select this row" aria-label="Select this row"></td>`
       : '<td></td>';
 
     const actionCell = r.status === 'duplicate'
-      ? `<td><select class="form-select form-select-sm dup-action" data-index="${r.rowIndex ?? i}">
+      ? `<td><select class="form-select form-select-sm dup-action" data-index="${r.rowIndex ?? i}" aria-label="Duplicate action for this row">
            <option value="skip">Skip</option>
            <option value="overwrite">Overwrite</option>
            <option value="create_new">Create New</option>

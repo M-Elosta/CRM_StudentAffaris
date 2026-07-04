@@ -1,16 +1,28 @@
 // ── State ──────────────────────────────────────────────────────────────────────
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = null;
+
+function applySort(items) {
+  return sortState?.key ? sortByKey(items, sortState.key, sortState.dir) : items;
+}
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCompanies();
 
+  sortState = initSortableHeaders(document.querySelector('.table thead'), () => {
+    displayItems = applySort(displayItems);
+    currentPage = 1;
+    renderCurrentPage();
+  });
+
   bindDebouncedInput('search-input', e => {
-    displayItems = filterCompanies(e.target.value.trim()); currentPage = 1; renderCurrentPage();
+    displayItems = applySort(filterCompanies(e.target.value.trim())); currentPage = 1; renderCurrentPage();
   });
 
   document.getElementById('btn-add').addEventListener('click', () => openModal(null));
@@ -31,7 +43,7 @@ async function loadCompanies() {
   setTableLoading(true);
   try {
     allCompanies = await fetchAPI('/api/companies');
-    displayItems = allCompanies; renderCurrentPage();
+    displayItems = applySort(allCompanies); renderCurrentPage();
   } catch (err) {
     showToast('Failed to load companies: ' + err.message, 'danger');
   } finally {
@@ -118,10 +130,10 @@ function renderTable(companies) {
         <td>${escHtml(c.Sector)}</td>
         <td>${escHtml(c.Country)}</td>
         <td>${formatDate(c.DateAdded)}</td>
-        <td>${c.Website ? `<a href="${escHtml(c.Website)}" target="_blank" rel="noopener" title="Open website in new tab" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
+        <td>${safeUrl(c.Website) ? `<a href="${escHtml(safeUrl(c.Website))}" target="_blank" rel="noopener" title="Open website in new tab" aria-label="Open website in new tab" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : '—'}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary me-1" title="Edit" aria-label="Edit company" onclick="event.stopPropagation();openModal(allCompanies.find(x=>x.CompanyID==${c.CompanyID}))"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Delete" aria-label="Delete company" onclick="event.stopPropagation();handleDeleteById(${c.CompanyID})"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
   }).join('');
@@ -144,6 +156,7 @@ function setTableLoading(loading) {
 // ── Modal ──────────────────────────────────────────────────────────────────────
 function openModal(company) {
   editingId = company ? company.CompanyID : null;
+  editingUpdatedAt = company ? (company.UpdatedAt ?? null) : null;
 
   const form = document.getElementById('company-form');
   form.reset();
@@ -218,6 +231,7 @@ async function handleSave(e) {
 
   try {
     if (editingId) {
+      payload.UpdatedAt = editingUpdatedAt; // concurrent-edit check: server returns 409 on conflict
       await fetchAPI(`/api/companies/${editingId}`, { method: 'PUT', body: payload });
     } else {
       await fetchAPI('/api/companies', { method: 'POST', body: payload });

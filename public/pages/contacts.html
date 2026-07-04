@@ -38,20 +38,22 @@
   <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
     <div class="input-group" style="max-width:340px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search by name or email…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search by name or email…" aria-label="Search contacts">
     </div>
-    <select id="filter-status" class="form-select" style="max-width:180px">
+    <select id="filter-status" class="form-select" style="max-width:180px" aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="Mailable">Mailable</option>
       <option value="Non-mailable">Non-mailable</option>
     </select>
-    <select id="filter-company" class="form-select" style="max-width:220px">
+    <select id="filter-company" class="form-select" style="max-width:220px" aria-label="Filter by company">
       <option value="">All companies</option>
     </select>
     <span id="record-count" class="badge bg-secondary ms-auto"></span>
   </div>
   <p class="text-muted small mb-3 legend-row">
     <span class="legend-item"><span class="entity-indicator entity-indicator-primary"><i class="bi bi-star-fill"></i></span> Primary contact</span>
+    <span class="legend-item"><span class="badge badge-semantic badge-semantic-good">Mailable</span> Can receive mailings</span>
+    <span class="legend-item"><span class="badge badge-semantic badge-semantic-bad">Non-mailable</span> Do not mail</span>
     <span class="legend-item"><span class="badge badge-semantic badge-semantic-neutral badge-semantic-subtle">Excluded</span> Excluded from mailing</span>
   </p>
 
@@ -63,11 +65,11 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Name</th>
-            <th>Company</th>
-            <th>Email</th>
-            <th>Job Title</th>
-            <th>Status</th>
+            <th data-sort-key="LastName">Name</th>
+            <th data-sort-key="CompanyName">Company</th>
+            <th data-sort-key="EmailAddress">Email</th>
+            <th data-sort-key="JobTitle">Job Title</th>
+            <th data-sort-key="Status">Status</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -82,7 +84,7 @@
 </div>
 
 <!-- ── Add/Edit Modal ─────────────────────────────────────────────────────── -->
-<div class="modal fade" id="contact-modal" tabindex="-1">
+<div class="modal fade" id="contact-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -96,7 +98,7 @@
 
             <!-- Company -->
             <div class="col-12">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required>
                 <option value="">Select company…</option>
               </select>
@@ -104,23 +106,23 @@
 
             <!-- First Name / Last Name -->
             <div class="col-md-6">
-              <label class="form-label">First Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-firstname">First Name <span class="text-danger">*</span></label>
               <input type="text" id="f-firstname" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Last Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-lastname">Last Name <span class="text-danger">*</span></label>
               <input type="text" id="f-lastname" class="form-control" required>
             </div>
 
             <!-- Email -->
             <div class="col-md-8">
-              <label class="form-label">Email Address <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-email">Email Address <span class="text-danger">*</span></label>
               <input type="email" id="f-email" class="form-control" required>
             </div>
 
             <!-- Date Added -->
             <div class="col-md-4">
-              <label class="form-label">Date Added <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date-added">Date Added <span class="text-danger">*</span></label>
               <input type="date" id="f-date-added" class="form-control" required>
             </div>
 
@@ -128,23 +130,23 @@
             <div class="col-12"><hr class="my-1"><p class="text-muted small mb-0 fw-semibold">Contact Information</p></div>
 
             <div class="col-md-6">
-              <label class="form-label">Work Phone</label>
+              <label class="form-label" for="f-workphone">Work Phone</label>
               <input type="tel" id="f-workphone" class="form-control" placeholder="+974 …">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Mobile</label>
+              <label class="form-label" for="f-mobile">Mobile</label>
               <input type="tel" id="f-mobile" class="form-control" placeholder="+974 …">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Job Title</label>
+              <label class="form-label" for="f-jobtitle">Job Title</label>
               <input type="text" id="f-jobtitle" class="form-control">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Country</label>
+              <label class="form-label" for="f-country">Country</label>
               <input type="text" id="f-country" class="form-control">
             </div>
             <div class="col-12">
-              <label class="form-label">Address</label>
+              <label class="form-label" for="f-address">Address</label>
               <input type="text" id="f-address" class="form-control">
             </div>
 
@@ -152,11 +154,11 @@
             <div class="col-12"><hr class="my-1"><p class="text-muted small mb-0 fw-semibold">Online Profiles</p></div>
 
             <div class="col-md-6">
-              <label class="form-label">LinkedIn URL</label>
+              <label class="form-label" for="f-linkedin">LinkedIn URL</label>
               <input type="url" id="f-linkedin" class="form-control" placeholder="https://linkedin.com/…">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Handshake URL</label>
+              <label class="form-label" for="f-handshake">Handshake URL</label>
               <input type="url" id="f-handshake" class="form-control" placeholder="https://app.joinhandshake.com/…">
             </div>
 
@@ -174,7 +176,7 @@
             <div id="cmuq-fields" class="col-12 d-none">
               <div class="row g-3 ms-1 border-start border-primary border-2 ps-2">
                 <div class="col-md-8">
-                  <label class="form-label">Major</label>
+                  <label class="form-label" for="f-major">Major</label>
                   <select id="f-major" class="form-select">
                     <option value="">Select major…</option>
                     <option>Computer Science</option>
@@ -186,7 +188,7 @@
                   </select>
                 </div>
                 <div class="col-md-4">
-                  <label class="form-label">Graduation Year</label>
+                  <label class="form-label" for="f-gradyear">Graduation Year</label>
                   <input type="number" id="f-gradyear" class="form-control" min="1990" max="2050" placeholder="2024">
                 </div>
               </div>
@@ -205,7 +207,7 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label d-block">Status</label>
+              <span class="form-label d-block">Status</span>
               <div class="form-check form-switch mt-1">
                 <input class="form-check-input" type="checkbox" role="switch" id="f-status" style="width:2.5em;height:1.25em">
                 <label class="form-check-label" for="f-status">Mailable</label>

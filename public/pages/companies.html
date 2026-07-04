@@ -38,7 +38,7 @@
   <div class="mb-3">
     <div class="input-group" style="max-width:400px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search by name, country, industry…">    </div>
+      <input type="text" id="search-input" class="form-control" placeholder="Search by name, country, industry…" aria-label="Search companies">    </div>
   </div>
   <p class="text-muted small mb-3 legend-row">
     <span class="legend-item"><span class="badge badge-semantic badge-semantic-bad">Blacklisted</span> Blocked company</span>
@@ -54,11 +54,11 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Company Name</th>
-            <th>Industry</th>
-            <th>Sector</th>
-            <th>Country</th>
-            <th>Date Added</th>
+            <th data-sort-key="CompanyName">Company Name</th>
+            <th data-sort-key="Industry">Industry</th>
+            <th data-sort-key="Sector">Sector</th>
+            <th data-sort-key="Country">Country</th>
+            <th data-sort-key="DateAdded">Date Added</th>
             <th>Website</th>
             <th class="text-end">Actions</th>
           </tr>
@@ -74,7 +74,7 @@
 </div>
 
 <!-- ── Add/Edit Modal ─────────────────────────────────────────────────────── -->
-<div class="modal fade" id="company-modal" tabindex="-1">
+<div class="modal fade" id="company-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -88,25 +88,25 @@
 
             <!-- Company Name -->
             <div class="col-12">
-              <label class="form-label">Company Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-name">Company Name <span class="text-danger">*</span></label>
               <input type="text" id="f-name" class="form-control" required>
             </div>
 
             <!-- Date Added -->
             <div class="col-md-6">
-              <label class="form-label">Date Added <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date-added">Date Added <span class="text-danger">*</span></label>
               <input type="date" id="f-date-added" class="form-control" required>
             </div>
 
             <!-- Industry -->
             <div class="col-md-6">
-              <label class="form-label">Industry <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-industry">Industry <span class="text-danger">*</span></label>
               <input type="text" id="f-industry" class="form-control" required placeholder="e.g. Technology, Finance…">
             </div>
 
             <!-- Sector -->
             <div class="col-md-6">
-              <label class="form-label">Sector <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-sector">Sector <span class="text-danger">*</span></label>
               <select id="f-sector" class="form-select" required>
                 <option value="">Select sector…</option>
                 <option>Government</option>
@@ -119,37 +119,37 @@
 
             <!-- Country -->
             <div class="col-md-6">
-              <label class="form-label">Country <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-country">Country <span class="text-danger">*</span></label>
               <input type="text" id="f-country" class="form-control" required placeholder="e.g. Qatar">
             </div>
 
             <!-- Address -->
             <div class="col-12">
-              <label class="form-label">Address</label>
+              <label class="form-label" for="f-address">Address</label>
               <input type="text" id="f-address" class="form-control">
             </div>
 
             <!-- Website -->
             <div class="col-md-6">
-              <label class="form-label">Website</label>
+              <label class="form-label" for="f-website">Website</label>
               <input type="url" id="f-website" class="form-control" placeholder="https://…">
             </div>
 
             <!-- LinkedIn -->
             <div class="col-md-6">
-              <label class="form-label">LinkedIn URL</label>
+              <label class="form-label" for="f-linkedin">LinkedIn URL</label>
               <input type="url" id="f-linkedin" class="form-control" placeholder="https://linkedin.com/…">
             </div>
 
             <!-- Handshake -->
             <div class="col-md-6">
-              <label class="form-label">Handshake URL</label>
+              <label class="form-label" for="f-handshake">Handshake URL</label>
               <input type="url" id="f-handshake" class="form-control" placeholder="https://app.joinhandshake.com/…">
             </div>
 
             <!-- Boolean flags -->
             <div class="col-12">
-              <label class="form-label d-block">Flags</label>
+              <span class="form-label d-block">Flags</span>
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" id="f-mou">
                 <label class="form-check-label" for="f-mou">Signed MoU</label>
@@ -178,7 +178,7 @@
 
             <!-- Comment -->
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="3"></textarea>
             </div>
 

@@ -89,7 +89,7 @@ function renderUsers(users) {
 
     const deleteBtn = isSelf
       ? ``
-      : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID})" title="Delete"><i class="bi bi-trash"></i></button>`;
+      : `<button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteUser(${u.UserID})" title="Delete" aria-label="Delete user ${escHtml(u.Username)}"><i class="bi bi-trash"></i></button>`;
 
     const created = u.CreatedAt ? new Date(u.CreatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 

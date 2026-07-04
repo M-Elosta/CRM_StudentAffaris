@@ -25,28 +25,32 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company, student, org…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company, student, org…" aria-label="Search student-led events">
     </div>
-    <select id="filter-outcome" class="form-select" style="max-width:180px">
+    <select id="filter-outcome" class="form-select" style="max-width:180px" aria-label="Filter by outcome">
       <option value="">All outcomes</option><option>Completed</option><option>Pending</option>
     </select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date">  </div>
+    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date" aria-label="To date">  </div>
   </div><!-- /.page-sticky-top -->
 
   <div class="card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Company</th><th>Organization</th><th>Student Name</th><th>Proposal Date</th><th>Event Title</th><th>Outcome</th><th class="text-end">Actions</th></tr>
+          <tr><th data-sort-key="CompanyName">Company</th><th data-sort-key="OrganizationName">Organization</th><th data-sort-key="StudentName">Student Name</th><th data-sort-key="ProposalDate">Proposal Date</th><th data-sort-key="EventTitle">Event Title</th><th data-sort-key="CollaborationOutcome">Outcome</th><th class="text-end">Actions</th></tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -57,49 +61,49 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Proposal Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-proposal-date">Proposal Date <span class="text-danger">*</span></label>
               <input type="date" id="f-proposal-date" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Organization Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-org">Organization Name <span class="text-danger">*</span></label>
               <input type="text" id="f-org" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Student Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-student-name">Student Name <span class="text-danger">*</span></label>
               <input type="text" id="f-student-name" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Student Email <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-student-email">Student Email <span class="text-danger">*</span></label>
               <input type="email" id="f-student-email" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Student Phone <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-student-phone">Student Phone <span class="text-danger">*</span></label>
               <input type="text" id="f-student-phone" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Collaboration Outcome</label>
+              <label class="form-label" for="f-outcome">Collaboration Outcome</label>
               <select id="f-outcome" class="form-select">
                 <option value="Pending">Pending</option><option value="Completed">Completed</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Event Date</label>
+              <label class="form-label" for="f-event-date">Event Date</label>
               <input type="date" id="f-event-date" class="form-control">
             </div>
             <div class="col-12">
-              <label class="form-label">Event Title</label>
+              <label class="form-label" for="f-event-title">Event Title</label>
               <input type="text" id="f-event-title" class="form-control">
             </div>
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="2"></textarea>
             </div>
           </div>

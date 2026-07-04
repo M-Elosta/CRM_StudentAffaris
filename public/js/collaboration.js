@@ -1,9 +1,15 @@
 let allItems     = [];
 let allCompanies = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = null;
+
+function applySort(items) {
+  return sortState?.key ? sortByKey(items, sortState.key, sortState.dir) : items;
+}
 
 const COLLABORATION_OPPS = [
   'Intern/Graduate Hiring',
@@ -25,6 +31,7 @@ const COLLABORATION_OPPS = [
 
 document.addEventListener('DOMContentLoaded', async () => {
   buildOpportunitiesCheckboxes();
+  sortState = initSortableHeaders(document.querySelector('.table thead'), applyFilters);
   await loadCompanies();
   await loadItems();
 
@@ -78,7 +85,7 @@ function applyFilters() {
     if (q && !safeLower(r.CompanyName).includes(q)) return false;
     return true;
   });
-  displayItems = filtered; currentPage = 1; renderCurrentPage();
+  displayItems = applySort(filtered); currentPage = 1; renderCurrentPage();
 }
 
 function renderCurrentPage() {
@@ -122,8 +129,8 @@ function renderTable(items) {
       <td>${escHtml(opps)}</td>
       <td style="max-width:200px" class="text-truncate">${escHtml(r.Comment)}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.PotentialCollaborationID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.PotentialCollaborationID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" aria-label="Edit collaboration record" onclick="event.stopPropagation();openModalById(${r.PotentialCollaborationID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" aria-label="Delete collaboration record" onclick="event.stopPropagation();handleDeleteById(${r.PotentialCollaborationID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');
@@ -148,6 +155,7 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.PotentialCollaborationID : null;
+  editingUpdatedAt = item ? (item.UpdatedAt ?? null) : null;
   const form = document.getElementById('collaboration-form');
   form.reset();
   clearFormError(form);
@@ -182,6 +190,7 @@ async function handleSave(e) {
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
   try {
     if (editingId) {
+      payload.UpdatedAt = editingUpdatedAt; // concurrent-edit check: server returns 409 on conflict
       await fetchAPI(`/api/collaboration/${editingId}`, { method: 'PUT', body: payload });
     } else {
       await fetchAPI('/api/collaboration', { method: 'POST', body: payload });

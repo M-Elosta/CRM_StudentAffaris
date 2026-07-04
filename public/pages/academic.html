@@ -28,9 +28,9 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company or speaker…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company or speaker…" aria-label="Search academic engagements">
     </div>
-    <select id="filter-type" class="form-select" style="max-width:220px">
+    <select id="filter-type" class="form-select" style="max-width:220px" aria-label="Filter by engagement type">
       <option value="">All types</option>
       <option value="Guest Lecture">Guest Lecture</option>
       <option value="Panel Discussion">Panel Discussion</option>
@@ -40,8 +40,8 @@
       <option value="Competition/Hackathon Sponsorship">Competition/Hackathon Sponsorship</option>
       <option value="Other">Other</option>
     </select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date">  </div>
+    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date" aria-label="To date">  </div>
 
   </div><!-- /.page-sticky-top -->
 
@@ -50,18 +50,22 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Company</th><th>Type</th><th>Guest Speaker</th>
-            <th>Faculty</th><th>Course</th><th>Session Date</th><th class="text-end">Actions</th>
+            <th data-sort-key="CompanyName">Company</th><th data-sort-key="EngagementType">Type</th><th data-sort-key="GuestSpeakerName">Guest Speaker</th>
+            <th data-sort-key="FacultyName">Faculty</th><th data-sort-key="CourseNumber">Course</th><th data-sort-key="SessionDate">Session Date</th><th class="text-end">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -72,15 +76,15 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select company…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select contact…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Engagement Type <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-type">Engagement Type <span class="text-danger">*</span></label>
               <select id="f-type" class="form-select" required>
                 <option value="">Select type…</option>
                 <option value="Guest Lecture">Guest Lecture</option>
@@ -93,47 +97,47 @@
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Guest Speaker Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-speaker">Guest Speaker Name <span class="text-danger">*</span></label>
               <input type="text" id="f-speaker" class="form-control" required placeholder="Full name">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Guest Title <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-guest-title">Guest Title <span class="text-danger">*</span></label>
               <input type="text" id="f-guest-title" class="form-control" required placeholder="e.g. Senior Engineer">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Email</label>
+              <label class="form-label" for="f-email">Email</label>
               <input type="email" id="f-email" class="form-control" placeholder="speaker@example.com">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Phone Number</label>
+              <label class="form-label" for="f-phone">Phone Number</label>
               <input type="text" id="f-phone" class="form-control" placeholder="+974 XXXX XXXX">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Faculty Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-faculty">Faculty Name <span class="text-danger">*</span></label>
               <input type="text" id="f-faculty" class="form-control" required placeholder="Faculty member name">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Course Number <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-course-num">Course Number <span class="text-danger">*</span></label>
               <input type="text" id="f-course-num" class="form-control" required placeholder="e.g. CS101">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Course Title <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-course-title">Course Title <span class="text-danger">*</span></label>
               <input type="text" id="f-course-title" class="form-control" required placeholder="Course title">
             </div>
             <div class="col-12">
-              <label class="form-label">Topic / Theme <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-topic">Topic / Theme <span class="text-danger">*</span></label>
               <input type="text" id="f-topic" class="form-control" required placeholder="Session topic or theme">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Session Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-session-date">Session Date <span class="text-danger">*</span></label>
               <input type="date" id="f-session-date" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Session Time <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-session-time">Session Time <span class="text-danger">*</span></label>
               <input type="time" id="f-session-time" class="form-control" required>
             </div>
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="3" placeholder="Additional notes…"></textarea>
             </div>
           </div>

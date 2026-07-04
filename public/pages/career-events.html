@@ -28,16 +28,16 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:280px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company or event…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company or event…" aria-label="Search career events">
     </div>
-    <select id="filter-status" class="form-select" style="max-width:180px">
+    <select id="filter-status" class="form-select" style="max-width:180px" aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="Attended">Attended</option>
       <option value="No-Show">No-Show</option>
       <option value="Cancelled">Cancelled</option>
     </select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date">  </div>
+    <input type="date" id="filter-from" class="form-control" style="max-width:160px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:160px" title="To date" aria-label="To date">  </div>
 
   </div><!-- /.page-sticky-top -->
 
@@ -46,18 +46,22 @@
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
           <tr>
-            <th>Company</th><th>Contact</th><th>Event Name</th>
-            <th>Event Date</th><th>Status</th><th>Alumni at Booth</th><th class="text-end">Actions</th>
+            <th data-sort-key="CompanyName">Company</th><th data-sort-key="ContactName">Contact</th><th data-sort-key="EventName">Event Name</th>
+            <th data-sort-key="EventDate">Event Date</th><th data-sort-key="RegisteredStatus">Status</th><th data-sort-key="CMUQAlumniAtBooth">Alumni at Booth</th><th class="text-end">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div> Loading…
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -68,23 +72,23 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select company…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select contact…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Event Name <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-name">Event Name <span class="text-danger">*</span></label>
               <input type="text" id="f-name" class="form-control" required placeholder="e.g. Spring Career Fair">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Event Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date">Event Date <span class="text-danger">*</span></label>
               <input type="date" id="f-date" class="form-control" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Registered Status <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-status">Registered Status <span class="text-danger">*</span></label>
               <select id="f-status" class="form-select" required>
                 <option value="">Select status…</option>
                 <option value="Attended">Attended</option>
@@ -99,7 +103,7 @@
               </div>
             </div>
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="3" placeholder="Additional notes…"></textarea>
             </div>
           </div>

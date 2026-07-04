@@ -35,6 +35,12 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+// Only allow http(s) URLs in href attributes — blocks javascript: and data: URIs
+function safeUrl(u) {
+  const s = String(u ?? '').trim();
+  return /^https?:\/\//i.test(s) ? s : '';
+}
+
 function semanticToneForStatus(value) {
   const normalized = safeLower(value).replace(/\s+/g, '-');
   switch (normalized) {
@@ -234,6 +240,68 @@ function buildPaginationHtml(page, totalPages, total, perPage) {
   </div>`;
 }
 
+// ── Column sorting ─────────────────────────────────────────────────────────────
+// Returns a NEW array sorted by `key`: numbers numerically, strings
+// case-insensitively (ISO dates sort correctly as strings). Empties last.
+function sortByKey(items, key, dir = 'asc') {
+  const mult = dir === 'desc' ? -1 : 1;
+  return [...items].sort((a, b) => {
+    const av = a?.[key], bv = b?.[key];
+    const aEmpty = av === undefined || av === null || av === '';
+    const bEmpty = bv === undefined || bv === null || bv === '';
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * mult;
+    return safeLower(av).localeCompare(safeLower(bv)) * mult;
+  });
+}
+
+// Makes every <th data-sort-key="Field"> in the thead clickable (and keyboard
+// operable). Clicking toggles asc/desc, shows a caret, sets aria-sort, then
+// calls onSort(key, dir). Returns { key, dir } getters for the current state.
+function initSortableHeaders(theadEl, onSort) {
+  if (!theadEl) return null;
+  const headers = [...theadEl.querySelectorAll('th[data-sort-key]')];
+  if (!headers.length) return null;
+
+  const state = { key: null, dir: 'asc' };
+
+  headers.forEach(th => {
+    th.classList.add('th-sortable');
+    th.setAttribute('tabindex', '0');
+    th.setAttribute('role', 'button');
+    th.setAttribute('aria-sort', 'none');
+    th.insertAdjacentHTML('beforeend', '<i class="bi sort-caret" aria-hidden="true"></i>');
+
+    const activate = () => {
+      if (state.key === th.dataset.sortKey) {
+        state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.key = th.dataset.sortKey;
+        state.dir = 'asc';
+      }
+      headers.forEach(h => {
+        const active = h === th;
+        h.setAttribute('aria-sort', active ? (state.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+        const caret = h.querySelector('.sort-caret');
+        if (caret) caret.className = 'bi sort-caret' + (active ? (state.dir === 'asc' ? ' bi-caret-up-fill' : ' bi-caret-down-fill') : '');
+      });
+      onSort(state.key, state.dir);
+    };
+
+    th.addEventListener('click', activate);
+    th.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+
+  return {
+    get key() { return state.key; },
+    get dir() { return state.dir; },
+  };
+}
+
 // ── Toast notification ─────────────────────────────────────────────────────────
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
@@ -263,7 +331,7 @@ function showConfirmModal(title, body, onConfirm, confirmLabel = 'Delete', confi
   let modal = document.getElementById('global-confirm-modal');
   if (!modal) {
     document.body.insertAdjacentHTML('beforeend', `
-      <div class="modal fade" id="global-confirm-modal" tabindex="-1">
+      <div class="modal fade" id="global-confirm-modal" tabindex="-1" aria-labelledby="gcm-title">
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
@@ -576,26 +644,26 @@ function injectSidebar() {
     let modal = document.getElementById('change-pw-modal');
     if (!modal) {
       document.body.insertAdjacentHTML('beforeend', `
-        <div class="modal fade" id="change-pw-modal" tabindex="-1">
+        <div class="modal fade" id="change-pw-modal" tabindex="-1" aria-labelledby="change-pw-title">
           <div class="modal-dialog">
             <div class="modal-content">
-              <div class="modal-header"><h5 class="modal-title">Change Password</h5>
+              <div class="modal-header"><h5 class="modal-title" id="change-pw-title">Change Password</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <form id="change-pw-form">
                 <div class="modal-body">
                   <div id="pw-error" class="alert alert-danger d-none small py-2"></div>
                   <div class="mb-3">
-                    <label class="form-label">Current Password</label>
-                    <input type="password" id="pw-current" class="form-control" required>
+                    <label class="form-label" for="pw-current">Current Password</label>
+                    <input type="password" id="pw-current" class="form-control" required autocomplete="current-password">
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">New Password</label>
-                    <input type="password" id="pw-new" class="form-control" required minlength="6">
+                    <label class="form-label" for="pw-new">New Password</label>
+                    <input type="password" id="pw-new" class="form-control" required minlength="6" autocomplete="new-password">
                   </div>
                   <div class="mb-0">
-                    <label class="form-label">Confirm New Password</label>
-                    <input type="password" id="pw-confirm" class="form-control" required>
+                    <label class="form-label" for="pw-confirm">Confirm New Password</label>
+                    <input type="password" id="pw-confirm" class="form-control" required autocomplete="new-password">
                   </div>
                 </div>
                 <div class="modal-footer">
@@ -657,7 +725,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('shown.bs.modal', () => {
-      const firstField = modal.querySelector('input, select, textarea, button');
+      // Focus the first real form field — skip hidden/disabled inputs and the
+      // close (X) button so keyboard users land somewhere useful.
+      const firstField = modal.querySelector(
+        'input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)'
+      );
       firstField?.focus();
     });
   });

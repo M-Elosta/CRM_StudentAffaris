@@ -2,9 +2,15 @@ let allItems     = [];
 let allCompanies = [];
 let allContacts  = [];
 let editingId    = null;
+let editingUpdatedAt = null;
 let displayItems   = [];
 let currentPage    = 1;
 const PAGE_SIZE    = 25;
+let sortState      = null;
+
+function applySort(items) {
+  return sortState?.key ? sortByKey(items, sortState.key, sortState.dir) : items;
+}
 
 const OPP_TYPES    = ['Internship','Part-time Job','Full-time Job','Graduate Program','Summer Research Program','Training Program','Mentorship Program','Fellowship','Competition/Hackathon','Volunteering','Others'];
 const COLLECT_CH   = ['Resume book','Handshake','Email','Other'];
@@ -13,6 +19,7 @@ const CLASS_LEVELS = ['Freshman','Sophomore','Junior','Senior','Alumni'];
 
 document.addEventListener('DOMContentLoaded', async () => {
   buildCheckboxGroups();
+  sortState = initSortableHeaders(document.querySelector('.table thead'), applyFilters);
   await Promise.all([loadCompanies(), loadContacts()]);
   await loadItems();
 
@@ -101,6 +108,7 @@ function applyFilters() {
     if (to     && r.DatePosted > to)   return false;
     return true;
   });
+  displayItems = applySort(displayItems);
   currentPage = 1;
   renderCurrentPage();
 }
@@ -156,8 +164,8 @@ function renderTable(items) {
       <td>${escHtml(r.TargetGroup)}</td>
       <td>${hiredBadge}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Edit" aria-label="Edit recruitment posting" onclick="event.stopPropagation();openModalById(${r.RecruitmentID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" aria-label="Delete recruitment posting" onclick="event.stopPropagation();handleDeleteById(${r.RecruitmentID})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');
@@ -178,6 +186,7 @@ function openModalById(id) {
 
 function openModal(item) {
   editingId = item ? item.RecruitmentID : null;
+  editingUpdatedAt = item ? (item.UpdatedAt ?? null) : null;
   const form = document.getElementById('recruitment-form');
   form.reset();
   clearFormError(form);
@@ -243,6 +252,7 @@ async function handleSave(e) {
   const btn = document.getElementById('btn-save');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
   try {
+    if (editingId) payload.UpdatedAt = editingUpdatedAt; // concurrent-edit check: server returns 409 on conflict
     editingId
       ? await fetchAPI(`/api/recruitment/${editingId}`, { method: 'PUT', body: payload })
       : await fetchAPI('/api/recruitment', { method: 'POST', body: payload });

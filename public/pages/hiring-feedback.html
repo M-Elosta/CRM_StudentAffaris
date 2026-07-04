@@ -25,23 +25,23 @@
   <div class="d-flex flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width:260px">
       <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-      <input type="text" id="search-input" class="form-control" placeholder="Search company or contact…">
+      <input type="text" id="search-input" class="form-control" placeholder="Search company or contact…" aria-label="Search hiring feedback">
     </div>
-    <select id="filter-provider" class="form-select" style="max-width:180px">
+    <select id="filter-provider" class="form-select" style="max-width:180px" aria-label="Filter by feedback provider">
       <option value="">All providers</option><option>Company</option><option>Student/Alumni</option><option>Other</option>
     </select>
-    <select id="filter-hired" class="form-select" style="max-width:140px">
+    <select id="filter-hired" class="form-select" style="max-width:140px" aria-label="Filter by hired outcome">
       <option value="">Hired?</option><option>Yes</option><option>No</option>
     </select>
-    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date">
-    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date">  </div>
+    <input type="date" id="filter-from" class="form-control" style="max-width:155px" title="From date" aria-label="From date">
+    <input type="date" id="filter-to"   class="form-control" style="max-width:155px" title="To date" aria-label="To date">  </div>
   </div><!-- /.page-sticky-top -->
 
   <div class="card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Company</th><th>Contact</th><th>Provider</th><th>Hired?</th><th>Date Reported</th><th>Student Name</th><th class="text-end">Actions</th></tr>
+          <tr><th data-sort-key="CompanyName">Company</th><th data-sort-key="ContactName">Contact</th><th data-sort-key="FeedbackProvider">Provider</th><th data-sort-key="HiredStudentAlumni">Hired?</th><th data-sort-key="DateReported">Date Reported</th><th data-sort-key="HiredStudentName">Student Name</th><th class="text-end">Actions</th></tr>
         </thead>
         <tbody id="tbody">
           <tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> Loading…</td></tr>
@@ -51,7 +51,7 @@
   </div>
 </div>
 
-<div class="modal fade" id="the-modal" tabindex="-1">
+<div class="modal fade" id="the-modal" tabindex="-1" aria-labelledby="modal-title">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -62,35 +62,35 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Company <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-company">Company <span class="text-danger">*</span></label>
               <select id="f-company" class="form-select" required><option value="">Select…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Contact <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-contact">Contact <span class="text-danger">*</span></label>
               <select id="f-contact" class="form-select" required><option value="">Select…</option></select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Feedback Provider <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-provider">Feedback Provider <span class="text-danger">*</span></label>
               <select id="f-provider" class="form-select" required>
                 <option value="">Select…</option><option>Company</option><option>Student/Alumni</option><option>Other</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Hired a Student/Alumni? <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-hired">Hired a Student/Alumni? <span class="text-danger">*</span></label>
               <select id="f-hired" class="form-select" required>
                 <option value="">Select…</option><option>Yes</option><option>No</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Date Reported <span class="text-danger">*</span></label>
+              <label class="form-label" for="f-date">Date Reported <span class="text-danger">*</span></label>
               <input type="date" id="f-date" class="form-control" required>
             </div>
             <div class="col-md-6 d-none" id="hired-name-row">
-              <label class="form-label">Hired Student Name</label>
+              <label class="form-label" for="f-student-name">Hired Student Name</label>
               <input type="text" id="f-student-name" class="form-control">
             </div>
             <div class="col-12">
-              <label class="form-label">Comment</label>
+              <label class="form-label" for="f-comment">Comment</label>
               <textarea id="f-comment" class="form-control" rows="2"></textarea>
             </div>
           </div>

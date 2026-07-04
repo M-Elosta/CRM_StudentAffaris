@@ -28,7 +28,7 @@
       <h6 class="fw-semibold mb-3"><span class="badge bg-primary me-2" id="step-badge-1">1</span>Select Entity & Upload File</h6>
       <div class="row g-3 align-items-end">
         <div class="col-md-4">
-          <label class="form-label">Entity Type</label>
+          <label class="form-label" for="entity-select">Entity Type</label>
           <select id="entity-select" class="form-select">
             <option value="">Select entity…</option>
             <option>Company</option>
@@ -48,7 +48,7 @@
           </button>
         </div>
         <div class="col-md-5">
-          <label class="form-label">Upload File (.xlsx or .csv)</label>
+          <label class="form-label" for="file-input">Upload File (.xlsx or .csv)</label>
           <input type="file" id="file-input" class="form-control" accept=".xlsx,.csv" disabled>
         </div>
       </div>
@@ -91,7 +91,7 @@
             <i class="bi bi-plus-circle me-1"></i>Create New
           </button>
           <div class="vr mx-1" style="height:1.5rem;opacity:.3"></div>
-          <button class="btn btn-sm btn-outline-secondary" id="btn-bulk-clear" title="Clear selection">
+          <button class="btn btn-sm btn-outline-secondary" id="btn-bulk-clear" title="Clear selection" aria-label="Clear selection">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
