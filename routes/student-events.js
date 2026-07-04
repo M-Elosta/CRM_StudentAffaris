@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalDateString,
   optionalTrimmed,
   requiredTrimmed,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 const VALID_OUTCOMES = ['Completed', 'Pending'];
 
@@ -56,6 +60,7 @@ router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, ProposalDate, OrganizationName, StudentName, StudentEmail, StudentPhoneNumber, CollaborationOutcome, EventDate, EventTitle, Comment } = req.body;
   try {
+    if (!checkUpdateConflict(db, 'StudentLedEvent', 'StudentLedEventID', req.params.id, req.body.UpdatedAt, res, 'Not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const contactId = requiredTrimmed(ContactID, 'ContactID');
     const proposalDate = requiredTrimmed(ProposalDate, 'ProposalDate');

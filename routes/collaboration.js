@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { checkUpdateConflict, idParam } = require('./_helpers');
+
+router.param('id', idParam);
 
 function getOpps(db, id) {
   return db.prepare('SELECT OpportunityType FROM PotentialCollaboration_Opportunities WHERE PotentialCollaborationID=?').all(id).map(r=>r.OpportunityType);
@@ -44,6 +47,8 @@ router.put('/:id', (req, res) => {
   const { CompanyID, Comment, Opportunities } = req.body;
   if (!CompanyID) return res.status(400).json({ error: 'CompanyID is required' });
   try {
+    // Concurrency check applies to the parent row only (junction table excluded).
+    if (!checkUpdateConflict(db, 'PotentialCollaboration', 'PotentialCollaborationID', req.params.id, req.body.UpdatedAt, res, 'Not found')) return;
     const info = db.prepare('UPDATE PotentialCollaboration SET CompanyID=?,Comment=? WHERE PotentialCollaborationID=?').run(CompanyID, Comment||null, req.params.id);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });
     setOpps(db, parseInt(req.params.id), Opportunities);

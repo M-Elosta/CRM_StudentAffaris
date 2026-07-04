@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { checkUpdateConflict, idParam } = require('./_helpers');
+
+router.param('id', idParam);
 
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
@@ -43,6 +46,7 @@ router.put('/:id', (req, res) => {
   if (!CompanyID||!ContactID||!FeedbackProvider||!HiredStudentAlumni||!DateReported)
     return res.status(400).json({ error: 'CompanyID, ContactID, FeedbackProvider, HiredStudentAlumni, DateReported are required' });
   try {
+    if (!checkUpdateConflict(db, 'HiringFeedback', 'HiringFeedbackID', req.params.id, req.body.UpdatedAt, res, 'Not found')) return;
     const info = db.prepare(`UPDATE HiringFeedback SET CompanyID=?,ContactID=?,FeedbackProvider=?,HiredStudentAlumni=?,DateReported=?,HiredStudentName=?,Comment=? WHERE HiringFeedbackID=?`
     ).run(CompanyID,ContactID,FeedbackProvider,HiredStudentAlumni,DateReported,HiredStudentName||null,Comment||null,req.params.id);
     if (info.changes===0) return res.status(404).json({ error: 'Not found' });

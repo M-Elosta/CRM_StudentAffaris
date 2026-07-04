@@ -21,6 +21,9 @@ router.post('/login', asyncRoute(async (req, res) => {
   req.session.userId   = user.UserID;
   req.session.username = user.Username;
   req.session.role     = user.Role || 'admin';
+  // Successful login: clear this IP's login rate-limit counter so only
+  // failed attempts count toward the limit.
+  if (req.loginRateLimit) req.loginRateLimit.success();
   res.json({ success: true, username: user.Username, role: req.session.role });
 }));
 

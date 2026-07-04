@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalDateString,
   optionalTrimmed,
   requiredTrimmed,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 const VALID_ENGAGEMENT_TYPES = [
   'Guest Lecture',
@@ -75,6 +79,7 @@ router.put('/:id', (req, res) => {
   const { CompanyID, ContactID, EngagementType, GuestSpeakerName, GuestTitle, Email, PhoneNumber,
           FacultyName, CourseNumber, CourseTitle, TopicTheme, SessionDate, SessionTime, Comment } = req.body;
   try {
+    if (!checkUpdateConflict(db, 'AcademicClassroomEngagement', 'EngagementID', req.params.id, req.body.UpdatedAt, res, 'Not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const contactId = requiredTrimmed(ContactID, 'ContactID');
     const engagementType = ensureEnum(EngagementType, VALID_ENGAGEMENT_TYPES, 'EngagementType');

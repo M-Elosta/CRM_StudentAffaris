@@ -97,6 +97,49 @@ function resolveContactStatus(db, companyId, status) {
   return ensureEnum(status, ['Mailable', 'Non-mailable'], 'Status');
 }
 
+// Express router.param handler for numeric :id params.
+// Usage: router.param('id', idParam);  → 400 on non-numeric ids.
+function idParam(req, res, next, value) {
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  if (Number.isNaN(parsed)) {
+    return res.status(400).json({ error: 'Invalid id parameter' });
+  }
+  req.params.id = parsed;
+  next();
+}
+
+const CONFLICT_MESSAGE = 'This record was changed by someone else while you were editing. Please reload and try again.';
+
+// Optimistic concurrency check for PUT routes.
+// If the client sent an UpdatedAt value, compare it (trimmed string compare)
+// against the row's current UpdatedAt. Responds 404 if the row is missing and
+// 409 on mismatch, returning false so the caller can bail out. Returns true
+// when the update may proceed (including when no UpdatedAt was provided —
+// backward compatible). `table` and `idColumn` must be code literals, never
+// user input.
+function checkUpdateConflict(db, table, idColumn, id, clientUpdatedAt, res, notFoundMessage = 'Not found') {
+  const provided = clientUpdatedAt === undefined || clientUpdatedAt === null
+    ? ''
+    : String(clientUpdatedAt).trim();
+  if (!provided) return true;
+
+  const row = db.prepare(`SELECT UpdatedAt FROM ${table} WHERE ${idColumn} = ?`).get(id);
+  if (!row) {
+    res.status(404).json({ error: notFoundMessage });
+    return false;
+  }
+
+  const current = row.UpdatedAt === undefined || row.UpdatedAt === null
+    ? ''
+    : String(row.UpdatedAt).trim();
+  if (provided !== current) {
+    res.status(409).json({ error: CONFLICT_MESSAGE });
+    return false;
+  }
+
+  return true;
+}
+
 function respondWithRouteError(res, err) {
   if (err instanceof RequestValidationError || err?.status) {
     return res.status(err.status || 400).json({ error: err.message });
@@ -108,8 +151,10 @@ function respondWithRouteError(res, err) {
 module.exports = {
   asyncRoute,
   RequestValidationError,
+  checkUpdateConflict,
   ensureEnum,
   getCompanyBlacklistState,
+  idParam,
   optionalInteger,
   optionalDateString,
   optionalTrimmed,

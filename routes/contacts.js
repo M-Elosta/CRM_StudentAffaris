@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
+  idParam,
   optionalDateString,
   optionalInteger,
   optionalTrimmed,
@@ -9,6 +11,8 @@ const {
   resolveContactStatus,
   todayDate,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 // GET /api/contacts  — optional ?search=, ?companyId=, ?status=
 router.get('/', (req, res) => {
@@ -123,6 +127,7 @@ router.put('/:id', (req, res) => {
   } = req.body;
 
   try {
+    if (!checkUpdateConflict(db, 'Contact', 'ContactID', req.params.id, req.body.UpdatedAt, res, 'Contact not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const firstName = requiredTrimmed(FirstName, 'FirstName');
     const lastName = requiredTrimmed(LastName, 'LastName');

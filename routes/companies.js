@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalDateString,
   optionalTrimmed,
   parseBooleanFlag,
   requiredTrimmed,
   todayDate,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 // GET /api/companies  — list all, optional ?search=
 router.get('/', (req, res) => {
@@ -92,6 +96,7 @@ router.put('/:id', (req, res) => {
   } = req.body;
 
   try {
+    if (!checkUpdateConflict(db, 'Company', 'CompanyID', req.params.id, req.body.UpdatedAt, res, 'Company not found')) return;
     const companyName = requiredTrimmed(CompanyName, 'CompanyName');
     const industry = requiredTrimmed(Industry, 'Industry');
     const sector = ensureEnum(Sector, ['Government', 'NGO', 'Private', 'Semi-government', 'Startup'], 'Sector');

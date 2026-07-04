@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalTrimmed,
   parseBooleanFlag,
   requiredTrimmed,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 const VALID_REGISTERED_STATUSES = ['Attended', 'No-Show', 'Cancelled'];
 
@@ -60,6 +64,7 @@ router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   const { CompanyID, ContactID, EventName, EventDate, RegisteredStatus, CMUQAlumniAtBooth, Comment } = req.body;
   try {
+    if (!checkUpdateConflict(db, 'CareerEvent', 'CareerEventID', req.params.id, req.body.UpdatedAt, res, 'Not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const contactId = requiredTrimmed(ContactID, 'ContactID');
     const eventName = requiredTrimmed(EventName, 'EventName');

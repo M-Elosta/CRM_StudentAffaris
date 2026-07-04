@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS PotentialCollaboration (
     PotentialCollaborationID INTEGER PRIMARY KEY AUTOINCREMENT,
     CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
     Comment TEXT,
-    CreatedAt DATETIME DEFAULT (datetime('now'))
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
 );
 
 -- Junction table for multi-valued collaboration opportunities
@@ -141,7 +142,8 @@ CREATE TABLE IF NOT EXISTS HiringFeedback (
     DateReported DATE NOT NULL,
     HiredStudentName TEXT,
     Comment TEXT,
-    CreatedAt DATETIME DEFAULT (datetime('now'))
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS CareerEvent (
@@ -153,7 +155,8 @@ CREATE TABLE IF NOT EXISTS CareerEvent (
     RegisteredStatus TEXT NOT NULL CHECK (RegisteredStatus IN ('Attended', 'No-Show', 'Cancelled')),
     CMUQAlumniAtBooth INTEGER DEFAULT 0,
     Comment TEXT,
-    CreatedAt DATETIME DEFAULT (datetime('now'))
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS StudentLedEvent (
@@ -169,7 +172,8 @@ CREATE TABLE IF NOT EXISTS StudentLedEvent (
     EventDate DATE,
     EventTitle TEXT,
     Comment TEXT,
-    CreatedAt DATETIME DEFAULT (datetime('now'))
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS AcademicClassroomEngagement (
@@ -193,7 +197,8 @@ CREATE TABLE IF NOT EXISTS AcademicClassroomEngagement (
     SessionDate DATE NOT NULL,
     SessionTime TEXT NOT NULL,  -- SQLite has no TIME type, store as "HH:MM"
     Comment TEXT,
-    CreatedAt DATETIME DEFAULT (datetime('now'))
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
 );
 
 -- ============================================
@@ -261,6 +266,36 @@ CREATE TRIGGER IF NOT EXISTS recruitment_updated
 AFTER UPDATE ON Recruitment
 BEGIN
     UPDATE Recruitment SET UpdatedAt = datetime('now') WHERE RecruitmentID = NEW.RecruitmentID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS collaboration_updated
+AFTER UPDATE ON PotentialCollaboration
+BEGIN
+    UPDATE PotentialCollaboration SET UpdatedAt = datetime('now') WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS hiring_feedback_updated
+AFTER UPDATE ON HiringFeedback
+BEGIN
+    UPDATE HiringFeedback SET UpdatedAt = datetime('now') WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS career_event_updated
+AFTER UPDATE ON CareerEvent
+BEGIN
+    UPDATE CareerEvent SET UpdatedAt = datetime('now') WHERE CareerEventID = NEW.CareerEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS student_event_updated
+AFTER UPDATE ON StudentLedEvent
+BEGIN
+    UPDATE StudentLedEvent SET UpdatedAt = datetime('now') WHERE StudentLedEventID = NEW.StudentLedEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS academic_engagement_updated
+AFTER UPDATE ON AcademicClassroomEngagement
+BEGIN
+    UPDATE AcademicClassroomEngagement SET UpdatedAt = datetime('now') WHERE EngagementID = NEW.EngagementID;
 END;
 
 -- ============================================

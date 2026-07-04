@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalDateString,
   optionalTrimmed,
   requiredTrimmed,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 const VALID_TYPES    = ['Call', 'Meeting', 'Company Visit'];
 const VALID_STATUSES = ['Complete', 'In-progress'];
@@ -99,6 +103,7 @@ router.put('/:id', (req, res) => {
           DiscussionItems, ActionPlan, FollowUpDate, InteractionStatus } = req.body;
 
   try {
+    if (!checkUpdateConflict(db, 'OutreachEngagement', 'OutreachEngagementID', req.params.id, req.body.UpdatedAt, res, 'Record not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const contactId = requiredTrimmed(ContactID, 'ContactID');
     const interactionType = ensureEnum(InteractionType, VALID_TYPES, 'InteractionType');

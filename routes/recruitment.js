@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const {
+  checkUpdateConflict,
   ensureEnum,
+  idParam,
   optionalDateString,
   optionalTrimmed,
   parseBooleanFlag,
   requiredTrimmed,
   todayDate,
 } = require('./_helpers');
+
+router.param('id', idParam);
 
 const VALID_MODES = ['Onsite', 'Hybrid', 'Remote'];
 const VALID_PAY_STATUSES = ['Paid', 'Unpaid'];
@@ -144,6 +148,8 @@ router.put('/:id', (req, res) => {
   } = req.body;
 
   try {
+    // Concurrency check applies to the parent Recruitment row only (junction tables excluded).
+    if (!checkUpdateConflict(db, 'Recruitment', 'RecruitmentID', req.params.id, req.body.UpdatedAt, res, 'Record not found')) return;
     const companyId = requiredTrimmed(CompanyID, 'CompanyID');
     const contactId = requiredTrimmed(ContactID, 'ContactID');
     const opportunityTitle = requiredTrimmed(OpportunityTitle, 'OpportunityTitle');

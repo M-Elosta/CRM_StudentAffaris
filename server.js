@@ -1,12 +1,13 @@
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
+const crypto   = require('crypto');
 const Database = require('better-sqlite3');
 const session  = require('express-session');
 const bcrypt   = require('bcrypt');
 
 const app  = express();
-const PORT = 3000;
+const PORT = Number.parseInt(process.env.PORT, 10) || 3000;
 
 // ── Database init ──────────────────────────────────────────────────────────────
 const DATA_DIR = path.join(__dirname, 'data');
@@ -15,6 +16,26 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new Database(DB_PATH);
 const schema = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
+
+// ── Pre-schema migrations for existing databases ───────────────────────────────
+// schema.sql defines AFTER UPDATE triggers that reference UpdatedAt. On an old
+// database those tables already exist WITHOUT the column, so the column must be
+// added before db.exec(schema) creates the triggers. SQLite cannot ADD COLUMN
+// with a non-constant default, so we add it bare and backfill from CreatedAt.
+const UPDATED_AT_TABLES = [
+  'Company', 'Contact', 'OutreachEngagement', 'Recruitment',
+  'PotentialCollaboration', 'HiringFeedback', 'CareerEvent',
+  'StudentLedEvent', 'AcademicClassroomEngagement',
+];
+for (const table of UPDATED_AT_TABLES) {
+  const columns = db.pragma(`table_info(${table})`);
+  if (columns.length === 0) continue; // table doesn't exist yet — schema.sql will create it with UpdatedAt
+  if (!columns.some(col => col.name === 'UpdatedAt')) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN UpdatedAt DATETIME`);
+    db.exec(`UPDATE ${table} SET UpdatedAt = COALESCE(CreatedAt, datetime('now')) WHERE UpdatedAt IS NULL`);
+  }
+}
+
 db.exec(schema);
 app.locals.db = db;
 
@@ -25,20 +46,36 @@ try { db.exec("ALTER TABLE Users ADD COLUMN Role TEXT NOT NULL DEFAULT 'admin'")
 (async () => {
   const count = db.prepare('SELECT COUNT(*) AS n FROM Users').get().n;
   if (count === 0) {
-    const hash = await bcrypt.hash('admin123', 12);
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const hash = await bcrypt.hash(adminPassword, 12);
     db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES ('admin', ?, 'admin')").run(hash);
-    console.log('Default user created — username: admin, password: admin123');
+    if (process.env.ADMIN_PASSWORD) {
+      console.log('Default user created — username: admin (password taken from ADMIN_PASSWORD env)');
+    } else {
+      console.log('Default user created — username: admin, password: admin123');
+    }
   }
 })();
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+let sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  sessionSecret = crypto.randomBytes(32).toString('hex');
+  console.warn('WARNING: SESSION_SECRET is not set — using a random secret generated at boot. ' +
+    'Sessions will NOT survive restarts. Set SESSION_SECRET in the environment.');
+}
+
+const cookieSecure = process.env.COOKIE_SECURE === '1' || process.env.COOKIE_SECURE === 'true';
+if (cookieSecure) app.set('trust proxy', 1);
+
 app.use(session({
-  secret: 'ero-system-secret-2025',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }, // 24h
+  cookie: { httpOnly: true, sameSite: 'lax', secure: cookieSecure, maxAge: 24 * 60 * 60 * 1000 }, // 24h
 }));
 
 // ── Simple login rate limiter ──────────────────────────────────────────────────
@@ -50,6 +87,9 @@ function loginRateLimiter(req, res, next) {
   if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + 15 * 60 * 1000; }
   rec.count++;
   loginAttempts.set(ip, rec);
+  // Let the auth route clear this IP's counter on a successful login, so only
+  // failed attempts accumulate toward the limit.
+  req.loginRateLimit = { success: () => loginAttempts.delete(ip) };
   if (rec.count > 10) return res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
   next();
 }

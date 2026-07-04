@@ -11,11 +11,11 @@ router.get('/last-updated', (req, res) => {
     contacts:      'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM Contact',
     outreach:      'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM OutreachEngagement',
     recruitment:   'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM Recruitment',
-    careerEvents:  'SELECT MAX(CreatedAt) AS ts FROM CareerEvent',
-    studentEvents: 'SELECT MAX(CreatedAt) AS ts FROM StudentLedEvent',
-    academic:      'SELECT MAX(CreatedAt) AS ts FROM AcademicClassroomEngagement',
-    hiringFeedback:'SELECT MAX(CreatedAt) AS ts FROM HiringFeedback',
-    collaboration: 'SELECT MAX(CreatedAt) AS ts FROM PotentialCollaboration',
+    careerEvents:  'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM CareerEvent',
+    studentEvents: 'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM StudentLedEvent',
+    academic:      'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM AcademicClassroomEngagement',
+    hiringFeedback:'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM HiringFeedback',
+    collaboration: 'SELECT MAX(COALESCE(UpdatedAt, CreatedAt)) AS ts FROM PotentialCollaboration',
   };
   const result = {};
   for (const [key, sql] of Object.entries(Q)) {
