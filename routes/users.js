@@ -4,7 +4,7 @@ const router  = express.Router();
 const { asyncRoute, requiredTrimmed } = require('./_helpers');
 
 function requireAdminSession(req, res, next) {
-  if ((req.session?.role || 'admin') !== 'admin') {
+  if ((req.session?.role || 'viewer') !== 'admin') {
     return res.status(403).json({ error: 'Admin access required.' });
   }
   next();

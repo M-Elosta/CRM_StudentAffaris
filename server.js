@@ -112,7 +112,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Viewer role: block all state-changing requests ────────────────────────────
 function requireAdmin(req, res, next) {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    const role = req.session?.role || 'admin';
+    const role = req.session?.role || 'viewer';
     if (role !== 'admin') {
       return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
     }

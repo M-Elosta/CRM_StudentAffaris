@@ -71,12 +71,15 @@ const REPORT_SECTIONS = [
       { type: 'sector-engagement',   label: 'Sector Engagement',     desc: 'Sector activity over semesters',        icon: 'bi-graph-up',         color: '#2ec4b6' },
       { type: 'hiring-conversion',   label: 'Hiring Conversion',     desc: 'Postings vs actual hires per semester', icon: 'bi-funnel',           color: '#198754' },
       { type: 'semester-comparison', label: 'Semester Comparison',   desc: 'Side-by-side semester metrics',         icon: 'bi-arrow-left-right', color: '#f72585' },
+      { type: 'ay-industry-opportunities', label: 'Opportunities by Industry (AY)', desc: 'Postings & hires per industry each academic year', icon: 'bi-bar-chart-line', color: '#118ab2' },
+      { type: 'ay-comparison',             label: 'Academic Year Comparison',       desc: 'This academic year vs last across key metrics',    icon: 'bi-calendar-range', color: '#3a0ca3' },
     ],
   },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let quickChart      = null;
+let execChart       = null;
 let activeQuickType = null;
 
 let repFilter = null;
@@ -85,12 +88,21 @@ let repFilter = null;
 document.addEventListener('DOMContentLoaded', () => {
   renderReportSections();
 
-  repFilter = initDateFilter('rep-from', 'rep-to', 'rep-show-all',
-    () => { if (activeQuickType) rerunActive(); });
+  repFilter = initDateFilter('rep-from', 'rep-to', 'rep-show-all', () => {
+    updatePresetUI();
+    loadExecutiveSummary();
+    if (activeQuickType) rerunActive();
+  });
+
+  document.querySelectorAll('#rep-presets .preset-pill').forEach(btn =>
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset)));
 
   document.getElementById('btn-quick-export').addEventListener('click', exportQuickExcel);
   document.getElementById('btn-download-png').addEventListener('click', () => downloadChartPNG('quick-chart', activeQuickType));
   document.getElementById('btn-print-quick').addEventListener('click', () => window.print());
+
+  updatePresetUI();
+  loadExecutiveSummary();
 });
 
 function currentRange() {
@@ -101,6 +113,171 @@ function currentRange() {
 function rerunActive() {
   const card = document.querySelector('.report-card.active');
   runQuickReport(activeQuickType, card?.dataset.label || '');
+}
+
+// ── Date-range presets (semesters & academic years, CMU-Q calendar) ────────────
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function semesterRangeFor(d) {
+  const m = d.getMonth() + 1, y = d.getFullYear();
+  if (m >= 8) return { from: `${y}-08-01`, to: `${y}-12-31` };   // Fall
+  if (m <= 5) return { from: `${y}-01-01`, to: `${y}-05-31` };   // Spring
+  return { from: `${y}-06-01`, to: `${y}-07-31` };               // Summer
+}
+
+function academicYearRangeFor(d) {
+  const m = d.getMonth() + 1, y = d.getFullYear();
+  const s = m >= 8 ? y : y - 1;                                  // AY = Aug 1 → Jul 31
+  return { from: `${s}-08-01`, to: `${s + 1}-07-31` };
+}
+
+function dayBeforeISO(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function presetRange(id) {
+  const now = new Date();
+  switch (id) {
+    case 'this-sem': return semesterRangeFor(now);
+    case 'last-sem': return semesterRangeFor(new Date(dayBeforeISO(semesterRangeFor(now).from) + 'T00:00:00'));
+    case 'this-ay':  return academicYearRangeFor(now);
+    case 'last-ay': {
+      const s = parseInt(academicYearRangeFor(now).from.slice(0, 4), 10) - 1;
+      return { from: `${s}-08-01`, to: `${s + 1}-07-31` };
+    }
+    default: return { from: '', to: '' };                        // 'all'
+  }
+}
+
+// Applies a preset by driving the existing initDateFilter inputs (app.js owns
+// the listeners): set values, then dispatch a change event so its onChange runs.
+function applyPreset(id) {
+  const fromEl = document.getElementById('rep-from');
+  const toEl   = document.getElementById('rep-to');
+  const allEl  = document.getElementById('rep-show-all');
+  if (id === 'all') {
+    if (!allEl.checked) {
+      allEl.checked = true;
+      allEl.dispatchEvent(new Event('change'));
+    } else {
+      updatePresetUI();
+    }
+    return;
+  }
+  const r = presetRange(id);
+  fromEl.value = r.from;
+  toEl.value   = r.to;
+  if (allEl.checked) {
+    allEl.checked = false;
+    allEl.dispatchEvent(new Event('change'));
+  } else {
+    fromEl.dispatchEvent(new Event('change'));
+  }
+}
+
+// Marks the pill matching the current filter state as active (custom ranges → none).
+function updatePresetUI() {
+  const allEl = document.getElementById('rep-show-all');
+  const from  = document.getElementById('rep-from').value;
+  const to    = document.getElementById('rep-to').value;
+  let active = null;
+  if (allEl && allEl.checked) {
+    active = 'all';
+  } else {
+    for (const id of ['this-sem', 'last-sem', 'this-ay', 'last-ay']) {
+      const r = presetRange(id);
+      if (r.from === from && r.to === to) { active = id; break; }
+    }
+  }
+  document.querySelectorAll('#rep-presets .preset-pill').forEach(btn => {
+    const on = btn.dataset.preset === active;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+// ── Executive Summary ──────────────────────────────────────────────────────────
+async function loadExecutiveSummary() {
+  const range = currentRange();
+  const qs = new URLSearchParams();
+  if (range.from) qs.set('from', range.from);
+  if (range.to)   qs.set('to',   range.to);
+  try {
+    const data = await fetchAPI(`/api/reports/executive-summary?${qs}`);
+    renderExecSummary(data);
+  } catch (err) {
+    document.getElementById('exec-kpis').innerHTML =
+      `<div class="text-muted small">Could not load summary: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function fmtRangeLabel(p) {
+  if (!p || (!p.from && !p.to)) return 'All time';
+  const f = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '…';
+  return `${f(p.from)} – ${f(p.to)}`;
+}
+
+function renderExecSummary(data) {
+  // Period line
+  let periodTxt = fmtRangeLabel(data.period);
+  if (data.previous) {
+    const prevTxt = data.previous.label && data.previous.label !== 'Previous period'
+      ? data.previous.label : fmtRangeLabel(data.previous);
+    periodTxt += ` · compared with ${prevTxt}`;
+  }
+  document.getElementById('exec-period').textContent = periodTxt;
+
+  // KPI tiles
+  document.getElementById('exec-kpis').innerHTML = data.kpis.map(k => {
+    let delta = '';
+    if (k.change !== null && k.change !== undefined) {
+      const cls   = k.change > 0 ? 'up' : k.change < 0 ? 'down' : 'flat';
+      const glyph = k.change > 0 ? '▲' : k.change < 0 ? '▼' : '—';
+      const txt   = k.change > 0 ? `+${k.change}` : k.change < 0 ? `${k.change}` : 'no change';
+      delta = `<div class="exec-kpi-delta ${cls}" title="Previous period: ${k.previous}">${glyph} ${escHtml(txt)} vs previous</div>`;
+    }
+    return `
+      <div class="exec-kpi">
+        <div class="exec-kpi-value">${k.value}</div>
+        <div class="exec-kpi-label">${escHtml(k.label)}</div>
+        ${delta}
+      </div>`;
+  }).join('');
+
+  // Highlights
+  const h = data.highlights || {};
+  const items = [];
+  if (h.topIndustry)
+    items.push(`<li><i class="bi bi-award text-primary me-2"></i>Top industry: <strong>${escHtml(h.topIndustry.name)}</strong> (${h.topIndustry.count} activities)</li>`);
+  if (h.topCompany)
+    items.push(`<li><i class="bi bi-building-check text-success me-2"></i>Most engaged: <strong>${escHtml(h.topCompany.name)}</strong> (${h.topCompany.count} activities)</li>`);
+  if (!h.topIndustry && !h.topCompany)
+    items.push('<li class="text-muted">No engagement activity recorded in this period.</li>');
+  const n = h.inactiveCount ?? 0;
+  items.push(`<li><i class="bi bi-pause-circle text-secondary me-2"></i>${n} compan${n === 1 ? 'y' : 'ies'} with no activity this period — <a href="#" id="hl-inactive-link">see Inactive Companies report</a></li>`);
+  document.getElementById('exec-highlights').innerHTML = items.join('');
+  const link = document.getElementById('hl-inactive-link');
+  if (link) link.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelector('.report-card[data-type="inactive-companies"]')?.click();
+  });
+
+  // Trend line
+  if (execChart) { execChart.destroy(); execChart = null; }
+  const cfg = buildChartConfig({
+    type: 'line',
+    labels: data.monthly.labels,
+    datasets: [{
+      label: 'All activity', data: data.monthly.data,
+      borderColor: '#4361ee', backgroundColor: 'rgba(67,97,238,0.1)',
+      fill: true, tension: 0.3, pointRadius: 2,
+    }],
+  });
+  cfg.options.maintainAspectRatio = false;
+  cfg.options.plugins.legend = { display: false };
+  execChart = new Chart(document.getElementById('exec-trend-chart').getContext('2d'), cfg);
 }
 
 // ── Render sections & cards ────────────────────────────────────────────────────
@@ -120,12 +297,19 @@ function renderReportSections() {
       </div>
     </div>`).join('');
 
-  // Attach click handlers
+  // Attach click + keyboard handlers (cards act as buttons)
   document.querySelectorAll('.report-card').forEach(el => {
     el.addEventListener('click', () => {
-      document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.report-card').forEach(c => {
+        c.classList.remove('active');
+        c.setAttribute('aria-pressed', 'false');
+      });
       el.classList.add('active');
+      el.setAttribute('aria-pressed', 'true');
       runQuickReport(el.dataset.type, el.dataset.label);
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
     });
   });
 }
@@ -133,7 +317,8 @@ function renderReportSections() {
 function buildCardHtml(card) {
   const bgAlpha = hexToRgba(card.color, 0.12);
   return `
-    <div class="report-card" data-type="${escHtml(card.type)}" data-label="${escHtml(card.label)}">
+    <div class="report-card" role="button" tabindex="0" aria-pressed="false"
+         data-type="${escHtml(card.type)}" data-label="${escHtml(card.label)}">
       <div class="card-icon-wrap" style="background:${bgAlpha}">
         <i class="bi ${card.icon}" style="color:${card.color}"></i>
       </div>

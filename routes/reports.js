@@ -21,6 +21,27 @@ function dateClause(col, from, to) {
   return { sql: parts.length ? ' AND ' + parts.join(' AND ') : '', params };
 }
 
+// ── from/to validation (shared) ────────────────────────────────────────────────
+// Sends a 400 and returns true when either value is present but not YYYY-MM-DD.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function invalidDates(res, from, to) {
+  for (const [name, v] of [['from', from], ['to', to]]) {
+    if (v && !DATE_RE.test(String(v))) {
+      res.status(400).json({ error: `Invalid '${name}' date — expected YYYY-MM-DD.` });
+      return true;
+    }
+  }
+  return false;
+}
+
+// ── Admin-only guard for mutating routes ───────────────────────────────────────
+function requireAdmin(req, res, next) {
+  if ((req.session?.role || 'viewer') !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required.' });
+  }
+  next();
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // QUICK REPORT DEFINITIONS
 // Each fn(db, from, to) returns { rows, chartData: { type, labels, datasets } }
@@ -748,42 +769,101 @@ const QUICK_REPORTS = {
     const anchor = from || new Date().toISOString().slice(0, 10);
     const A = semesterOf(anchor);
     const B = prevSemesterOf(A);
+    return comparisonReport(db, A, B);
+  },
 
-    const metrics = (r) => ({
-      'Companies Engaged': db.prepare(`
-        SELECT COUNT(DISTINCT CompanyID) AS n FROM (
-          SELECT CompanyID, InteractionDate AS d FROM OutreachEngagement
-          UNION ALL SELECT CompanyID, DatePosted FROM Recruitment
-          UNION ALL SELECT CompanyID, EventDate FROM CareerEvent
-          UNION ALL SELECT CompanyID, SessionDate FROM AcademicClassroomEngagement
-        ) WHERE d >= ? AND d <= ?`).get(r.from, r.to).n,
-      'New Companies Added':    db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE DateAdded>=? AND DateAdded<=?`).get(r.from, r.to).n,
-      'Recruitment Postings':   db.prepare(`SELECT COUNT(*) AS n FROM Recruitment WHERE DatePosted>=? AND DatePosted<=?`).get(r.from, r.to).n,
-      'Career Events Attended': db.prepare(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate>=? AND EventDate<=?`).get(r.from, r.to).n,
-      'Students Hired':         db.prepare(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes' AND DateReported>=? AND DateReported<=?`).get(r.from, r.to).n,
-      'Academic Engagements':   db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to).n,
-      'Outreach Interactions':  db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to).n,
+  'ay-comparison': (db, from, to) => {
+    // Academic Year A = AY containing `from` (or today); B = the previous AY
+    const anchor = from || new Date().toISOString().slice(0, 10);
+    const A = academicYearOf(anchor);
+    const B = prevAcademicYearOf(A);
+    return comparisonReport(db, A, B);
+  },
+
+  'ay-industry-opportunities': (db, from, to) => {
+    // Recruitment postings + hires per industry, bucketed by academic year
+    const dcR = dateClause('r.DatePosted', from, to);
+    const dcH = dateClause('h.DateReported', from, to);
+    const posts = db.prepare(`
+      SELECT r.DatePosted AS d, COALESCE(c.Industry,'Unknown') AS ind
+      FROM Recruitment r JOIN Company c ON r.CompanyID=c.CompanyID
+      WHERE 1=1${dcR.sql}`).all(...dcR.params);
+    const hires = db.prepare(`
+      SELECT h.DateReported AS d, COALESCE(c.Industry,'Unknown') AS ind
+      FROM HiringFeedback h JOIN Company c ON h.CompanyID=c.CompanyID
+      WHERE h.HiredStudentAlumni='Yes'${dcH.sql}`).all(...dcH.params);
+
+    const buckets = {}; // ayLabel → { order, industries: { ind: {postings, hires} } }
+    const add = (list, key) => list.forEach(r => {
+      const ay = academicYearOf(r.d); if (!ay) return;
+      const b = buckets[ay.label] = buckets[ay.label] || { order: ay.order, industries: {} };
+      const ind = b.industries[r.ind] = b.industries[r.ind] || { postings: 0, hires: 0 };
+      ind[key]++;
+    });
+    add(posts, 'postings'); add(hires, 'hires');
+
+    const years = Object.entries(buckets).sort((x, y) => x[1].order - y[1].order);
+    const rows = [];
+    years.forEach(([label, b]) => {
+      Object.entries(b.industries)
+        .sort((x, y) => (y[1].postings + y[1].hires) - (x[1].postings + x[1].hires))
+        .forEach(([ind, c]) => rows.push({
+          'Academic Year': label, 'Industry': ind,
+          'Postings': c.postings, 'Hires': c.hires, 'Total': c.postings + c.hires,
+        }));
     });
 
-    const a = metrics(A), b = metrics(B);
-    const rows = Object.keys(a).map(k => {
-      const diff = a[k] - b[k];
-      return {
-        'Metric': k, [A.label]: a[k], [B.label]: b[k],
-        'Change': diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—',
-        'Trend': diff > 0 ? 'Improved' : diff < 0 ? 'Declined' : 'Unchanged',
-      };
-    });
-
-    return { rows, chartData: {
-      type: 'bar', labels: Object.keys(a),
-      datasets: [
-        { label: A.label, data: Object.values(a), backgroundColor: '#4361ee', borderRadius: 4 },
-        { label: B.label, data: Object.values(b), backgroundColor: '#adb5bd', borderRadius: 4 },
-      ],
-    }};
+    // stacked bar: one bar per AY, segments per industry (top 8 overall)
+    const indTotals = {};
+    rows.forEach(r => { indTotals[r.Industry] = (indTotals[r.Industry] || 0) + r.Total; });
+    const topInds = Object.entries(indTotals).sort((x, y) => y[1] - x[1]).slice(0, 8).map(x => x[0]);
+    const labels = years.map(([l]) => l);
+    const datasets = topInds.map((ind, i) => ({
+      label: ind,
+      data: labels.map(l => { const c = buckets[l].industries[ind]; return c ? c.postings + c.hires : 0; }),
+      backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 2, stack: 'ay',
+    }));
+    return { rows, chartData: { type: 'bar', labels, datasets, stacked: true } };
   },
 };
+
+// ── Shared comparison report (used by semester & academic-year comparison) ─────
+function periodMetrics(db, r) {
+  return {
+    'Companies Engaged': db.prepare(`
+      SELECT COUNT(DISTINCT CompanyID) AS n FROM (
+        SELECT CompanyID, InteractionDate AS d FROM OutreachEngagement
+        UNION ALL SELECT CompanyID, DatePosted FROM Recruitment
+        UNION ALL SELECT CompanyID, EventDate FROM CareerEvent
+        UNION ALL SELECT CompanyID, SessionDate FROM AcademicClassroomEngagement
+      ) WHERE d >= ? AND d <= ?`).get(r.from, r.to).n,
+    'New Companies Added':    db.prepare(`SELECT COUNT(*) AS n FROM Company WHERE DateAdded>=? AND DateAdded<=?`).get(r.from, r.to).n,
+    'Recruitment Postings':   db.prepare(`SELECT COUNT(*) AS n FROM Recruitment WHERE DatePosted>=? AND DatePosted<=?`).get(r.from, r.to).n,
+    'Career Events Attended': db.prepare(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended' AND EventDate>=? AND EventDate<=?`).get(r.from, r.to).n,
+    'Students Hired':         db.prepare(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes' AND DateReported>=? AND DateReported<=?`).get(r.from, r.to).n,
+    'Academic Engagements':   db.prepare(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE SessionDate>=? AND SessionDate<=?`).get(r.from, r.to).n,
+    'Outreach Interactions':  db.prepare(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionDate>=? AND InteractionDate<=?`).get(r.from, r.to).n,
+  };
+}
+
+function comparisonReport(db, A, B) {
+  const a = periodMetrics(db, A), b = periodMetrics(db, B);
+  const rows = Object.keys(a).map(k => {
+    const diff = a[k] - b[k];
+    return {
+      'Metric': k, [A.label]: a[k], [B.label]: b[k],
+      'Change': diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${diff}` : '—',
+      'Trend': diff > 0 ? 'Improved' : diff < 0 ? 'Declined' : 'Unchanged',
+    };
+  });
+  return { rows, chartData: {
+    type: 'bar', labels: Object.keys(a),
+    datasets: [
+      { label: A.label, data: Object.values(a), backgroundColor: '#4361ee', borderRadius: 4 },
+      { label: B.label, data: Object.values(b), backgroundColor: '#adb5bd', borderRadius: 4 },
+    ],
+  }};
+}
 
 // ── Semester helpers (CMU-Q calendar) ──────────────────────────────────────────
 // Fall: Aug 1 – Dec 31 | Spring: Jan 1 – May 31 | Summer: Jun 1 – Jul 31
@@ -803,6 +883,87 @@ function prevSemesterOf(sem) {
   const d = new Date(sem.from);
   d.setDate(d.getDate() - 1);
   return semesterOf(d.toISOString().slice(0, 10));
+}
+
+// ── Academic year helpers ──────────────────────────────────────────────────────
+// AY runs Fall→Spring incl. the trailing summer: Aug 1 Y → Jul 31 Y+1.
+// Label "AY 2025–26"; order = start year (sortable integer).
+function academicYearOf(dateStr) {
+  if (!dateStr) return null;
+  const m = Number(String(dateStr).slice(5, 7));
+  const y = Number(String(dateStr).slice(0, 4));
+  if (!m || !y) return null;
+  const startY = m >= 8 ? y : y - 1;
+  const endYY  = String((startY + 1) % 100).padStart(2, '0');
+  return { label: `AY ${startY}–${endYY}`, order: startY,
+           from: `${startY}-08-01`, to: `${startY + 1}-07-31` };
+}
+
+function prevAcademicYearOf(ay) {
+  return academicYearOf(`${ay.order - 1}-08-01`);
+}
+
+// ── Executive summary helpers ──────────────────────────────────────────────────
+// One row per activity record across all six activity tables (CompanyID + date).
+const ACTIVITY_UNION = `
+      SELECT CompanyID, InteractionDate AS d FROM OutreachEngagement
+      UNION ALL SELECT CompanyID, DatePosted    FROM Recruitment
+      UNION ALL SELECT CompanyID, EventDate     FROM CareerEvent
+      UNION ALL SELECT CompanyID, SessionDate   FROM AcademicClassroomEngagement
+      UNION ALL SELECT CompanyID, ProposalDate  FROM StudentLedEvent
+      UNION ALL SELECT CompanyID, DateReported  FROM HiringFeedback`;
+
+const EXEC_KPI_LABELS = {
+  companiesEngaged:     'Companies Engaged',
+  newCompanies:         'New Companies',
+  recruitmentPostings:  'Recruitment Postings',
+  studentsHired:        'Students/Alumni Hired',
+  careerEvents:         'Career Events Attended',
+  academicEngagements:  'Academic Engagements',
+  outreachInteractions: 'Outreach Interactions',
+};
+
+function execKpisFor(db, from, to) {
+  const count = (sql, col) => {
+    const dc = dateClause(col, from, to);
+    return db.prepare(sql + dc.sql).get(...dc.params).n;
+  };
+  const dcd = dateClause('d', from, to);
+  return {
+    companiesEngaged: db.prepare(
+      `SELECT COUNT(DISTINCT CompanyID) AS n FROM (${ACTIVITY_UNION}) WHERE d IS NOT NULL${dcd.sql}`
+    ).get(...dcd.params).n,
+    newCompanies:         count(`SELECT COUNT(*) AS n FROM Company WHERE 1=1`, 'DateAdded'),
+    recruitmentPostings:  count(`SELECT COUNT(*) AS n FROM Recruitment WHERE 1=1`, 'DatePosted'),
+    studentsHired:        count(`SELECT COUNT(*) AS n FROM HiringFeedback WHERE HiredStudentAlumni='Yes'`, 'DateReported'),
+    careerEvents:         count(`SELECT COUNT(*) AS n FROM CareerEvent WHERE RegisteredStatus='Attended'`, 'EventDate'),
+    academicEngagements:  count(`SELECT COUNT(*) AS n FROM AcademicClassroomEngagement WHERE 1=1`, 'SessionDate'),
+    outreachInteractions: count(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1=1`, 'InteractionDate'),
+  };
+}
+
+// Previous comparable period: matching semester → previous semester;
+// matching academic year → previous AY; otherwise the equal-length window
+// immediately before `from`. Null when the range is open-ended (Show All).
+function previousRange(from, to) {
+  if (!from || !to) return null;
+  const sem = semesterOf(from);
+  if (sem && sem.from === from && sem.to === to) {
+    const p = prevSemesterOf(sem);
+    return { from: p.from, to: p.to, label: p.label };
+  }
+  const ay = academicYearOf(from);
+  if (ay && ay.from === from && ay.to === to) {
+    const p = prevAcademicYearOf(ay);
+    return { from: p.from, to: p.to, label: p.label };
+  }
+  const f = new Date(from + 'T00:00:00Z'), t = new Date(to + 'T00:00:00Z');
+  if (isNaN(f) || isNaN(t) || f > t) return null;
+  const days = Math.round((t - f) / 86400000);
+  const prevTo = new Date(f);   prevTo.setUTCDate(prevTo.getUTCDate() - 1);
+  const prevFrom = new Date(prevTo); prevFrom.setUTCDate(prevFrom.getUTCDate() - days);
+  const iso = d => d.toISOString().slice(0, 10);
+  return { from: iso(prevFrom), to: iso(prevTo), label: 'Previous period' };
 }
 
 // ── REPORT BUILDER SCHEMA ──────────────────────────────────────────────────────
@@ -1024,11 +1185,66 @@ router.get('/schema', (req, res) => {
   res.json(schema);
 });
 
+// GET /api/reports/executive-summary?from&to — KPIs, deltas, highlights, trend
+router.get('/executive-summary', (req, res) => {
+  const db = req.app.locals.db;
+  const { from, to } = req.query;
+  if (invalidDates(res, from, to)) return;
+  const f = from || null, t = to || null;
+  try {
+    const current  = execKpisFor(db, f, t);
+    const prevInfo = previousRange(f, t);
+    const previous = prevInfo ? execKpisFor(db, prevInfo.from, prevInfo.to) : null;
+
+    const kpis = Object.keys(current).map(k => ({
+      key: k,
+      label: EXEC_KPI_LABELS[k],
+      value: current[k],
+      previous: previous ? previous[k] : null,
+      change: previous ? current[k] - previous[k] : null,
+    }));
+
+    const dcd = dateClause('a.d', f, t);
+    const topIndustry = db.prepare(`
+      SELECT COALESCE(c.Industry,'Unknown') AS name, COUNT(*) AS count
+      FROM (${ACTIVITY_UNION}) a JOIN Company c ON a.CompanyID=c.CompanyID
+      WHERE a.d IS NOT NULL${dcd.sql}
+      GROUP BY name ORDER BY count DESC LIMIT 1`).get(...dcd.params) || null;
+    const topCompany = db.prepare(`
+      SELECT c.CompanyName AS name, COUNT(*) AS count
+      FROM (${ACTIVITY_UNION}) a JOIN Company c ON a.CompanyID=c.CompanyID
+      WHERE a.d IS NOT NULL${dcd.sql}
+      GROUP BY c.CompanyID ORDER BY count DESC LIMIT 1`).get(...dcd.params) || null;
+    const inactiveCount = db.prepare(`
+      SELECT COUNT(*) AS n FROM Company c
+      WHERE c.Blacklisted=0 AND c.CompanyID NOT IN (
+        SELECT a.CompanyID FROM (${ACTIVITY_UNION}) a
+        WHERE a.d IS NOT NULL${dcd.sql})`).get(...dcd.params).n;
+
+    const monthly = db.prepare(`
+      SELECT strftime('%Y-%m', a.d) AS m, COUNT(*) AS n
+      FROM (${ACTIVITY_UNION}) a
+      WHERE a.d IS NOT NULL${dcd.sql}
+      GROUP BY m ORDER BY m`).all(...dcd.params);
+
+    res.json({
+      period: { from: f, to: t },
+      previous: prevInfo,
+      kpis,
+      highlights: { topIndustry, topCompany, inactiveCount },
+      monthly: { labels: monthly.map(r => monthLabel(r.m + '-01')), data: monthly.map(r => r.n) },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/reports/quick/:type
 router.get('/quick/:type', (req, res) => {
   const db   = req.app.locals.db;
   const type = req.params.type;
   const { from, to, export: doExport } = req.query;
+  if (invalidDates(res, from, to)) return;
   const fn = QUICK_REPORTS[type];
   if (!fn) return res.status(404).json({ error: `Unknown report type: ${type}` });
   try {
@@ -1046,6 +1262,7 @@ router.get('/quick/:type', (req, res) => {
 router.post('/builder', (req, res) => {
   const db = req.app.locals.db;
   const { entity, columns: selCols, filters, sortBy, sortOrder, chartType, chartGroupBy, from, to } = req.body;
+  if (invalidDates(res, from, to)) return;
 
   const schema = BUILDER_SCHEMA[entity];
   if (!schema) return res.status(400).json({ error: 'Unknown entity' });
@@ -1122,8 +1339,8 @@ router.get('/saved', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/reports/saved
-router.post('/saved', (req, res) => {
+// POST /api/reports/saved (admin only)
+router.post('/saved', requireAdmin, (req, res) => {
   const db = req.app.locals.db;
   const { ReportName, Entity, Columns, Filters, SortBy, SortOrder, ChartType, ChartGroupBy } = req.body;
   if (!ReportName || !Entity) return res.status(400).json({ error: 'ReportName and Entity are required' });
@@ -1137,8 +1354,8 @@ router.post('/saved', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/reports/saved/:id
-router.delete('/saved/:id', (req, res) => {
+// DELETE /api/reports/saved/:id (admin only)
+router.delete('/saved/:id', requireAdmin, (req, res) => {
   const db = req.app.locals.db;
   try {
     const info = db.prepare('DELETE FROM SavedReports WHERE ReportID=?').run(req.params.id);
