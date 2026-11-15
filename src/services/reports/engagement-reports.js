@@ -59,7 +59,12 @@ module.exports = {
         indexAxis: 'y',
         labels: top.map((row) => row.Company),
         datasets: [
-          { label: 'Total Engagements', data: top.map((row) => row.Total), backgroundColor: '#4361ee', borderRadius: 4 },
+          {
+            label: 'Total Engagements',
+            data: top.map((row) => row.Total),
+            backgroundColor: '#4361ee',
+            borderRadius: 4,
+          },
         ],
       },
     };

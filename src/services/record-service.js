@@ -29,7 +29,16 @@ const versionSchema = z.object({ UpdatedAt: recordTimestamp() });
  * @param {(stored: object) => object} [deps.hooks.describeRemoval]  response body for a deletion
  * @param {() => Date} [deps.now]  clock, replaceable in tests
  */
-function createRecordService({ db, repository, definition, schema, lookups, timeZone, hooks = {}, now = () => new Date() }) {
+function createRecordService({
+  db,
+  repository,
+  definition,
+  schema,
+  lookups,
+  timeZone,
+  hooks = {},
+  now = () => new Date(),
+}) {
   const today = () => todayInTimeZone(timeZone, now());
 
   function notFound() {

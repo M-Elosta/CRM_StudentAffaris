@@ -54,7 +54,12 @@ function createImportRepository(db) {
           `SELECT RecruitmentID AS id FROM Recruitment
            WHERE CompanyID = ? AND LOWER(TRIM(OpportunityTitle)) = ? AND (? IS NULL OR DatePosted = ?)`
         ),
-        params: (row) => [row.CompanyID, normalize(row.OpportunityTitle), row.DatePosted || null, row.DatePosted || null],
+        params: (row) => [
+          row.CompanyID,
+          normalize(row.OpportunityTitle),
+          row.DatePosted || null,
+          row.DatePosted || null,
+        ],
       },
     ],
     [

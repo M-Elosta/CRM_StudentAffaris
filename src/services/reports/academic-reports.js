@@ -7,7 +7,14 @@ const { sortedCounts, barChart } = require('./chart-data');
 module.exports = {
   'academic-engagements': ({ queries, from, to }) => {
     const rows = queries.academicEngagements(from, to);
-    return { rows, chartData: barChart(sortedCounts(rows, (row) => row.Type), 'Engagements', '#7209b7') };
+    return {
+      rows,
+      chartData: barChart(
+        sortedCounts(rows, (row) => row.Type),
+        'Engagements',
+        '#7209b7'
+      ),
+    };
   },
 
   'student-led-events': ({ queries, from, to }) => {
@@ -25,6 +32,13 @@ module.exports = {
 
   'guest-speakers': ({ queries, from, to }) => {
     const rows = queries.guestSpeakers(from, to);
-    return { rows, chartData: barChart(sortedCounts(rows, (row) => row.Company, 15), 'Speakers', '#3a0ca3') };
+    return {
+      rows,
+      chartData: barChart(
+        sortedCounts(rows, (row) => row.Company, 15),
+        'Speakers',
+        '#3a0ca3'
+      ),
+    };
   },
 };

@@ -62,12 +62,39 @@ function academicYearFromKey(key) {
 
 function semesterRange(term, year) {
   if (term === 'fall') {
-    return { kind: 'semester', term, year, key: `${year}-fall`, label: `Fall ${year}`, order: year * 3 + 2, from: `${year}-08-01`, to: `${year}-12-31` };
+    return {
+      kind: 'semester',
+      term,
+      year,
+      key: `${year}-fall`,
+      label: `Fall ${year}`,
+      order: year * 3 + 2,
+      from: `${year}-08-01`,
+      to: `${year}-12-31`,
+    };
   }
   if (term === 'spring') {
-    return { kind: 'semester', term, year, key: `${year}-spring`, label: `Spring ${year}`, order: year * 3 + 0, from: `${year}-01-01`, to: `${year}-05-31` };
+    return {
+      kind: 'semester',
+      term,
+      year,
+      key: `${year}-spring`,
+      label: `Spring ${year}`,
+      order: year * 3 + 0,
+      from: `${year}-01-01`,
+      to: `${year}-05-31`,
+    };
   }
-  return { kind: 'semester', term, year, key: `${year}-summer`, label: `Summer ${year}`, order: year * 3 + 1, from: `${year}-06-01`, to: `${year}-07-31` };
+  return {
+    kind: 'semester',
+    term,
+    year,
+    key: `${year}-summer`,
+    label: `Summer ${year}`,
+    order: year * 3 + 1,
+    from: `${year}-06-01`,
+    to: `${year}-07-31`,
+  };
 }
 
 /** The semester for a validated key such as '2024-fall', or null. */

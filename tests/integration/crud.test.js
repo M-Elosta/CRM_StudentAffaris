@@ -152,33 +152,24 @@ for (const type of RECORD_TYPES) {
 
     if (type.enumField) {
       const { field, invalid } = type.enumField;
-      it(
-        `rejects creating ${an(type.name)} with an invalid ${field} with 400`,
-        async () => {
-          const res = await post(admin, base, { ...type.payload(refs), [field]: invalid });
-          assert.equal(res.status, 400);
-          assert.equal(typeof res.body.error, 'string');
-        }
-      );
+      it(`rejects creating ${an(type.name)} with an invalid ${field} with 400`, async () => {
+        const res = await post(admin, base, { ...type.payload(refs), [field]: invalid });
+        assert.equal(res.status, 400);
+        assert.equal(typeof res.body.error, 'string');
+      });
 
-      it(
-        `rejects updating ${an(type.name)} to an invalid ${field} with 400`,
-        async () => {
-          const record = await createRecord(admin, type, refs);
-          const res = await put(admin, `${base}/${record[type.idField]}`, updateBody(record, { [field]: invalid }));
-          assert.equal(res.status, 400);
-        }
-      );
+      it(`rejects updating ${an(type.name)} to an invalid ${field} with 400`, async () => {
+        const record = await createRecord(admin, type, refs);
+        const res = await put(admin, `${base}/${record[type.idField]}`, updateBody(record, { [field]: invalid }));
+        assert.equal(res.status, 400);
+      });
     }
 
     if (type.path !== 'companies') {
-      it(
-        `rejects creating ${an(type.name)} for a company that does not exist with a 4xx error`,
-        async () => {
-          const res = await post(admin, base, { ...type.payload(refs), CompanyID: 999999 });
-          assert.ok(res.status >= 400 && res.status < 500, `expected 4xx, got ${res.status}`);
-        }
-      );
+      it(`rejects creating ${an(type.name)} for a company that does not exist with a 4xx error`, async () => {
+        const res = await post(admin, base, { ...type.payload(refs), CompanyID: 999999 });
+        assert.ok(res.status >= 400 && res.status < 500, `expected 4xx, got ${res.status}`);
+      });
     }
   });
 }

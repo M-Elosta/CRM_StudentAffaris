@@ -82,13 +82,10 @@ describe('Reports', () => {
       assert.equal(res.status, 404);
     });
 
-    it(
-      'does not treat inherited object properties as report types',
-      async () => {
-        assert.equal((await viewer.get('/api/reports/quick/constructor')).status, 404);
-        assert.equal((await viewer.get('/api/reports/quick/toString')).status, 404);
-      }
-    );
+    it('does not treat inherited object properties as report types', async () => {
+      assert.equal((await viewer.get('/api/reports/quick/constructor')).status, 404);
+      assert.equal((await viewer.get('/api/reports/quick/toString')).status, 404);
+    });
 
     it('lists the mailable contacts in the populated database', async () => {
       const res = await viewer.get('/api/reports/quick/mailable-contacts');

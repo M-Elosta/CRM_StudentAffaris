@@ -41,7 +41,10 @@ function createDashboardRepository(db) {
           `SELECT COUNT(*) AS n FROM Contact WHERE Status = 'Mailable' AND ExcludeFromMailing = 0${added.sql}`,
           added.params
         ),
-        outreachThisMonth: count(`SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1 = 1${outreach.sql}`, outreach.params),
+        outreachThisMonth: count(
+          `SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1 = 1${outreach.sql}`,
+          outreach.params
+        ),
         upcomingFollowUps: count(
           `SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionStatus = 'In-progress'${followUps.sql}`,
           followUps.params

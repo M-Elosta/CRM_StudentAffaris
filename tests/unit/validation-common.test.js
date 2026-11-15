@@ -114,7 +114,11 @@ describe('validation/common', () => {
       assert.equal(parse(v.isoDate('Date'), '2025-09-01'), '2025-09-01');
       assert.equal(parse(v.isoDate('Date'), ' 2025-09-01 '), '2025-09-01');
       for (const bad of ['2025/09/01', '01-09-2025', '2025-9-1', 'tomorrow', '2025-09-01T10:00']) {
-        assertRejects(v.isoDate('Interaction date'), bad, /^Interaction date must be a real date in YYYY-MM-DD format$/);
+        assertRejects(
+          v.isoDate('Interaction date'),
+          bad,
+          /^Interaction date must be a real date in YYYY-MM-DD format$/
+        );
       }
       assertRejects(v.isoDate('Date'), '', /Date is required/);
     });

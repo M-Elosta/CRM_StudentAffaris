@@ -89,7 +89,10 @@ describe('Import re-validation', () => {
       const res = await post(admin, '/api/import/confirm', {
         entity: 'Contact',
         rows: [
-          { row: { CompanyID: 999999, FirstName: 'No', LastName: 'Employer', EmailAddress: 'x@y.qa' }, action: 'import' },
+          {
+            row: { CompanyID: 999999, FirstName: 'No', LastName: 'Employer', EmailAddress: 'x@y.qa' },
+            action: 'import',
+          },
         ],
       });
       assert.equal(res.body.failed, 1);

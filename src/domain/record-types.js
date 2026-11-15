@@ -231,9 +231,7 @@ const RECORD_TYPES = Object.freeze([
     columns: ['CompanyID', 'Comment'],
     todayDefaults: [],
     references: { company: true, contact: false },
-    children: [
-      { field: 'Opportunities', table: 'PotentialCollaboration_Opportunities', column: 'OpportunityType' },
-    ],
+    children: [{ field: 'Opportunities', table: 'PotentialCollaboration_Opportunities', column: 'OpportunityType' }],
     list: {
       alias: 'p',
       select: 'p.*, c.CompanyName',

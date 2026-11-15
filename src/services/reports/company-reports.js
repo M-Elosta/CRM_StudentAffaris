@@ -15,7 +15,14 @@ module.exports = {
   // Current state: every blacklisted employer, whatever the period.
   'blacklisted-companies': ({ queries }) => {
     const rows = queries.blacklistedCompanies();
-    return { rows, chartData: barChart(sortedCounts(rows, (row) => row.Industry || 'Unknown'), 'Blacklisted', '#e71d36') };
+    return {
+      rows,
+      chartData: barChart(
+        sortedCounts(rows, (row) => row.Industry || 'Unknown'),
+        'Blacklisted',
+        '#e71d36'
+      ),
+    };
   },
 
   'companies-by-country': ({ queries, from, to }) => {

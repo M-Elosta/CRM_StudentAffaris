@@ -90,12 +90,9 @@ describe('Import', () => {
       assert.equal((await admin.get('/api/import/template/Spaceship')).status, 404);
     });
 
-    it(
-      'returns 404 for an entity name inherited from Object.prototype',
-      async () => {
-        assert.equal((await admin.get('/api/import/template/constructor')).status, 404);
-      }
-    );
+    it('returns 404 for an entity name inherited from Object.prototype', async () => {
+      assert.equal((await admin.get('/api/import/template/constructor')).status, 404);
+    });
 
     it('lets a viewer download a template', async () => {
       const viewer = await loginAs(ctx, 'viewer');
@@ -334,36 +331,30 @@ describe('Import', () => {
       assert.ok(result.errors.some((error) => /Status must be one of/.test(error)));
     });
 
-    it(
-      'rejects an invalid email address during validation',
-      async () => {
-        const res = await post(admin, '/api/import/validate', {
-          entity: 'Contact',
-          mapping: CONTACT_MAPPING,
-          rows: [{ Employer: String(companyId), 'First Name': 'A', 'Last Name': 'B', Email: 'not-an-email' }],
-        });
-        assert.equal(res.body[0].status, 'error');
-      }
-    );
+    it('rejects an invalid email address during validation', async () => {
+      const res = await post(admin, '/api/import/validate', {
+        entity: 'Contact',
+        mapping: CONTACT_MAPPING,
+        rows: [{ Employer: String(companyId), 'First Name': 'A', 'Last Name': 'B', Email: 'not-an-email' }],
+      });
+      assert.equal(res.body[0].status, 'error');
+    });
 
-    it(
-      'confirm refuses rows that would fail validation',
-      async () => {
-        const before = count('Contact');
-        const res = await post(admin, '/api/import/confirm', {
-          entity: 'Contact',
-          rows: [
-            {
-              row: { CompanyID: companyId, FirstName: 'Bad', LastName: 'Email', EmailAddress: 'not-an-email' },
-              action: 'import',
-            },
-          ],
-        });
-        assert.equal(res.status, 200);
-        assert.equal(res.body.imported, 0);
-        assert.equal(count('Contact'), before);
-      }
-    );
+    it('confirm refuses rows that would fail validation', async () => {
+      const before = count('Contact');
+      const res = await post(admin, '/api/import/confirm', {
+        entity: 'Contact',
+        rows: [
+          {
+            row: { CompanyID: companyId, FirstName: 'Bad', LastName: 'Email', EmailAddress: 'not-an-email' },
+            action: 'import',
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.imported, 0);
+      assert.equal(count('Contact'), before);
+    });
   });
 
   describe('request validation', () => {
@@ -379,13 +370,10 @@ describe('Import', () => {
       assert.equal((await post(admin, '/api/import/confirm', { entity: 'Spaceship', rows: [{}] })).status, 400);
     });
 
-    it(
-      'rejects an entity name inherited from Object.prototype with 400',
-      async () => {
-        const res = await post(admin, '/api/import/validate', { entity: 'constructor', rows: [{}], mapping: {} });
-        assert.equal(res.status, 400);
-      }
-    );
+    it('rejects an entity name inherited from Object.prototype with 400', async () => {
+      const res = await post(admin, '/api/import/validate', { entity: 'constructor', rows: [{}], mapping: {} });
+      assert.equal(res.status, 400);
+    });
 
     it('rejects an empty rows array or a non-object mapping with 400', async () => {
       assert.equal(

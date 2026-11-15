@@ -94,12 +94,16 @@ describe('error middleware', () => {
   });
 
   it('maps a raw ZodError to 400 with fields', async () => {
-    const zodError = z.object({ Email: z.email({ error: 'Email address is not valid' }) }).safeParse({ Email: 'x' })
-      .error;
+    const zodError = z
+      .object({ Email: z.email({ error: 'Email address is not valid' }) })
+      .safeParse({ Email: 'x' }).error;
     const { app } = appThatThrows(zodError);
     const res = await supertest(app).get('/async');
     assert.equal(res.status, 400);
-    assert.deepEqual(res.body, { error: 'Email address is not valid', fields: { Email: 'Email address is not valid' } });
+    assert.deepEqual(res.body, {
+      error: 'Email address is not valid',
+      fields: { Email: 'Email address is not valid' },
+    });
   });
 
   it('hides unexpected errors behind a generic message and logs them', async () => {

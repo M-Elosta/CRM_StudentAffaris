@@ -21,9 +21,7 @@ function createMetaRepository(db) {
   // The later of UpdatedAt and CreatedAt of every row; NULLs are ignored.
   const latestChange = Object.entries(LAST_UPDATED_TABLES).map(([key, table]) => [
     key,
-    db.prepare(
-      `SELECT MAX(MAX(COALESCE(UpdatedAt, CreatedAt), COALESCE(CreatedAt, UpdatedAt))) AS ts FROM ${table}`
-    ),
+    db.prepare(`SELECT MAX(MAX(COALESCE(UpdatedAt, CreatedAt), COALESCE(CreatedAt, UpdatedAt))) AS ts FROM ${table}`),
   ]);
 
   return {

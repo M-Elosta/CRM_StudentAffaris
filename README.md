@@ -16,16 +16,16 @@ Employer Relations System is a Node.js + SQLite web app for tracking employer re
 
 ## Main areas
 
-| Area | What it covers |
-| --- | --- |
-| Dashboard | Snapshot charts for employer mix and activity |
-| Companies | Employer directory and profile management |
-| Contacts | Contact records, mailing flags, alumni tracking |
-| Outreach | Meetings, calls, follow-ups, action items |
-| Recruitment | Job, internship, and programme opportunities |
-| Events | Career events, academic engagements, student-led events |
-| Reports | Quick reports, charts, and Excel exports |
-| Admin | Authentication and user management |
+| Area        | What it covers                                          |
+| ----------- | ------------------------------------------------------- |
+| Dashboard   | Snapshot charts for employer mix and activity           |
+| Companies   | Employer directory and profile management               |
+| Contacts    | Contact records, mailing flags, alumni tracking         |
+| Outreach    | Meetings, calls, follow-ups, action items               |
+| Recruitment | Job, internship, and programme opportunities            |
+| Events      | Career events, academic engagements, student-led events |
+| Reports     | Quick reports, charts, and Excel exports                |
+| Admin       | Authentication and user management                      |
 
 ## Tech stack
 
@@ -54,19 +54,19 @@ Open `http://127.0.0.1:3000`. The first start prints the administrator username 
 
 ## Project structure
 
-| Path | Purpose |
-| --- | --- |
-| `src/server.js` | Entry point: config, migrations, start, shutdown |
-| `src/app.js` | Express application factory |
-| `src/config/` | Environment-based configuration |
-| `src/db/` | Connection, migrations, backups |
-| `src/middleware/` | Authentication, origin check, error handling |
-| `src/routes/` | API endpoints |
-| `src/services/` | Business logic |
-| `public/` | Static pages, client-side JS, and styles |
-| `scripts/` | Migrate, backup and demo-seed commands |
-| `deploy/` | Deployment files |
-| `tests/` | Automated tests |
+| Path              | Purpose                                          |
+| ----------------- | ------------------------------------------------ |
+| `src/server.js`   | Entry point: config, migrations, start, shutdown |
+| `src/app.js`      | Express application factory                      |
+| `src/config/`     | Environment-based configuration                  |
+| `src/db/`         | Connection, migrations, backups                  |
+| `src/middleware/` | Authentication, origin check, error handling     |
+| `src/routes/`     | API endpoints                                    |
+| `src/services/`   | Business logic                                   |
+| `public/`         | Static pages, client-side JS, and styles         |
+| `scripts/`        | Migrate, backup and demo-seed commands           |
+| `deploy/`         | Deployment files                                 |
+| `tests/`          | Automated tests                                  |
 
 ## Demo screenshots
 

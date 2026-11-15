@@ -101,11 +101,7 @@ describe('crud-repository', () => {
     companies.insert({ ...COMPANY, CompanyName: 'Alpha Search', Country: 'Oman' });
     const names = companies.list({ search: 'Search' }).map((row) => row.CompanyName);
     assert.deepEqual(names, ['Alpha Search']);
-    assert.deepEqual(
-      companies.list({ search: "'; DROP TABLE Company; --" }),
-      [],
-      'search text is a value, never SQL'
-    );
+    assert.deepEqual(companies.list({ search: "'; DROP TABLE Company; --" }), [], 'search text is a value, never SQL');
     const all = companies.list().map((row) => row.CompanyName);
     assert.deepEqual(all, [...all].sort());
     assert.equal(contacts.list({ companyId, status: 'Non-mailable' }).length, 0);

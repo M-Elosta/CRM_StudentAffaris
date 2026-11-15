@@ -30,7 +30,9 @@ async function bootstrapAdmin(db, config, logger = console) {
   });
 
   if (config.isProductionLike) {
-    logger.info(`First administrator "${config.bootstrapAdminUsername}" created. Change the bootstrap password after signing in.`);
+    logger.info(
+      `First administrator "${config.bootstrapAdminUsername}" created. Change the bootstrap password after signing in.`
+    );
   } else if (!config.isTest) {
     logger.info(`First administrator created — username: ${config.bootstrapAdminUsername}, password: ${password}`);
   }

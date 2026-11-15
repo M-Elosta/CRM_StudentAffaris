@@ -33,7 +33,10 @@ describe('Record rules through the API', () => {
       });
       assert.equal(res.status, 400);
       assert.equal(res.body.error, 'Last name is required');
-      assert.deepEqual(res.body.fields, { LastName: 'Last name is required', EmailAddress: 'Email address is not valid' });
+      assert.deepEqual(res.body.fields, {
+        LastName: 'Last name is required',
+        EmailAddress: 'Email address is not valid',
+      });
     });
 
     it('lists the allowed values of an enumerated field', async () => {

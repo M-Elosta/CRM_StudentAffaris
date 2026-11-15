@@ -53,7 +53,14 @@ function requiredText(label, { max = 255 } = {}) {
  * @param {{ max?: number }} [options]
  */
 function optionalText(label, { max = 255 } = {}) {
-  return z.preprocess(blankToNull, z.string({ error: textTypeError(label) }).trim().max(max, tooLong(label, max)).nullable());
+  return z.preprocess(
+    blankToNull,
+    z
+      .string({ error: textTypeError(label) })
+      .trim()
+      .max(max, tooLong(label, max))
+      .nullable()
+  );
 }
 
 /**
@@ -251,9 +258,7 @@ function recordTimestamp(label = 'UpdatedAt') {
   const required = `${label} is required when editing a record`;
   return z.preprocess(
     (value) => (typeof value === 'string' ? normalizeTimestamp(value.trim()) : value),
-    z
-      .string({ error: required })
-      .refine(isDatabaseTimestamp, { error: `${label} must be a valid record timestamp` })
+    z.string({ error: required }).refine(isDatabaseTimestamp, { error: `${label} must be a valid record timestamp` })
   );
 }
 

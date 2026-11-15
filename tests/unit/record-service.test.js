@@ -210,11 +210,17 @@ describe('record-service', () => {
 
     it('rolls back the parent and every child table when an update fails part-way', () => {
       const refs = createCompanyAndContact();
-      const created = recruitment.create(postingFor(refs, { OpportunityTypes: ['Internship'], ClassLevels: ['Junior'] }));
+      const created = recruitment.create(
+        postingFor(refs, { OpportunityTypes: ['Internship'], ClassLevels: ['Junior'] })
+      );
       failOnClassLevel('explode');
       assert.throws(() =>
         recruitment.update(created.RecruitmentID, {
-          ...postingFor(refs, { OpportunityTitle: 'Changed', OpportunityTypes: ['Full-time'], ClassLevels: ['explode'] }),
+          ...postingFor(refs, {
+            OpportunityTitle: 'Changed',
+            OpportunityTypes: ['Full-time'],
+            ClassLevels: ['explode'],
+          }),
           UpdatedAt: created.UpdatedAt,
         })
       );
@@ -231,7 +237,9 @@ describe('record-service', () => {
         CREATE TEMP TRIGGER fail_on_opportunity BEFORE INSERT ON PotentialCollaboration_Opportunities
         BEGIN SELECT RAISE(ABORT, 'simulated failure'); END;
       `);
-      assert.throws(() => collaboration.create({ CompanyID: company.CompanyID, Opportunities: ['Mentorship Programs'] }));
+      assert.throws(() =>
+        collaboration.create({ CompanyID: company.CompanyID, Opportunities: ['Mentorship Programs'] })
+      );
       assert.equal(count('PotentialCollaboration'), 0);
     });
   });

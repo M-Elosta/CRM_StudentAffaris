@@ -38,7 +38,9 @@ const SPECIAL_RECORD_SERVICES = {
 
 /** Build the repository and service of every record type. Returns Map<path, { service, schema }>. */
 function createRecordServices({ db, timeZone }) {
-  const repositories = new Map(RECORD_TYPES.map((definition) => [definition.path, createCrudRepository(db, definition)]));
+  const repositories = new Map(
+    RECORD_TYPES.map((definition) => [definition.path, createCrudRepository(db, definition)])
+  );
   const lookups = {
     findCompany: (id) => repositories.get('companies').getStoredById(id),
     findContact: (id) => repositories.get('contacts').getStoredById(id),
