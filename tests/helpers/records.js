@@ -169,19 +169,6 @@ const RECORD_TYPES = [
   },
 ];
 
-/**
- * Record types whose routes do not validate the enumerated field themselves
- * and leave it to the database CHECK constraint, which surfaces as a 500.
- * Keyed by path; the value is the todo reason.
- */
-const ENUM_NOT_VALIDATED = {
-  recruitment: 'recruitment route does not validate Mode/Status/TargetGroup; the CHECK constraint fails with 500',
-  'career-events': 'career-events route does not validate RegisteredStatus; the CHECK constraint fails with 500',
-  academic: 'academic route does not validate EngagementType; the CHECK constraint fails with 500',
-  'student-events': 'student-events route does not validate CollaborationOutcome; the CHECK constraint fails with 500',
-  'hiring-feedback': 'hiring-feedback route does not validate FeedbackProvider; the CHECK constraint fails with 500',
-};
-
 /** Prefix a record type name with the right indefinite article, for test names. */
 function an(name) {
   return /^[aeiou]/i.test(name) ? `an ${name}` : `a ${name}`;
@@ -260,4 +247,4 @@ async function seedEverything(agent) {
   return refs;
 }
 
-module.exports = { RECORD_TYPES, ENUM_NOT_VALIDATED, an, createRefs, createRecord, seedEverything };
+module.exports = { RECORD_TYPES, an, createRefs, createRecord, seedEverything };

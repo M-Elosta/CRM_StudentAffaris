@@ -4,7 +4,7 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildApp, loginAs, post, put, del, setStoredUpdatedAt, STALE_TIMESTAMP } = require('../helpers/app');
-const { RECORD_TYPES, ENUM_NOT_VALIDATED, an, createRefs, createRecord } = require('../helpers/records');
+const { RECORD_TYPES, an, createRefs, createRecord } = require('../helpers/records');
 
 for (const type of RECORD_TYPES) {
   describe(`CRUD: ${type.name} (/api/${type.path})`, () => {
@@ -154,7 +154,6 @@ for (const type of RECORD_TYPES) {
       const { field, invalid } = type.enumField;
       it(
         `rejects creating ${an(type.name)} with an invalid ${field} with 400`,
-        { todo: ENUM_NOT_VALIDATED[type.path] },
         async () => {
           const res = await post(admin, base, { ...type.payload(refs), [field]: invalid });
           assert.equal(res.status, 400);
@@ -164,7 +163,6 @@ for (const type of RECORD_TYPES) {
 
       it(
         `rejects updating ${an(type.name)} to an invalid ${field} with 400`,
-        { todo: ENUM_NOT_VALIDATED[type.path] },
         async () => {
           const record = await createRecord(admin, type, refs);
           const res = await put(admin, `${base}/${record[type.idField]}`, updateBody(record, { [field]: invalid }));
@@ -176,7 +174,6 @@ for (const type of RECORD_TYPES) {
     if (type.path !== 'companies') {
       it(
         `rejects creating ${an(type.name)} for a company that does not exist with a 4xx error`,
-        { todo: 'foreign key failures are not validated and surface as 500' },
         async () => {
           const res = await post(admin, base, { ...type.payload(refs), CompanyID: 999999 });
           assert.ok(res.status >= 400 && res.status < 500, `expected 4xx, got ${res.status}`);
