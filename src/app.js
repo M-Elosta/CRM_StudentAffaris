@@ -17,6 +17,7 @@ const { createAuthRouter } = require('./routes/auth');
 const { createUsersRouter } = require('./routes/users');
 const { createDashboardRouter } = require('./routes/dashboard');
 const { createMetaRouter } = require('./routes/meta');
+const { createImportRouter } = require('./routes/import');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
@@ -137,7 +138,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
   }
   app.use('/api/reports', require('./routes/reports'));
   app.use('/api/dashboard', createDashboardRouter(services.dashboard));
-  app.use('/api/import', blockWritesForViewers, require('./routes/import'));
+  app.use('/api/import', blockWritesForViewers, createImportRouter(services.import));
   app.use('/api/users', createUsersRouter(services.users));
   app.use('/api/meta', createMetaRouter(services.meta));
 

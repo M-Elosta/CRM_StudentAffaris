@@ -13,6 +13,8 @@ const { createDashboardRepository } = require('../db/repositories/dashboard-repo
 const { createDashboardService } = require('./dashboard-service');
 const { createMetaRepository } = require('../db/repositories/meta-repository');
 const { createMetaService } = require('./meta-service');
+const { createImportRepository } = require('../db/repositories/import-repository');
+const { createImportService } = require('./import-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -66,7 +68,7 @@ function createRecordServices({ db, timeZone }) {
  * @param {object} deps.config  result of loadConfig()
  * @param {{ info: Function, warn: Function, error: Function }} [deps.logger]
  */
-function createServices({ db, config }) {
+function createServices({ db, config, logger = console }) {
   const records = createRecordServices({ db, timeZone: config.timeZone });
   const usersRepository = createUsersRepository(db);
   return {
@@ -78,6 +80,12 @@ function createServices({ db, config }) {
       timeZone: config.timeZone,
     }),
     meta: createMetaService({ metaRepository: createMetaRepository(db) }),
+    import: createImportService({
+      db,
+      recordServices: records,
+      importRepository: createImportRepository(db),
+      logger,
+    }),
   };
 }
 

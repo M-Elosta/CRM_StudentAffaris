@@ -92,7 +92,6 @@ describe('Import', () => {
 
     it(
       'returns 404 for an entity name inherited from Object.prototype',
-      { todo: 'ENTITY_FIELDS[entity] is a plain-object lookup in src/routes/import.js; "constructor" fails with 500' },
       async () => {
         assert.equal((await admin.get('/api/import/template/constructor')).status, 404);
       }
@@ -337,7 +336,6 @@ describe('Import', () => {
 
     it(
       'rejects an invalid email address during validation',
-      { todo: 'import validation (src/routes/import.js) does not check email format, unlike POST /api/contacts' },
       async () => {
         const res = await post(admin, '/api/import/validate', {
           entity: 'Contact',
@@ -350,7 +348,6 @@ describe('Import', () => {
 
     it(
       'confirm refuses rows that would fail validation',
-      { todo: 'confirm (src/routes/import.js) inserts whatever row data the client sends without re-validating it' },
       async () => {
         const before = count('Contact');
         const res = await post(admin, '/api/import/confirm', {
@@ -384,7 +381,6 @@ describe('Import', () => {
 
     it(
       'rejects an entity name inherited from Object.prototype with 400',
-      { todo: 'ENTITY_FIELDS[entity] is a plain-object lookup in src/routes/import.js; "constructor" fails with 500' },
       async () => {
         const res = await post(admin, '/api/import/validate', { entity: 'constructor', rows: [{}], mapping: {} });
         assert.equal(res.status, 400);

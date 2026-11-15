@@ -60,13 +60,6 @@ function createRecordService({ db, repository, definition, schema, lookups, time
     return found;
   }
 
-  /** Validate a request body and check its references. Returns the values to save. */
-  function validate(body) {
-    const values = parseWith(schema.bodySchema, body ?? {});
-    resolveReferences(values);
-    return values;
-  }
-
   /** Fill empty "defaults to today" columns: from the stored record when editing, else today. */
   function applyDateDefaults(values, existing, currentDay) {
     for (const column of definition.todayDefaults) {
@@ -116,7 +109,11 @@ function createRecordService({ db, repository, definition, schema, lookups, time
 
   return {
     definition,
-    validate,
+
+    /** Throw a ValidationError unless the employer and contact that parsed values point to exist and match. */
+    checkReferences(values) {
+      resolveReferences(values);
+    },
 
     /** Records matching already validated list filters. */
     list(filters) {
