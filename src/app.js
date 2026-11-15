@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 const { rejectPoisonedKeys } = require('./middleware/poison-keys');
 const { createOriginGuard } = require('./middleware/trusted-origin');
 const { requireAuth, requirePasswordRotation, blockWritesForViewers } = require('./middleware/auth');
-const { notFoundHandler, createErrorHandler, respondServerError } = require('./middleware/errors');
+const { notFoundHandler, createErrorHandler } = require('./middleware/errors');
 const { createServices } = require('./services');
 const { createRecordRouter } = require('./routes/record-router');
 const { createCompaniesRouter } = require('./routes/companies');
@@ -38,11 +38,8 @@ function createApp({ config, db, logger = console, sessionStore }) {
 
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy);
-  app.locals.db = db;
-  app.locals.config = config;
-  app.locals.logger = logger;
-  app.locals.respondServerError = (req, res, err) => respondServerError(logger, req, res, err);
 
+  // Every service is built once and handed to the router that needs it.
   const services = createServices({ db, config, logger });
 
   // ── Health check: no auth, no session, no rate limit ──────────────────────

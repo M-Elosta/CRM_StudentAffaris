@@ -1,3 +1,5 @@
+'use strict';
+
 const INSECURE_PASSWORDS = new Set([
   'admin123',
 ]);

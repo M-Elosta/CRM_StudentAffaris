@@ -14,6 +14,7 @@ const { loadConfig } = require('../../src/config');
 const { openDatabase } = require('../../src/db/connection');
 const { migrate } = require('../../src/db/migrate');
 const { createApp } = require('../../src/app');
+const { todayInTimeZone } = require('../../src/lib/dates');
 
 const ORIGIN = 'http://crm.test';
 const DEFAULT_PASSWORD = 'correct-horse-battery-staple';
@@ -84,9 +85,9 @@ const put = (agent, url, body = {}) => agent.put(url).set('Origin', ORIGIN).send
 const patch = (agent, url, body = {}) => agent.patch(url).set('Origin', ORIGIN).send(body);
 const del = (agent, url) => agent.delete(url).set('Origin', ORIGIN);
 
-/** Today's date as YYYY-MM-DD (UTC, the same way the routes compute it). */
+/** Today's date as YYYY-MM-DD in the office time zone, the same way the services compute it. */
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayInTimeZone(loadConfig({ NODE_ENV: 'test' }).timeZone);
 }
 
 /**

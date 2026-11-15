@@ -31,4 +31,4 @@ const confirmRequestSchema = z.object({
   rows: rowsSchema,
 });
 
-module.exports = { MAX_IMPORT_ROWS, entitySchema, validateRequestSchema, confirmRequestSchema, isPlainObject };
+module.exports = { MAX_IMPORT_ROWS, validateRequestSchema, confirmRequestSchema, isPlainObject };
