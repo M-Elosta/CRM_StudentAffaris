@@ -1,14 +1,42 @@
-const path     = require('path');
-const fs       = require('fs');
-const Database = require('better-sqlite3');
+#!/usr/bin/env node
+'use strict';
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'employer.db');
-if (!fs.existsSync(path.join(__dirname, '..', 'data')))
-  fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
+/**
+ * Fill a development database with demonstration data.
+ *
+ * THIS SCRIPT DELETES EVERY RECORD before inserting the demo set, so it is
+ * fenced in:
+ *   - it refuses to run in staging or production, and
+ *   - it refuses to touch a database that already contains employers unless
+ *     --reset is passed.
+ *
+ *   npm run seed:demo             seed an empty development database
+ *   npm run seed:demo -- --reset  wipe the development database and reseed
+ */
 
-const db = new Database(DB_PATH);
-const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-db.exec(schema);
+const { loadConfig, loadDotEnv } = require('../src/config');
+const { openDatabase } = require('../src/db/connection');
+const { migrate } = require('../src/db/migrate');
+
+async function main() {
+loadDotEnv();
+const config = loadConfig();
+
+if (config.isProductionLike) {
+  throw new Error(`Refusing to run in "${config.env}". Demo data is for development only and this script deletes all records.`);
+}
+
+const db = openDatabase(config.databasePath);
+await migrate(db, { logger: { info() {}, warn() {} } });
+
+const existing = db.prepare('SELECT COUNT(*) AS n FROM Company').get().n;
+if (existing > 0 && !process.argv.includes('--reset')) {
+  db.close();
+  throw new Error(
+    `${config.databasePath} already contains ${existing} employer(s). Nothing was changed. ` +
+      'Run "npm run seed:demo -- --reset" to delete everything in this development database and reseed.'
+  );
+}
 
 console.log('Seeding database…');
 
@@ -242,3 +270,9 @@ const counts = {
 console.log('\nSeed complete:');
 Object.entries(counts).forEach(([k, v]) => console.log(`  ${k.padEnd(12)}: ${v}`));
 db.close();
+}
+
+main().catch((err) => {
+  console.error(`Seed failed: ${err.message}`);
+  process.exit(1);
+});

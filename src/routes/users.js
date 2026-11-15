@@ -10,16 +10,7 @@ const {
 } = require('./_validation');
 const { isInsecurePassword } = require('../lib/password-policy');
 
-function normalizeRole(role) {
-  return role === 'admin' ? 'admin' : 'viewer';
-}
-
-function requireAdminSession(req, res, next) {
-  if (normalizeRole(req.session?.role) !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required.' });
-  }
-  next();
-}
+const { requireAdminSession } = require('../middleware/auth');
 
 function adminCount(db) {
   return db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Role='admin'").get().n;

@@ -11,16 +11,7 @@ const {
 } = require('./_validation');
 const { workbookBufferFromJson } = require('../lib/excel');
 
-function normalizeRole(role) {
-  return role === 'admin' ? 'admin' : 'viewer';
-}
-
-function requireAdminSession(req, res, next) {
-  if (normalizeRole(req.session?.role) !== 'admin') {
-    return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
-  }
-  next();
-}
+const { requireAdminSession } = require('../middleware/auth');
 
 // ── Chart colour palette (consistent with dashboard) ───────────────────────────
 const PALETTE = ['#4361ee','#f72585','#4cc9f0','#2ec4b6','#ff9f1c','#e71d36',

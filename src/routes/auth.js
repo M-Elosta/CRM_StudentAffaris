@@ -4,9 +4,7 @@ const router  = express.Router();
 const { requirePassword, requireString, requireTrimmedString, sendValidationError } = require('./_validation');
 const { isInsecurePassword } = require('../lib/password-policy');
 
-function normalizeRole(role) {
-  return role === 'admin' ? 'admin' : 'viewer';
-}
+const { normalizeRole } = require('../lib/roles');
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {

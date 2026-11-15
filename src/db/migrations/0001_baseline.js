@@ -1,10 +1,69 @@
--- Employer Relations Data Management System
--- SQLite Schema (adapted from original PostgreSQL-style schema)
--- Run once to initialize the database
+'use strict';
 
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
+/**
+ * 0001 — Baseline.
+ *
+ * Brings any database to the schema the application had before versioned
+ * migrations existed. It is safe to run against:
+ *   - an empty database (creates everything), and
+ *   - a database created by any earlier version of the application (adds only
+ *     what is missing and never removes or rewrites existing rows).
+ *
+ * Earlier versions added columns at start-up with ALTER TABLE inside
+ * try/catch. Those additions are reproduced here explicitly, checked against
+ * the actual table definition.
+ */
 
+/** Columns that older databases may be missing. Order matters only for readability. */
+const ADDED_COLUMNS = [
+  { table: 'Users', column: 'Role', definition: "TEXT NOT NULL DEFAULT 'admin'" },
+  { table: 'Users', column: 'MustChangePassword', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'PotentialCollaboration', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'HiringFeedback', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'CareerEvent', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'StudentLedEvent', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'AcademicClassroomEngagement', column: 'UpdatedAt', definition: 'DATETIME' },
+];
+
+const TABLES_WITH_UPDATED_AT = [
+  'Company',
+  'Contact',
+  'OutreachEngagement',
+  'Recruitment',
+  'PotentialCollaboration',
+  'HiringFeedback',
+  'CareerEvent',
+  'StudentLedEvent',
+  'AcademicClassroomEngagement',
+];
+
+function tableExists(db, table) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+
+function columnExists(db, table, column) {
+  return db.pragma(`table_info(${table})`).some((info) => info.name === column);
+}
+
+function up(db) {
+  // 1. Existing tables first: add columns that later statements (triggers,
+  //    queries) rely on. Skipped entirely on an empty database.
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    if (tableExists(db, table) && !columnExists(db, table, column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  // 2. Create whatever does not exist yet. Every statement is IF NOT EXISTS.
+  db.exec(SCHEMA_SQL);
+
+  // 3. Rows from older databases may have no UpdatedAt. Fill it from CreatedAt.
+  for (const table of TABLES_WITH_UPDATED_AT) {
+    db.exec(`UPDATE ${table} SET UpdatedAt = COALESCE(CreatedAt, datetime('now')) WHERE UpdatedAt IS NULL`);
+  }
+}
+
+const SCHEMA_SQL = `
 -- ============================================
 -- CORE ENTITIES
 -- ============================================
@@ -307,6 +366,7 @@ CREATE TABLE IF NOT EXISTS Users (
     Username     TEXT UNIQUE NOT NULL,
     PasswordHash TEXT NOT NULL,
     Role         TEXT NOT NULL DEFAULT 'admin',
+    MustChangePassword INTEGER NOT NULL DEFAULT 0,
     CreatedAt    DATETIME DEFAULT (datetime('now'))
 );
 
@@ -326,3 +386,46 @@ CREATE TABLE IF NOT EXISTS SavedReports (
     ChartGroupBy TEXT,
     CreatedAt   DATETIME DEFAULT (datetime('now'))
 );
+
+-- ============================================
+-- TRIGGER: set UpdatedAt on insert
+-- Needed where UpdatedAt was added to an existing table without a default.
+-- ============================================
+
+CREATE TRIGGER IF NOT EXISTS collaboration_inserted
+AFTER INSERT ON PotentialCollaboration
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE PotentialCollaboration SET UpdatedAt = datetime('now') WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS hiring_feedback_inserted
+AFTER INSERT ON HiringFeedback
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE HiringFeedback SET UpdatedAt = datetime('now') WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS career_event_inserted
+AFTER INSERT ON CareerEvent
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE CareerEvent SET UpdatedAt = datetime('now') WHERE CareerEventID = NEW.CareerEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS student_event_inserted
+AFTER INSERT ON StudentLedEvent
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE StudentLedEvent SET UpdatedAt = datetime('now') WHERE StudentLedEventID = NEW.StudentLedEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS academic_engagement_inserted
+AFTER INSERT ON AcademicClassroomEngagement
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE AcademicClassroomEngagement SET UpdatedAt = datetime('now') WHERE EngagementID = NEW.EngagementID;
+END;
+`;
+
+module.exports = { up };
