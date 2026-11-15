@@ -80,7 +80,6 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   try {
-    ensureRecordNotStale(db, 'Contact', 'ContactID', req.recordId, req.body.UpdatedAt, 'Contact not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');
@@ -129,6 +128,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
   try {
+    ensureRecordNotStale(db, 'Contact', 'ContactID', req.recordId, req.body.UpdatedAt, 'Contact not found');
     const CompanyID = requirePositiveInt(req.body.CompanyID, 'CompanyID');
     const FirstName = requireTrimmedString(req.body.FirstName, 'FirstName');
     const LastName = requireTrimmedString(req.body.LastName, 'LastName');

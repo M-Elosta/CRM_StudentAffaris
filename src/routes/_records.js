@@ -28,7 +28,8 @@ function ensureRecordNotStale(db, tableName, idColumn, idValue, loadedUpdatedAt,
 
   const loaded = requireLoadedUpdatedAt(loadedUpdatedAt);
   const current = normalizeTimestamp(row.UpdatedAt);
-  if (current && current > loaded) {
+  // Any difference means the record was saved again after this copy was loaded.
+  if (current && current !== loaded) {
     throw conflictError(STALE_RECORD_MESSAGE);
   }
 }
