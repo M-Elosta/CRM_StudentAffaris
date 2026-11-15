@@ -4,28 +4,44 @@ Single source of truth for where the production-readiness work stands. Updated a
 
 ## Current phase
 
-**Phase 1 — Audit: complete. Waiting for approval before Phase 2.**
+**Phase 2 — Clean up and restructure: in progress.**
 
-Nothing destructive has been done. No branch was merged, renamed, tagged or deleted. No code was changed. No schema was changed. No real data was touched.
+All work is on `claude/busy-bohr-0gad6e`. No remote branch other than this one has been touched. No real data has been touched.
 
 ## Done
 
-- 2026-11-14 — Inspected all seven remote branches (five distinct code states).
-- 2026-11-14 — Installed, seeded and ran each state against throwaway databases; API smoke test (about 155 checks per branch); Playwright pass over all 13 pages as admin and viewer; CDN-blocked run; `npm audit` per branch.
-- 2026-11-14 — Scanned full git history for secrets and data files.
-- 2026-11-14 — Verified that a `main`-era database opens under the `final_version` code with identical row counts and clean integrity checks.
-- 2026-11-14 — Wrote `AUDIT.md` (findings ranked by severity, branch recommendation, branch plan, database recommendation, phase plan) and `DECISIONS.md`.
+### Phase 1 (complete, 2026-11-14)
 
-## Next (blocked on approval)
+- Audited all seven remote branches; wrote `AUDIT.md` and `DECISIONS.md`.
 
-Phase 2 starts only after the owner answers the decisions in `AUDIT.md` section 12. In order:
+### Phase 2 (2026-11-15)
 
-1. Tag every branch tip as `archive/<branch-name>` (non-destructive).
-2. Create `develop` from `final_version_secure_and_proper_code`, merge `main` into it with a merge commit.
-3. Fix C1 (create broken), C2 (stale edits accepted), C3 (global rate limit), C4 (seed wipes production path), C6 (database path) with tests.
-4. Introduce the data-access layer and versioned migrations; baseline migration equals the current schema.
-5. Restructure folders, lint and format, pin dependencies and Node, environment config, Dependabot.
-6. Delete or rename the old branches as approved.
+- Removed committed tool runtime files; `.gitignore` now blocks databases, backups, exports, env files, keys, logs.
+- Application moved under `src/` (config, db, middleware, routes, services, lib). `src/app.js` is an app factory; `src/server.js` is the entry point with graceful shutdown.
+- Configuration from environment variables only, validated at start, with per-environment defaults (`src/config`). `.env.example` documents every variable.
+- Data layer foundation: one connection module (WAL, foreign keys on, busy timeout, synchronous FULL), integrity check, verified single-file backups.
+- Versioned forward-only migrations with checksum protection, automatic pre-migration backup, and rollback if a table would lose rows. `0001_baseline` adopts databases created by any earlier version; `0002` adds foreign key indexes. Verified against databases created by `main`, `final_version…` and the oldest branch: identical row counts, integrity ok.
+- Fixed C1 (create failed on all nine record types) and C2 (stale edits accepted).
+- Fixed C3 (global rate limit locked everyone out): only `/api` is limited now.
+- Fixed C4 (seed wiped the live database path): moved to `scripts/seed-demo.js`, refuses staging/production and non-empty databases.
+- Fixed C6 (database inside the app folder): path is configurable and mandatory outside development.
+- Dependencies pinned to exact versions and updated; `npm audit` reports 0 vulnerabilities. Node pinned to 22.
+- ESLint, Prettier, EditorConfig, Dependabot configuration added. `/healthz` added.
+- Smoke test of the restructured app: 160 of 160 checks pass.
+
+## In progress
+
+- Test suite (delegated, see log).
+- Fictional demo data (delegated, see log).
+
+## Next
+
+1. Review and merge the two delegated branches.
+2. Delegate the layered refactor of the route modules (routes, services, repositories, zod validation, transactions, shared date handling, dead report-builder API removed), verified by the new tests.
+3. Format the whole codebase with Prettier and make lint pass; add the CI workflow file.
+4. Phase 3: security schema migration (users, roles, audit log, soft delete, record versions, sessions), then auth providers and RBAC.
+
+Blocked on owner approval (not started): archive tags, `develop`, branch deletions and renames, merging `main`'s history. See `DECISIONS.md` entry 13.
 
 ## Open questions for the owner
 
@@ -44,10 +60,14 @@ See `AUDIT.md` section 12. Short form:
 | Phase | Task | Delegated to | Branch | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Audit | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete |
+| 2 | Foundation: config, data layer, migrations, app factory, critical fixes | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete |
+| 2 | Integration and unit test suite (owns `tests/`) | Opus subagent | `phase2/api-tests` (local worktree) | Running |
+| 2 | Fully fictional demo seed data (owns `scripts/seed-demo.js`, `scripts/seed/`) | Opus subagent | `phase2/fictional-seed` (local worktree) | Running |
 
 ## Notes for the next session
 
-- Working branch for this effort: `claude/busy-bohr-0gad6e`. It sits on `1db3d09` (same commit as `final_version_secure_and_proper_code`) plus the audit documents.
-- The audit harness (API smoke test, Playwright page sweep, row-count checker) lived in a temporary scratch directory and was not committed. It will be rebuilt as proper tests in Phases 5 and 8. The method is described in `AUDIT.md` section 2.
-- The sandbox used for the audit blocks public CDNs, so the current UI only renders there when library files are served locally. This stops mattering once assets are self-hosted (Phase 4).
+- Working branch: `claude/busy-bohr-0gad6e`. Delegated work happens on local branches in separate worktrees and is merged here after review; those branches are not pushed.
+- Run locally: `npm ci`, `npm run seed:demo`, `npm start` (development defaults; database at `./data/dev/employer.db`). `npm run migrate:status` shows applied migrations.
+- The current static UI still loads Bootstrap and Chart.js from a public CDN; it is replaced in Phase 4.
+- Lint currently reports errors in legacy route files; they are fixed by the layered refactor.
 - Pushing is only authorised to the working branch until the owner approves the branch plan.

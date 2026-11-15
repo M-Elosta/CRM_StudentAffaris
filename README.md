@@ -32,43 +32,41 @@ Employer Relations System is a Node.js + SQLite web app for tracking employer re
 - **Backend:** Node.js, Express
 - **Database:** SQLite via `better-sqlite3`
 - **Frontend:** Static HTML, Bootstrap, vanilla JavaScript, Chart.js
-- **Exports:** Excel via `xlsx`
+- **Exports:** Excel via `exceljs`
 
 ## How to run it
 
-1. Install dependencies:
+Requires Node.js 22.
 
-   ```bash
-   npm install
-   ```
+```bash
+npm ci
+```
 
-2. Seed the demo database:
+```bash
+npm run seed:demo
+```
 
-   ```bash
-   node database/seed.js
-   ```
+```bash
+npm start
+```
 
-3. Start the server:
-
-   ```bash
-   npm start
-   ```
-
-4. Open `http://localhost:3000` in your browser.
-
-On a fresh database, set `DEFAULT_ADMIN_PASSWORD` before the first run if you want a predictable admin password.
+Open `http://127.0.0.1:3000`. The first start prints the administrator username and a generated password. In development the database is created at `data/dev/employer.db`. Copy `.env.example` to `.env` to change settings.
 
 ## Project structure
 
 | Path | Purpose |
 | --- | --- |
-| `server.js` | App entrypoint and middleware setup |
-| `routes/` | API endpoints |
+| `src/server.js` | Entry point: config, migrations, start, shutdown |
+| `src/app.js` | Express application factory |
+| `src/config/` | Environment-based configuration |
+| `src/db/` | Connection, migrations, backups |
+| `src/middleware/` | Authentication, origin check, error handling |
+| `src/routes/` | API endpoints |
+| `src/services/` | Business logic |
 | `public/` | Static pages, client-side JS, and styles |
-| `database/schema.sql` | SQLite schema |
-| `database/seed.js` | Demo data seeding |
-| `scripts/` | Backup and helper scripts |
-| `ops/` | Example deployment/service files |
+| `scripts/` | Migrate, backup and demo-seed commands |
+| `deploy/` | Deployment files |
+| `tests/` | Automated tests |
 
 ## Demo screenshots
 
@@ -86,6 +84,4 @@ On a fresh database, set `DEFAULT_ADMIN_PASSWORD` before the first run if you wa
 
 ## Deployment notes
 
-- Example production environment variables are in `.env.example`.
-- Example `systemd` service configuration is in `ops/employer-system.service`.
-- Database backup helpers are in `scripts/backup.js` and `scripts/backup-db.sh`.
+Deployment documentation is being written as part of the production-readiness work. See `PROGRESS.md` for status and `AUDIT.md` for the audit that started it.
