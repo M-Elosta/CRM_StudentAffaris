@@ -18,6 +18,7 @@ const { createUsersRouter } = require('./routes/users');
 const { createDashboardRouter } = require('./routes/dashboard');
 const { createMetaRouter } = require('./routes/meta');
 const { createImportRouter } = require('./routes/import');
+const { createReportsRouter } = require('./routes/reports');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
@@ -136,7 +137,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
       recordPath === 'companies' ? createCompaniesRouter(service, options) : createRecordRouter(service, options);
     app.use(`/api/${recordPath}`, blockWritesForViewers, router);
   }
-  app.use('/api/reports', require('./routes/reports'));
+  app.use('/api/reports', createReportsRouter(services.reports));
   app.use('/api/dashboard', createDashboardRouter(services.dashboard));
   app.use('/api/import', blockWritesForViewers, createImportRouter(services.import));
   app.use('/api/users', createUsersRouter(services.users));
