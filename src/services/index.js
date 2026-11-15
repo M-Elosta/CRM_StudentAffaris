@@ -6,6 +6,9 @@ const { createCompaniesRepository } = require('../db/repositories/companies-repo
 const { createRecordService } = require('./record-service');
 const { createCompaniesService } = require('./companies-service');
 const { createContactsService } = require('./contacts-service');
+const { createUsersRepository } = require('../db/repositories/users-repository');
+const { createUsersService } = require('./users-service');
+const { createAuthService } = require('./auth-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -61,7 +64,12 @@ function createRecordServices({ db, timeZone }) {
  */
 function createServices({ db, config }) {
   const records = createRecordServices({ db, timeZone: config.timeZone });
-  return { records };
+  const usersRepository = createUsersRepository(db);
+  return {
+    records,
+    users: createUsersService({ db, usersRepository }),
+    auth: createAuthService({ usersRepository }),
+  };
 }
 
 module.exports = { createServices };

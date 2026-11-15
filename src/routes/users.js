@@ -1,92 +1,58 @@
+'use strict';
+
 const express = require('express');
-const bcrypt  = require('bcrypt');
-const router  = express.Router();
-const {
-  requireEnum,
-  requirePassword,
-  requirePositiveInt,
-  requireUsername,
-  sendValidationError,
-} = require('./_validation');
-const { isInsecurePassword } = require('../lib/password-policy');
-
+const { z } = require('zod');
+const { asyncHandler } = require('../lib/async-handler');
 const { requireAdminSession } = require('../middleware/auth');
+const { parseWith } = require('../validation/common');
+const { createUserSchema, roleChangeSchema, userIdSchema } = require('../validation/users');
 
-function adminCount(db) {
-  return db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Role='admin'").get().n;
+const idParamSchema = z.object({ id: userIdSchema });
+
+/**
+ * /api/users: admin-only user administration.
+ * @param {ReturnType<import('../services/users-service').createUsersService>} usersService
+ */
+function createUsersRouter(usersService) {
+  const router = express.Router();
+  router.use(requireAdminSession);
+
+  const targetId = (req) => parseWith(idParamSchema, req.params).id;
+
+  router.get(
+    '/',
+    asyncHandler((_req, res) => {
+      res.json(usersService.list());
+    })
+  );
+
+  router.post(
+    '/',
+    asyncHandler(async (req, res) => {
+      const user = await usersService.create(parseWith(createUserSchema, req.body));
+      res.status(201).json(user);
+    })
+  );
+
+  router.patch(
+    '/:id/role',
+    asyncHandler((req, res) => {
+      const id = targetId(req);
+      const { role } = parseWith(roleChangeSchema, req.body);
+      usersService.changeRole(req.session.userId, id, role);
+      res.json({ success: true });
+    })
+  );
+
+  router.delete(
+    '/:id',
+    asyncHandler((req, res) => {
+      usersService.remove(req.session.userId, targetId(req));
+      res.json({ success: true });
+    })
+  );
+
+  return router;
 }
 
-// GET /api/users
-router.get('/', requireAdminSession, (req, res) => {
-  const rows = req.app.locals.db.prepare(
-    "SELECT UserID, Username, Role, CreatedAt FROM Users ORDER BY CreatedAt"
-  ).all();
-  res.json(rows);
-});
-
-// POST /api/users — create user
-router.post('/', requireAdminSession, async (req, res) => {
-  const db = req.app.locals.db;
-  try {
-    const username = requireUsername(req.body.username);
-    const password = requirePassword(req.body.password);
-    const role = requireEnum(req.body.role, 'Role', ['admin', 'viewer']);
-
-    if (db.prepare('SELECT UserID FROM Users WHERE Username=?').get(username)) {
-      return res.status(409).json({ error: 'Username already exists.' });
-    }
-
-    const hash = await bcrypt.hash(password, 12);
-    const result = db.prepare('INSERT INTO Users (Username,PasswordHash,Role,MustChangePassword) VALUES (?,?,?,?)')
-      .run(username, hash, role, isInsecurePassword(password) ? 1 : 0);
-    res.status(201).json({ UserID: result.lastInsertRowid, Username: username, Role: role });
-  } catch (err) {
-    sendValidationError(res, err);
-  }
-});
-
-// PATCH /api/users/:id/role — change role
-router.patch('/:id/role', requireAdminSession, (req, res) => {
-  const db = req.app.locals.db;
-  try {
-    const id = requirePositiveInt(req.params.id, 'User ID');
-    const role = requireEnum(req.body.role, 'Role', ['admin', 'viewer']);
-    if (id === req.session.userId) return res.status(403).json({ error: 'Cannot change your own role.' });
-
-    if (role === 'viewer') {
-      const target = db.prepare('SELECT Role FROM Users WHERE UserID=?').get(id);
-      if (!target) return res.status(404).json({ error: 'User not found.' });
-      if (target.Role === 'admin' && adminCount(db) <= 1) {
-        return res.status(403).json({ error: 'Cannot remove the last admin account.' });
-      }
-    }
-
-    const result = db.prepare('UPDATE Users SET Role=? WHERE UserID=?').run(role, id);
-    if (!result.changes) return res.status(404).json({ error: 'User not found.' });
-    res.json({ success: true });
-  } catch (err) {
-    sendValidationError(res, err);
-  }
-});
-
-// DELETE /api/users/:id — delete user
-router.delete('/:id', requireAdminSession, (req, res) => {
-  const db = req.app.locals.db;
-  try {
-    const id = requirePositiveInt(req.params.id, 'User ID');
-    if (id === req.session.userId) return res.status(403).json({ error: 'Cannot delete your own account.' });
-
-    const target = db.prepare('SELECT Role FROM Users WHERE UserID=?').get(id);
-    if (!target) return res.status(404).json({ error: 'User not found.' });
-    if (target.Role === 'admin' && adminCount(db) <= 1) {
-      return res.status(403).json({ error: 'Cannot remove the last admin account.' });
-    }
-
-    db.prepare('DELETE FROM Users WHERE UserID=?').run(id);
-    res.json({ success: true });
-  } catch (err) {
-    sendValidationError(res, err);
-  }
-});
-
-module.exports = router;
+module.exports = { createUsersRouter };

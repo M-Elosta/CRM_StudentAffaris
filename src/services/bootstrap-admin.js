@@ -3,6 +3,9 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcrypt');
 const { isInsecurePassword } = require('../lib/password-policy');
+const { ROLES } = require('../lib/roles');
+const { createUsersRepository } = require('../db/repositories/users-repository');
+const { BCRYPT_COST } = require('./users-service');
 
 /**
  * Create the first administrator when the Users table is empty.
@@ -11,21 +14,20 @@ const { isInsecurePassword } = require('../lib/password-policy');
  * BOOTSTRAP_ADMIN_PASSWORD. The password is never written to the log there.
  */
 async function bootstrapAdmin(db, config, logger = console) {
-  const { n } = db.prepare('SELECT COUNT(*) AS n FROM Users').get();
-  if (n > 0) return { created: false };
+  const usersRepository = createUsersRepository(db);
+  if (usersRepository.count() > 0) return { created: false };
 
   if (config.isProductionLike && !config.bootstrapAdminPassword) {
     throw new Error('BOOTSTRAP_ADMIN_PASSWORD must be set before the first start (no users exist yet)');
   }
 
   const password = config.bootstrapAdminPassword || crypto.randomBytes(18).toString('base64url');
-  const hash = await bcrypt.hash(password, 12);
-  db.prepare('INSERT INTO Users (Username, PasswordHash, Role, MustChangePassword) VALUES (?, ?, ?, ?)').run(
-    config.bootstrapAdminUsername,
-    hash,
-    'admin',
-    isInsecurePassword(password) ? 1 : 0
-  );
+  usersRepository.insert({
+    username: config.bootstrapAdminUsername,
+    passwordHash: await bcrypt.hash(password, BCRYPT_COST),
+    role: ROLES.ADMIN,
+    mustChangePassword: isInsecurePassword(password),
+  });
 
   if (config.isProductionLike) {
     logger.info(`First administrator "${config.bootstrapAdminUsername}" created. Change the bootstrap password after signing in.`);

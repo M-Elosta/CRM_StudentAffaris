@@ -13,6 +13,8 @@ const { notFoundHandler, createErrorHandler, respondServerError } = require('./m
 const { createServices } = require('./services');
 const { createRecordRouter } = require('./routes/record-router');
 const { createCompaniesRouter } = require('./routes/companies');
+const { createAuthRouter } = require('./routes/auth');
+const { createUsersRouter } = require('./routes/users');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
@@ -124,7 +126,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   app.use('/api/auth/login', loginLimiter);
-  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/auth', createAuthRouter(services.auth));
   for (const [recordPath, { service, schema }] of services.records) {
     const options = { listQuerySchema: schema.listQuerySchema, idLabel: service.definition.idLabel };
     const router =
@@ -134,7 +136,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.use('/api/reports', require('./routes/reports'));
   app.use('/api/dashboard', require('./routes/dashboard'));
   app.use('/api/import', blockWritesForViewers, require('./routes/import'));
-  app.use('/api/users', require('./routes/users'));
+  app.use('/api/users', createUsersRouter(services.users));
   app.use('/api/meta', require('./routes/meta'));
 
   app.get('/', (_req, res) => res.redirect('/index.html'));
