@@ -1,8 +1,46 @@
+# Dependencies
 node_modules/
+
+# Local data: databases, backups, exports. Never commit these.
 data/
-.env
-.env.*
-!.env.example
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+backups/
+exports/
+*.xlsx
+*.csv
+!tests/fixtures/**/*.csv
+!tests/fixtures/**/*.xlsx
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+
+# Logs and runtime output
+logs/
+*.log
+npm-debug.log*
+
+# Test and tooling output
+coverage/
+test-results/
+playwright-report/
+.lighthouseci/
+
+# Editors, OS files, AI tool runtime state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+.claude/
+.amplihack/
