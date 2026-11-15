@@ -214,4 +214,50 @@ async function createRecord(agent, type, refs) {
   return res.body;
 }
 
-module.exports = { RECORD_TYPES, ENUM_NOT_VALIDATED, an, createRefs, createRecord };
+/** Create one record of every type, plus a blacklisted and a favourite employer. */
+async function seedEverything(agent) {
+  const refs = await createRefs(agent, ' Seed');
+  for (const type of RECORD_TYPES) {
+    if (type.path === 'companies' || type.path === 'contacts') continue;
+    await createRecord(agent, type, refs);
+  }
+  await post(agent, '/api/companies', {
+    CompanyName: 'Blacklisted Ltd',
+    Industry: 'Mining',
+    Sector: 'Private',
+    Country: 'Oman',
+    Blacklisted: true,
+  });
+  await post(agent, '/api/companies', {
+    CompanyName: 'Favourite Partner',
+    Industry: 'Banking',
+    Sector: 'Government',
+    Country: 'Qatar',
+    FavoriteEmployer: true,
+    SignedMoU: true,
+  });
+  await post(agent, '/api/contacts', {
+    CompanyID: refs.companyId,
+    FirstName: 'Alumna',
+    LastName: 'Primary',
+    EmailAddress: 'alumna@example.com',
+    CMUQGraduate: true,
+    PrimaryContact: true,
+    ResumeBook: true,
+    EventInvitation: true,
+    Major: 'Computer Science',
+    GraduationYear: 2020,
+  });
+  await post(agent, '/api/outreach', {
+    CompanyID: refs.companyId,
+    ContactID: refs.contactId,
+    InteractionType: 'Meeting',
+    InteractionDate: '2024-10-15',
+    DiscussionItems: 'Last year meeting',
+    FollowUpDate: '2099-01-01',
+    InteractionStatus: 'In-progress',
+  });
+  return refs;
+}
+
+module.exports = { RECORD_TYPES, ENUM_NOT_VALIDATED, an, createRefs, createRecord, seedEverything };
