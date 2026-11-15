@@ -6,3 +6,12 @@ playwright-report/
 test-results/
 public/vendor/
 docs/screenshots/
+
+# Legacy static UI, replaced in Phase 4. Not reformatted to keep its history readable.
+public/index.html
+public/login.html
+public/404.html
+public/pages/
+public/js/
+public/css/style.css
+public/assets/icons.svg
