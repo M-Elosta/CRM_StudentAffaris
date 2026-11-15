@@ -9,6 +9,10 @@ const { createContactsService } = require('./contacts-service');
 const { createUsersRepository } = require('../db/repositories/users-repository');
 const { createUsersService } = require('./users-service');
 const { createAuthService } = require('./auth-service');
+const { createDashboardRepository } = require('../db/repositories/dashboard-repository');
+const { createDashboardService } = require('./dashboard-service');
+const { createMetaRepository } = require('../db/repositories/meta-repository');
+const { createMetaService } = require('./meta-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -69,6 +73,11 @@ function createServices({ db, config }) {
     records,
     users: createUsersService({ db, usersRepository }),
     auth: createAuthService({ usersRepository }),
+    dashboard: createDashboardService({
+      dashboardRepository: createDashboardRepository(db),
+      timeZone: config.timeZone,
+    }),
+    meta: createMetaService({ metaRepository: createMetaRepository(db) }),
   };
 }
 

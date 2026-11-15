@@ -49,7 +49,6 @@ describe('Dashboard', () => {
 
   it(
     'rejects an impossible calendar date with 400',
-    { todo: 'optionalIsoDate only checks the YYYY-MM-DD shape, so 2024-13-45 is accepted' },
     async () => {
       const res = await viewer.get('/api/dashboard/stats').query({ from: '2024-13-45' });
       assert.equal(res.status, 400);

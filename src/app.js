@@ -15,6 +15,8 @@ const { createRecordRouter } = require('./routes/record-router');
 const { createCompaniesRouter } = require('./routes/companies');
 const { createAuthRouter } = require('./routes/auth');
 const { createUsersRouter } = require('./routes/users');
+const { createDashboardRouter } = require('./routes/dashboard');
+const { createMetaRouter } = require('./routes/meta');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
@@ -44,7 +46,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
   // ── Health check: no auth, no session, no rate limit ──────────────────────
   app.get('/healthz', (_req, res) => {
     try {
-      db.prepare('SELECT 1').get();
+      services.meta.checkDatabase();
       res.set('Cache-Control', 'no-store').json({ status: 'ok' });
     } catch (err) {
       logger.error('Health check failed', err);
@@ -134,10 +136,10 @@ function createApp({ config, db, logger = console, sessionStore }) {
     app.use(`/api/${recordPath}`, blockWritesForViewers, router);
   }
   app.use('/api/reports', require('./routes/reports'));
-  app.use('/api/dashboard', require('./routes/dashboard'));
+  app.use('/api/dashboard', createDashboardRouter(services.dashboard));
   app.use('/api/import', blockWritesForViewers, require('./routes/import'));
   app.use('/api/users', createUsersRouter(services.users));
-  app.use('/api/meta', require('./routes/meta'));
+  app.use('/api/meta', createMetaRouter(services.meta));
 
   app.get('/', (_req, res) => res.redirect('/index.html'));
 

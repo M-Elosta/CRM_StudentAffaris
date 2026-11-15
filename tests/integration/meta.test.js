@@ -62,7 +62,6 @@ describe('Meta: last updated', () => {
   ]) {
     it(
       `reflects the latest ${key} update, not only the latest creation`,
-      { todo: 'src/routes/meta.js uses MAX(CreatedAt) for these five tables and ignores UpdatedAt' },
       async () => {
         const row = ctx.db.prepare(`SELECT ${idField} AS id FROM ${table} LIMIT 1`).get();
         setStoredUpdatedAt(ctx.db, table, idField, row.id, '2098-06-06 06:06:06');
