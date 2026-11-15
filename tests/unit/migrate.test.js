@@ -290,23 +290,15 @@ describe('migrate', () => {
       db.close();
     });
 
-    it(
-      'backfills UpdatedAt from CreatedAt',
-      {
-        todo:
-          '0001_baseline.js runs the backfill UPDATE after creating the AFTER UPDATE triggers, ' +
-          'which immediately overwrite UpdatedAt with the migration time',
-      },
-      async () => {
-        const db = buildOldDatabase();
-        await migrate(db, quiet());
-        for (const table of OLD_TABLES_WITHOUT_UPDATED_AT) {
-          const rows = db.prepare(`SELECT CreatedAt, UpdatedAt FROM ${table}`).all();
-          for (const row of rows) assert.equal(row.UpdatedAt, OLD_CREATED_AT, table);
-        }
-        db.close();
+    it('backfills UpdatedAt from CreatedAt', async () => {
+      const db = buildOldDatabase();
+      await migrate(db, quiet());
+      for (const table of OLD_TABLES_WITHOUT_UPDATED_AT) {
+        const rows = db.prepare(`SELECT CreatedAt, UpdatedAt FROM ${table}`).all();
+        for (const row of rows) assert.equal(row.UpdatedAt, OLD_CREATED_AT, table);
       }
-    );
+      db.close();
+    });
 
     it('calls the backup function exactly once before migrating', async () => {
       const db = buildOldDatabase();

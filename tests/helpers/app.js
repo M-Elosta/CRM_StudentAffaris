@@ -37,10 +37,7 @@ function createSilentLogger() {
  * @param {object} [options.env] extra environment variables for loadConfig
  */
 async function buildApp({ env = {} } = {}) {
-  // PORT is set explicitly because the test environment's default port (0) is
-  // rejected by the config schema (see the todo in tests/unit/config.test.js).
-  // The app never listens, so the value is irrelevant here.
-  const config = loadConfig({ NODE_ENV: 'test', BASE_URL: ORIGIN, PORT: '3000', ...env });
+  const config = loadConfig({ NODE_ENV: 'test', BASE_URL: ORIGIN, ...env });
   const logger = createSilentLogger();
   const db = openDatabase(':memory:');
   await migrate(db, { logger });

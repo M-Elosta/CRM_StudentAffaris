@@ -54,13 +54,17 @@ function up(db) {
     }
   }
 
-  // 2. Create whatever does not exist yet. Every statement is IF NOT EXISTS.
-  db.exec(SCHEMA_SQL);
-
-  // 3. Rows from older databases may have no UpdatedAt. Fill it from CreatedAt.
+  // 2. Rows from older databases may have no UpdatedAt. Fill it from CreatedAt.
+  //    This runs before step 3 on purpose: the "set UpdatedAt on update"
+  //    triggers created there would replace the value with the current time.
   for (const table of TABLES_WITH_UPDATED_AT) {
-    db.exec(`UPDATE ${table} SET UpdatedAt = COALESCE(CreatedAt, datetime('now')) WHERE UpdatedAt IS NULL`);
+    if (tableExists(db, table)) {
+      db.exec(`UPDATE ${table} SET UpdatedAt = COALESCE(CreatedAt, datetime('now')) WHERE UpdatedAt IS NULL`);
+    }
   }
+
+  // 3. Create whatever does not exist yet. Every statement is IF NOT EXISTS.
+  db.exec(SCHEMA_SQL);
 }
 
 const SCHEMA_SQL = `

@@ -31,7 +31,9 @@ function loadDotEnv(rootDir = ROOT_DIR) {
 
 const booleanFromEnv = z
   .union([z.boolean(), z.string()])
-  .transform((value) => (typeof value === 'boolean' ? value : ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())));
+  .transform((value) =>
+    typeof value === 'boolean' ? value : ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
+  );
 
 const trustProxyFromEnv = z.union([z.boolean(), z.number(), z.string()]).transform((value) => {
   if (typeof value !== 'string') return value;
@@ -45,7 +47,7 @@ const trustProxyFromEnv = z.union([z.boolean(), z.number(), z.string()]).transfo
 const schema = z.object({
   env: z.enum(ENVIRONMENTS),
   host: z.string().min(1),
-  port: z.coerce.number().int().min(1).max(65535),
+  port: z.coerce.number().int().min(0).max(65535), // 0 = any free port (tests)
   baseUrl: z.string().url().optional(),
   trustProxy: trustProxyFromEnv,
 
@@ -109,7 +111,8 @@ function loadConfig(env = process.env) {
     sessionMaxAgeMinutes: pick('SESSION_MAX_AGE_MINUTES', 12 * 60),
 
     bootstrapAdminUsername: pick('BOOTSTRAP_ADMIN_USERNAME', pick('DEFAULT_ADMIN_USERNAME', 'admin')),
-    bootstrapAdminPassword: emptyToUndefined(env.BOOTSTRAP_ADMIN_PASSWORD) ?? emptyToUndefined(env.DEFAULT_ADMIN_PASSWORD),
+    bootstrapAdminPassword:
+      emptyToUndefined(env.BOOTSTRAP_ADMIN_PASSWORD) ?? emptyToUndefined(env.DEFAULT_ADMIN_PASSWORD),
 
     apiRateLimitPerMinute: pick('API_RATE_LIMIT_PER_MINUTE', 600),
     loginRateLimitPer15Min: pick('LOGIN_RATE_LIMIT_PER_15_MIN', 10),

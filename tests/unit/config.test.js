@@ -14,9 +14,7 @@ const PRODUCTION_ENV = {
   BACKUP_DIR: '/srv/ero/backups',
   SESSION_SECRET: SECRET,
 };
-// The test environment's default port does not pass validation (see the todo
-// below), so tests that are not about the port set one explicitly.
-const TEST_ENV = { NODE_ENV: 'test', PORT: '3000' };
+const TEST_ENV = { NODE_ENV: 'test' };
 
 describe('config', () => {
   describe('development defaults', () => {
@@ -78,18 +76,11 @@ describe('config', () => {
       assert.equal(config.backupDir, path.join(ROOT_DIR, 'data', 'test', 'backups'));
     });
 
-    it(
-      'loads with only NODE_ENV=test set',
-      {
-        todo:
-          'src/config/environments.js gives the test environment port 0, ' +
-          'but the schema in src/config/index.js requires port >= 1',
-      },
-      () => {
-        const config = loadConfig({ NODE_ENV: 'test' });
-        assert.equal(config.env, 'test');
-      }
-    );
+    it('loads with only NODE_ENV=test set', () => {
+      const config = loadConfig({ NODE_ENV: 'test' });
+      assert.equal(config.env, 'test');
+      assert.equal(config.port, 0);
+    });
   });
 
   describe('staging and production', () => {
