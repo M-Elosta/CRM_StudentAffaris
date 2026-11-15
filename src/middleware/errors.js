@@ -1,6 +1,8 @@
 'use strict';
 
 const path = require('node:path');
+const { ZodError } = require('zod');
+const { AppError, validationErrorFromZod } = require('../lib/errors');
 
 /** Log the real error, tell the client nothing about it. */
 function respondServerError(logger, req, res, err) {
@@ -17,10 +19,25 @@ function notFoundHandler(publicDir) {
   };
 }
 
+/** Send an application error as { error, fields?, code? } with its status. */
+function sendAppError(res, err) {
+  const body = { error: err.message };
+  if (err.fields) body.fields = err.fields;
+  if (err.code) body.code = err.code;
+  return res.status(err.status).json(body);
+}
+
+/**
+ * The final error middleware. Application errors (AppError, ZodError) become
+ * JSON responses with their status; anything unexpected is logged and the
+ * client gets a generic message.
+ */
 function createErrorHandler(logger) {
-  // eslint-disable-next-line no-unused-vars -- Express identifies error handlers by their four arguments
+  // Express identifies error handlers by their four arguments.
   return (err, req, res, next) => {
     if (res.headersSent) return next(err);
+    if (err instanceof ZodError) return sendAppError(res, validationErrorFromZod(err));
+    if (err instanceof AppError && err.status < 500) return sendAppError(res, err);
     if (err?.type === 'entity.too.large') {
       return res.status(413).json({ error: 'That request is too large to process. Try a smaller file or fewer rows.' });
     }
