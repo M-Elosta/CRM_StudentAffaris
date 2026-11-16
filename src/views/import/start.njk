@@ -1,0 +1,54 @@
+{#
+  Import, step 1 of 3: what kind of records, and the file.
+  Locals: entities [{ value, label }], error, entity
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, button, icon %}
+
+{% set pageTitle = 'Import' %}
+{% block mainClass %}main--narrow{% endblock %}
+
+{% block content %}
+  {% call pageHeader('Import from a spreadsheet', 'Step 1 of 3 · Choose the file. Nothing is saved until you confirm in step 3.') %}{% endcall %}
+
+  <section class="card" aria-labelledby="file-heading">
+    <div class="card__header"><h2 id="file-heading">File</h2></div>
+    <form class="card__body" action="/import/preview" method="post" enctype="multipart/form-data" hx-boost="false">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+      {% if error %}
+        <div class="notice notice--danger" role="alert">{{ icon('error') }}<p class="notice__title">{{ error }}</p></div>
+      {% endif %}
+      <div class="form-grid{% if error %} mt-4{% endif %}">
+        <div class="field form-grid__full">
+          <label class="field__label" for="f-entity">What the file holds<span class="field__required" aria-hidden="true">*</span></label>
+          <select class="select" id="f-entity" name="entity" required aria-required="true">
+            <option value="">Choose…</option>
+            {% for option in entities %}<option value="{{ option.value }}" {% if entity == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+          </select>
+          <span class="field__error"></span>
+        </div>
+        <div class="field form-grid__full">
+          <label class="field__label" for="f-file">Excel file (.xlsx, up to 5 MB)<span class="field__required" aria-hidden="true">*</span></label>
+          <input class="input input--file" id="f-file" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required aria-required="true" aria-describedby="f-file-hint" />
+          <span class="field__hint" id="f-file-hint">The first row must hold the column names. Columns with other names are ignored.</span>
+          <span class="field__error"></span>
+        </div>
+      </div>
+      <div class="form-actions">
+        {{ button('Check the file', 'primary', 'submit') }}
+      </div>
+    </form>
+  </section>
+
+  <section class="card mt-4" aria-labelledby="templates-heading">
+    <div class="card__header"><h2 id="templates-heading">Templates</h2></div>
+    <div class="card__body">
+      <p class="text-muted">Each template has the right column names; required columns come first.</p>
+      <ul class="row row--wrap mt-2" role="list">
+        {% for option in entities %}
+          <li><a class="btn btn--sm" href="/import/template/{{ option.value | urlencode }}" hx-boost="false" download>{{ icon('download') }}<span>{{ option.label }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+{% endblock %}

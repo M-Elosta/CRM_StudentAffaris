@@ -109,7 +109,7 @@ function createEmployersController({ services, config }) {
         can: {
           create: canAccessRecord(req.user, P.RECORD_CREATE, 'companies'),
           export: can(req.user, P.EXPORT_RUN),
-          import: false,
+          import: can(req.user, P.IMPORT_RUN),
         },
       });
     })

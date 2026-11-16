@@ -1430,6 +1430,12 @@ th[aria-sort='descending'] .table__sort .icon {
   color: var(--text-muted);
 }
 
+/* A file input: the browser's button inside the usual control box */
+.input--file {
+  height: auto;
+  padding: var(--space-1) var(--space-2);
+}
+
 /* A date input in a toolbar keeps the width of a date */
 .toolbar .input--date {
   width: 160px;

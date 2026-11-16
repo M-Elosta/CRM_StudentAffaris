@@ -31,13 +31,25 @@ function sameToken(expected, given) {
  * The JSON API keeps its Origin check instead.
  * @param {(req, res) => void} reject  renders the "form has expired" page
  */
-function createCsrfGuard(reject) {
+function createCsrfGuard(reject, { uploadPaths = [] } = {}) {
+  const uploads = new Set(uploadPaths);
   return function verifyCsrf(req, res, next) {
     if (SAFE_METHODS.has(req.method) || req.path.startsWith('/api/')) return next();
-    const given = req.get('x-csrf-token') || (req.body && typeof req.body._csrf === 'string' ? req.body._csrf : '');
-    if (sameToken(req.session?.csrfToken, given)) return next();
+    // The fields of a file upload are read by its route, which must check the token itself (csrfValid).
+    // Only the declared upload routes may defer the check.
+    if (uploads.has(req.path) && req.is('multipart/form-data') && !req.get('x-csrf-token')) {
+      req.csrfPending = true;
+      return next();
+    }
+    if (csrfValid(req)) return next();
     return reject(req, res);
   };
 }
 
-module.exports = { csrfTokenFor, rotateCsrfToken, createCsrfGuard };
+/** Whether the request carries the session's token (header or parsed _csrf field). */
+function csrfValid(req) {
+  const given = req.get('x-csrf-token') || (req.body && typeof req.body._csrf === 'string' ? req.body._csrf : '');
+  return sameToken(req.session?.csrfToken, given);
+}
+
+module.exports = { csrfTokenFor, rotateCsrfToken, createCsrfGuard, csrfValid };

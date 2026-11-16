@@ -12,6 +12,7 @@ const { createRecordController, createEventsController, createOptionsController 
 const { createFollowUpsController } = require('./controllers/follow-ups');
 const { createReportsController } = require('./controllers/reports');
 const { createAdminUsersController } = require('./controllers/admin-users');
+const { createImportController, IMPORT_UPLOAD_PATH } = require('./controllers/import');
 const { createSearchController } = require('./controllers/search');
 const { SCREENS } = require('./screens');
 
@@ -35,15 +36,13 @@ function createWebRouter({ services, config, logger = console }) {
 
   router.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit, parameterLimit: 500 }));
   router.use(createLocals({ config, assetVersion: version, followUps: services.activity }));
-  router.use(
-    createCsrfGuard((req, res) =>
-      renderErrorPage(req, res, 403, {
-        title: 'This form has expired',
-        message: 'This form has expired. Reload the page and try again.',
-        action: 'Anything you typed may need to be entered again.',
-      })
-    )
-  );
+  const expired = (req, res) =>
+    renderErrorPage(req, res, 403, {
+      title: 'This form has expired',
+      message: 'This form has expired. Reload the page and try again.',
+      action: 'Anything you typed may need to be entered again.',
+    });
+  router.use(createCsrfGuard(expired, { uploadPaths: [IMPORT_UPLOAD_PATH] }));
   router.use((req, res, next) => {
     if (req.user?.mustChangePassword && !ROTATION_ALLOWED.has(req.path)) return res.redirect('/account');
     return next();
@@ -58,6 +57,7 @@ function createWebRouter({ services, config, logger = console }) {
   router.use(createReportsController({ services, config }));
   router.use(createAdminUsersController({ services }));
   router.use(createSearchController({ services }));
+  router.use(createImportController({ services, expired }));
   router.use(createOptionsController({ services }));
   for (const screen of SCREENS) {
     if (screen.recordType !== 'companies')

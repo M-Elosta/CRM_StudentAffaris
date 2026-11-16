@@ -1,0 +1,34 @@
+{#
+  Import, step 3 of 3: what was saved.
+  Locals: label, fileName, result { imported, updated, skipped, failed, failedDetails }
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, linkButton, icon %}
+
+{% set pageTitle = 'Import finished' %}
+{% block mainClass %}main--narrow{% endblock %}
+
+{% block content %}
+  {% call pageHeader('Import finished', 'Step 3 of 3 · ' ~ label ~ ' from ' ~ fileName ~ '.') %}
+    {{ linkButton('Import another file', '/import') }}
+  {% endcall %}
+
+  <section class="grid grid--4" aria-label="Result">
+    <div class="card stat"><p class="stat__label">Imported</p><p class="stat__value">{{ result.imported | number }}</p></div>
+    <div class="card stat"><p class="stat__label">Updated</p><p class="stat__value">{{ result.updated | number }}</p></div>
+    <div class="card stat"><p class="stat__label">Skipped</p><p class="stat__value">{{ result.skipped | number }}</p></div>
+    <div class="card stat"><p class="stat__label">Could not be saved</p><p class="stat__value">{{ result.failed | number }}</p></div>
+  </section>
+
+  {% if result.failed %}
+    <div class="notice notice--warning mt-4" role="alert">
+      {{ icon('warning') }}
+      <div>
+        <p class="notice__title">{{ result.failed }} {{ 'row was' if result.failed == 1 else 'rows were' }} not saved</p>
+        <ul class="mt-2">
+          {% for failure in result.failedDetails %}<li dir="auto">{{ failure.error }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -59,18 +59,12 @@ const NAV = [
   },
   {
     heading: 'Admin',
-    items: [{ href: '/admin/users', label: 'Users', icon: 'shield', allowed: (user) => can(user, P.USERS_MANAGE) }],
+    items: [
+      { href: '/admin/users', label: 'Users', icon: 'shield', allowed: (user) => can(user, P.USERS_MANAGE) },
+      { href: '/import', label: 'Import', icon: 'import', allowed: (user) => can(user, P.IMPORT_RUN) },
+    ],
   },
 ];
-
-/** Whether the navigation item at href is visible to the user (used to guard pages too). */
-function navAllows(user, href) {
-  for (const group of NAV) {
-    const item = group.items.find((candidate) => candidate.href === href);
-    if (item) return item.allowed(user);
-  }
-  return false;
-}
 
 /**
  * The navigation groups for a user, with the current item marked.
@@ -152,4 +146,4 @@ function createLocals({ config, assetVersion, followUps }) {
   };
 }
 
-module.exports = { createLocals, buildNav, navAllows, NAV };
+module.exports = { createLocals, buildNav, NAV };
