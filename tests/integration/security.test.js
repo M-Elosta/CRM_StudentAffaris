@@ -44,7 +44,7 @@ describe('Security middleware', () => {
 
     it('blocks PUT, PATCH and DELETE without an Origin header', async () => {
       assert.equal((await admin.put('/api/companies/1').send(COMPANY)).status, 403);
-      assert.equal((await admin.patch('/api/users/1/role').send({ role: 'viewer' })).status, 403);
+      assert.equal((await admin.patch('/api/users/1/role').send({ role: 'readonly' })).status, 403);
       assert.equal((await admin.delete('/api/companies/1')).status, 403);
     });
 

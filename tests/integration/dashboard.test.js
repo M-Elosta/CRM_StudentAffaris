@@ -23,7 +23,7 @@ describe('Dashboard', () => {
 
   before(async () => {
     ctx = await buildApp();
-    viewer = await loginAs(ctx, 'viewer');
+    viewer = await loginAs(ctx, 'readonly');
   });
 
   after(() => ctx.close());

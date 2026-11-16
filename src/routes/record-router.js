@@ -31,35 +31,35 @@ function createRecordRouter(service, { listQuerySchema, idLabel }) {
   router.get(
     '/',
     asyncHandler((req, res) => {
-      res.json(service.list(parseWith(listQuerySchema, req.query)));
+      res.json(service.list(parseWith(listQuerySchema, req.query), req.ctx));
     })
   );
 
   router.get(
     '/:id',
     asyncHandler((req, res) => {
-      res.json(service.get(req.recordId));
+      res.json(service.get(req.recordId, req.ctx));
     })
   );
 
   router.post(
     '/',
     asyncHandler((req, res) => {
-      res.status(201).json(service.create(req.body));
+      res.status(201).json(service.create(req.body, req.ctx));
     })
   );
 
   router.put(
     '/:id',
     asyncHandler((req, res) => {
-      res.json(service.update(req.recordId, req.body));
+      res.json(service.update(req.recordId, req.body, req.ctx));
     })
   );
 
   router.delete(
     '/:id',
     asyncHandler((req, res) => {
-      res.json(service.remove(req.recordId));
+      res.json(service.remove(req.recordId, req.ctx));
     })
   );
 

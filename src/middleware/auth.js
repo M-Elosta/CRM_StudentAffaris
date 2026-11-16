@@ -3,8 +3,6 @@
 const crypto = require('node:crypto');
 const { normalizeRole, ROLES } = require('../security/permissions');
 
-const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
 // Reachable without signing in: the login page and the assets it needs.
 const PUBLIC_PREFIXES = ['/login.html', '/api/auth/login', '/css/', '/js/', '/favicon'];
 
@@ -70,14 +68,6 @@ function requirePasswordRotation(req, res, next) {
   });
 }
 
-/** Viewers may read but never create, change or delete. */
-function blockWritesForViewers(req, res, next) {
-  if (WRITE_METHODS.has(req.method) && normalizeRole(req.user?.role) !== ROLES.ADMIN) {
-    return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
-  }
-  return next();
-}
-
 function requireAdminSession(req, res, next) {
   if (normalizeRole(req.user?.role) !== ROLES.ADMIN) {
     return res.status(403).json({ error: 'Admin access required.' });
@@ -90,6 +80,5 @@ module.exports = {
   createCurrentUserLoader,
   requireAuth,
   requirePasswordRotation,
-  blockWritesForViewers,
   requireAdminSession,
 };

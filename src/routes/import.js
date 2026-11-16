@@ -34,7 +34,7 @@ function createImportRouter(importService) {
   router.get(
     '/template/:entity',
     asyncHandler(async (req, res) => {
-      const { fileName, buffer } = await importService.template(req.params.entity);
+      const { fileName, buffer } = await importService.template(req.params.entity, req.ctx);
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
       res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
       res.send(buffer);
@@ -46,21 +46,21 @@ function createImportRouter(importService) {
     upload.single('file'),
     asyncHandler(async (req, res) => {
       if (!req.file) throw new ValidationError('No file uploaded');
-      res.json(await importService.parse(req.file.buffer));
+      res.json(await importService.parse(req.file.buffer, req.ctx));
     })
   );
 
   router.post(
     '/validate',
     asyncHandler((req, res) => {
-      res.json(importService.validate(parseWith(validateRequestSchema, req.body)));
+      res.json(importService.validate(parseWith(validateRequestSchema, req.body), req.ctx));
     })
   );
 
   router.post(
     '/confirm',
     asyncHandler(async (req, res) => {
-      res.json(await importService.confirm(parseWith(confirmRequestSchema, req.body)));
+      res.json(await importService.confirm(parseWith(confirmRequestSchema, req.body), req.ctx));
     })
   );
 

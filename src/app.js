@@ -8,13 +8,7 @@ const rateLimit = require('express-rate-limit');
 
 const { rejectPoisonedKeys } = require('./middleware/poison-keys');
 const { createOriginGuard } = require('./middleware/trusted-origin');
-const {
-  requestContext,
-  createCurrentUserLoader,
-  requireAuth,
-  requirePasswordRotation,
-  blockWritesForViewers,
-} = require('./middleware/auth');
+const { requestContext, createCurrentUserLoader, requireAuth, requirePasswordRotation } = require('./middleware/auth');
 const { notFoundHandler, createErrorHandler } = require('./middleware/errors');
 const { createServices } = require('./services');
 const { DatabaseSessionStore } = require('./security/session-store');
@@ -148,11 +142,11 @@ function createApp({ config, db, logger = console, sessionStore }) {
     const options = { listQuerySchema: schema.listQuerySchema, idLabel: service.definition.idLabel };
     const router =
       recordPath === 'companies' ? createCompaniesRouter(service, options) : createRecordRouter(service, options);
-    app.use(`/api/${recordPath}`, blockWritesForViewers, router);
+    app.use(`/api/${recordPath}`, router);
   }
   app.use('/api/reports', createReportsRouter(services.reports));
   app.use('/api/dashboard', createDashboardRouter(services.dashboard));
-  app.use('/api/import', blockWritesForViewers, createImportRouter(services.import));
+  app.use('/api/import', createImportRouter(services.import));
   app.use('/api/users', createUsersRouter(services.users));
   app.use('/api/meta', createMetaRouter(services.meta));
 

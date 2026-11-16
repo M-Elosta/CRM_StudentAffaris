@@ -6,16 +6,28 @@
  * definition; every value is a bound parameter.
  */
 
-/** Build the WHERE clause for the definition's list filters from already validated values. */
-function buildListFilters(definition, filters) {
+/** 'ct.EmailAddress' -> 'EmailAddress'. */
+const bareColumn = (column) => column.slice(column.lastIndexOf('.') + 1);
+
+/**
+ * Build the WHERE clause for the definition's list filters from already
+ * validated values. Columns named in `withheldColumns` are never matched
+ * against: a filter left with no column matches no row, so a withheld value
+ * cannot be probed through a search.
+ */
+function buildListFilters(definition, filters, withheldColumns = []) {
+  const withheld = new Set(withheldColumns);
   const conditions = [];
   const params = [];
   for (const filter of definition.list.filters) {
     const value = filters[filter.param];
     if (value === undefined || value === null || value === '') continue;
-    if (filter.match === 'contains') {
-      conditions.push(`(${filter.columns.map((column) => `${column} LIKE ?`).join(' OR ')})`);
-      for (let index = 0; index < filter.columns.length; index++) params.push(`%${value}%`);
+    const columns = (filter.columns ?? [filter.column]).filter((column) => !withheld.has(bareColumn(column)));
+    if (!columns.length) {
+      conditions.push('0 = 1');
+    } else if (filter.match === 'contains') {
+      conditions.push(`(${columns.map((column) => `${column} LIKE ?`).join(' OR ')})`);
+      for (let index = 0; index < columns.length; index++) params.push(`%${value}%`);
     } else if (filter.match === 'equals') {
       conditions.push(`${filter.column} = ?`);
       params.push(value);
@@ -91,9 +103,14 @@ function createCrudRepository(db, definition) {
   return {
     definition,
 
-    /** Rows of the list query (joins and default order) matching the validated filters, with children. */
-    list(filters = {}) {
-      const { where, params } = buildListFilters(definition, filters);
+    /**
+     * Rows of the list query (joins and default order) matching the validated
+     * filters, with children. Filters never match the `withheldColumns`.
+     * @param {object} [filters]
+     * @param {{ withheldColumns?: string[] }} [options]
+     */
+    list(filters = {}, { withheldColumns = [] } = {}) {
+      const { where, params } = buildListFilters(definition, filters, withheldColumns);
       return withChildren(db.prepare(`${readBase}${where} ORDER BY ${list.orderBy}`).all(...params));
     },
 

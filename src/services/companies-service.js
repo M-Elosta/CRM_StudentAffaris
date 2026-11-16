@@ -1,7 +1,19 @@
 'use strict';
 
 const { NotFoundError } = require('../lib/errors');
+const { PERMISSIONS } = require('../security/permissions');
+const { createAuthorizer } = require('../security/authorize');
 const { createRecordService } = require('./record-service');
+
+/** Keys of the related counts → the record type each one counts. */
+const RELATED_RECORD_TYPES = Object.freeze({
+  contacts: 'contacts',
+  outreach: 'outreach',
+  recruitment: 'recruitment',
+  events: 'career-events',
+  academic: 'academic',
+  studentEvents: 'student-events',
+});
 
 /**
  * Companies: the generic record service plus the blacklist rule (a
@@ -12,6 +24,7 @@ const { createRecordService } = require('./record-service');
  * @param {ReturnType<import('../db/repositories/companies-repository').createCompaniesRepository>} deps.companiesRepository
  */
 function createCompaniesService({ companiesRepository, ...deps }) {
+  const authorize = createAuthorizer(deps.permissions);
   const service = createRecordService({
     ...deps,
     hooks: {
@@ -28,11 +41,19 @@ function createCompaniesService({ companiesRepository, ...deps }) {
   return {
     ...service,
 
-    /** The employer's name and how many records of each kind belong to it. */
-    relatedCounts(companyId) {
+    /**
+     * The employer's name and how many records of each kind belong to it.
+     * Kinds the user may not read are reported as 0.
+     */
+    relatedCounts(companyId, ctx) {
+      authorize.requireRecordAccess(ctx, PERMISSIONS.RECORD_READ, 'companies');
       const company = deps.repository.getStoredById(companyId);
       if (!company) throw new NotFoundError(deps.definition.notFoundMessage);
-      return { companyName: company.CompanyName, ...companiesRepository.countRelatedRecords(companyId) };
+      const counts = companiesRepository.countRelatedRecords(companyId);
+      for (const [key, recordType] of Object.entries(RELATED_RECORD_TYPES)) {
+        if (!authorize.canReadRecordType(ctx, recordType)) counts[key] = 0;
+      }
+      return { companyName: company.CompanyName, ...counts };
     },
   };
 }

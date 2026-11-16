@@ -94,9 +94,12 @@ describe('Import', () => {
       assert.equal((await admin.get('/api/import/template/constructor')).status, 404);
     });
 
-    it('lets a viewer download a template', async () => {
-      const viewer = await loginAs(ctx, 'viewer');
-      assert.equal((await viewer.get('/api/import/template/Company')).status, 200);
+    it('lets only roles that may import download a template', async () => {
+      const expected = { admin: 200, staff: 200, readonly: 403, student_worker: 403 };
+      for (const [role, status] of Object.entries(expected)) {
+        const agent = await loginAs(ctx, role);
+        assert.equal((await agent.get('/api/import/template/Company')).status, status, role);
+      }
     });
   });
 

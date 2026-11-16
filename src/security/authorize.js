@@ -8,8 +8,9 @@
  */
 
 const { ForbiddenError, UnauthorizedError } = require('../lib/errors');
-const { ALL_PERMISSIONS, PERMISSIONS, ROLE_LABELS, can, canAccessRecord, normalizeRole } = require('./permissions');
+const defaultPermissions = require('./permissions');
 
+const { ALL_PERMISSIONS, PERMISSIONS, ROLE_LABELS, normalizeRole } = defaultPermissions;
 const P = PERMISSIONS;
 
 /** How each record type is named in messages. */
@@ -49,9 +50,10 @@ function roleLabelOf(user) {
   return ROLE_LABELS[normalizeRole(user?.role)];
 }
 
-/** Every permission string the user holds. */
-function permissionsOf(user) {
-  return ALL_PERMISSIONS.filter((permission) => can(user, permission));
+/** The signed-in user of a request context; UnauthorizedError when there is none. */
+function userOf(ctx) {
+  if (!ctx?.user) throw new UnauthorizedError('Not authenticated');
+  return ctx.user;
 }
 
 function forbidden(user, action) {
@@ -60,49 +62,62 @@ function forbidden(user, action) {
   );
 }
 
-/** The signed-in user of a request context; UnauthorizedError when there is none. */
-function userOf(ctx) {
-  if (!ctx?.user) throw new UnauthorizedError('Not authenticated');
-  return ctx.user;
-}
-
 /**
- * Throw unless the context's user holds the permission.
- * @param {{ user: object }} ctx
- * @param {string} permission  a value of PERMISSIONS
- * @param {string} [action]  what the permission allows, for the message
+ * Build the checks around a permission module. Services use the default
+ * instance; tests can pass a variant of the module to reach rules that the
+ * real matrix makes unreachable.
+ * @param {{ can: Function, canAccessRecord: Function }} [permissions]  defaults to ./permissions.js
  */
-function requirePermission(ctx, permission, action = PERMISSION_ACTIONS[permission] ?? 'do this') {
-  const user = userOf(ctx);
-  if (!can(user, permission)) throw forbidden(user, action);
-  return user;
-}
+function createAuthorizer(permissions = defaultPermissions) {
+  return {
+    /** Every permission string the user holds. */
+    permissionsOf(user) {
+      return ALL_PERMISSIONS.filter((permission) => permissions.can(user, permission));
+    },
 
-/**
- * Throw unless the context's user holds the record permission for this record type.
- * @param {{ user: object }} ctx
- * @param {string} permission  RECORD_READ, RECORD_CREATE, RECORD_UPDATE or RECORD_DELETE
- * @param {string} recordType  e.g. 'career-events'
- */
-function requireRecordAccess(ctx, permission, recordType) {
-  const user = userOf(ctx);
-  if (!canAccessRecord(user, permission, recordType)) {
-    const verb = RECORD_VERBS[permission] ?? 'use';
-    throw forbidden(user, `${verb} ${RECORD_TYPE_NAMES[recordType] ?? recordType}`);
-  }
-  return user;
-}
+    /** Whether the context's user holds the permission (false without a user). */
+    has(ctx, permission) {
+      return permissions.can(ctx?.user, permission);
+    },
 
-/** Whether the context's user may read this record type (false without a user). */
-function canReadRecordType(ctx, recordType) {
-  return canAccessRecord(ctx?.user, P.RECORD_READ, recordType);
+    /** Whether the context's user may read this record type (false without a user). */
+    canReadRecordType(ctx, recordType) {
+      return permissions.canAccessRecord(ctx?.user, P.RECORD_READ, recordType);
+    },
+
+    /**
+     * Throw unless the context's user holds the permission; returns the user.
+     * @param {{ user: object }} ctx
+     * @param {string} permission  a value of PERMISSIONS
+     * @param {string} [action]  what the permission allows, for the message
+     */
+    requirePermission(ctx, permission, action = PERMISSION_ACTIONS[permission] ?? 'do this') {
+      const user = userOf(ctx);
+      if (!permissions.can(user, permission)) throw forbidden(user, action);
+      return user;
+    },
+
+    /**
+     * Throw unless the context's user holds the record permission for this
+     * record type; returns the user.
+     * @param {{ user: object }} ctx
+     * @param {string} permission  RECORD_READ, RECORD_CREATE, RECORD_UPDATE or RECORD_DELETE
+     * @param {string} recordType  e.g. 'career-events'
+     */
+    requireRecordAccess(ctx, permission, recordType) {
+      const user = userOf(ctx);
+      if (!permissions.canAccessRecord(user, permission, recordType)) {
+        const verb = RECORD_VERBS[permission] ?? 'use';
+        throw forbidden(user, `${verb} ${RECORD_TYPE_NAMES[recordType] ?? recordType}`);
+      }
+      return user;
+    },
+  };
 }
 
 module.exports = {
+  createAuthorizer,
   roleLabelOf,
-  permissionsOf,
-  requirePermission,
-  requireRecordAccess,
-  canReadRecordType,
   userOf,
+  ...createAuthorizer(),
 };
