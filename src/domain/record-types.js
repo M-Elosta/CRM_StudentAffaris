@@ -17,14 +17,46 @@
  * - references      which of CompanyID / ContactID the record points to
  * - children        child tables replaced as a whole with the parent; field is the API array name
  * - list            the read query: alias, selected columns, joins, default order and filters
- *   filters: { param, match: 'equals' | 'contains' | 'from' | 'to', column | columns }
+ *   filters: { param, match: 'equals' | 'contains' | 'from' | 'to' | 'choice', column | columns | choices }
+ *   A 'choice' filter maps each allowed value to a fixed SQL condition ({ sql, args?(options) });
+ *   any other value is ignored. Filters the JSON API does not accept (q, sector, region, status,
+ *   view, flag, opportunity) are only reachable from the server-rendered list screens.
+ *   page: what the paged list screens add to the read query:
+ *     with           a common table expression placed before the query (optional), with
+ *     withArgs       its parameters, from the options ({ today })
+ *     select, joins  extra selected columns and joins (optional)
+ *     sorts          the sortable columns: key -> { columns, text } (text sorts use COLLATE NOCASE)
+ *     defaultSort    [key, 'asc' | 'desc'], used for a missing or unknown sort key
  *   withheldColumns (optional): joined columns that carry a sensitive value under another
  *   name (e.g. a contact's email joined as ContactEmail). They are withheld, like the
  *   record type's own SENSITIVE_FIELDS, from users who may not read sensitive data.
  *   Today the only joined columns are CompanyName and ContactName, which are not sensitive.
  */
 
+const { LAST_ACTIVITY_CTE, DORMANT_AFTER_DAYS } = require('./activity');
+const { COLLABORATION_OPPORTUNITIES } = require('./enums');
+const { addDaysToIsoDate } = require('../lib/dates');
+
 const contactName = "co.FirstName || ' ' || co.LastName AS ContactName";
+const contactNameExpr = "(co.FirstName || ' ' || co.LastName)";
+
+/** Countries of the Gulf Cooperation Council other than Qatar, lower case, as stored names vary. */
+const GCC_COUNTRIES =
+  "('saudi arabia', 'kingdom of saudi arabia', 'ksa', 'united arab emirates', 'uae', 'kuwait', 'bahrain', 'oman')";
+const countryOf = 'lower(trim(c.Country))';
+
+/** No activity since the dormancy cutoff (or none at all, and added before it). Needs the last_activity join. */
+const DORMANT_SQL = 'COALESCE(la.LastContactAt, c.DateAdded, c.CreatedAt) < ?';
+const dormantCutoff = ({ today }) => [addDaysToIsoDate(today, -DORMANT_AFTER_DAYS)];
+
+/** Employer status choices of the list screen; each is a fixed condition. */
+const COMPANY_STATUS_CHOICES = {
+  active: { sql: `(c.Blacklisted = 0 AND NOT ${DORMANT_SQL})`, args: dormantCutoff },
+  dormant: { sql: `(c.Blacklisted = 0 AND ${DORMANT_SQL})`, args: dormantCutoff },
+  'do-not-engage': { sql: 'c.Blacklisted = 1' },
+  'key-partner': { sql: 'c.FavoriteEmployer = 1' },
+  mou: { sql: 'c.SignedMoU = 1' },
+};
 
 /** Company and contact joins shared by the activity record types. */
 function companyAndContactJoins(alias) {
@@ -70,7 +102,40 @@ const RECORD_TYPES = Object.freeze([
       select: 'c.*',
       joins: [],
       orderBy: 'c.CompanyName ASC',
-      filters: [{ param: 'search', match: 'contains', columns: ['c.CompanyName', 'c.Country'] }],
+      filters: [
+        { param: 'search', match: 'contains', columns: ['c.CompanyName', 'c.Country'] },
+        { param: 'q', match: 'contains', columns: ['c.CompanyName', 'c.Industry', 'c.Country'] },
+        { param: 'sector', match: 'equals', column: 'c.Sector' },
+        {
+          param: 'region',
+          match: 'choice',
+          choices: {
+            qatar: { sql: `${countryOf} = 'qatar'` },
+            gcc: { sql: `${countryOf} IN ${GCC_COUNTRIES}` },
+            international: {
+              sql: `(c.Country IS NULL OR (${countryOf} <> 'qatar' AND ${countryOf} NOT IN ${GCC_COUNTRIES}))`,
+            },
+          },
+        },
+        { param: 'status', match: 'choice', choices: COMPANY_STATUS_CHOICES },
+        { param: 'view', match: 'choice', choices: COMPANY_STATUS_CHOICES },
+      ],
+      page: {
+        with: LAST_ACTIVITY_CTE,
+        withArgs: ({ today }) => [today],
+        select: ', la.LastContactAt, (SELECT COUNT(*) FROM Contact x WHERE x.CompanyID = c.CompanyID) AS ContactCount',
+        joins: ['LEFT JOIN last_activity la ON la.CompanyID = c.CompanyID'],
+        sorts: {
+          name: { columns: ['c.CompanyName'], text: true },
+          industry: { columns: ['c.Industry'], text: true },
+          sector: { columns: ['c.Sector'], text: true },
+          country: { columns: ['c.Country'], text: true },
+          lastContact: { columns: ['la.LastContactAt'] },
+          contacts: { columns: ['ContactCount'] },
+          added: { columns: ['c.DateAdded'] },
+        },
+        defaultSort: ['name', 'asc'],
+      },
     },
   },
   {
@@ -115,7 +180,38 @@ const RECORD_TYPES = Object.freeze([
         { param: 'search', match: 'contains', columns: ['ct.FirstName', 'ct.LastName', 'ct.EmailAddress'] },
         { param: 'companyId', match: 'equals', column: 'ct.CompanyID' },
         { param: 'status', match: 'equals', column: 'ct.Status' },
+        {
+          param: 'q',
+          match: 'contains',
+          columns: [
+            'ct.FirstName',
+            'ct.LastName',
+            "(ct.FirstName || ' ' || ct.LastName)",
+            'ct.JobTitle',
+            'ct.EmailAddress',
+            'c.CompanyName',
+          ],
+        },
+        {
+          param: 'flag',
+          match: 'choice',
+          choices: {
+            primary: { sql: 'ct.PrimaryContact = 1' },
+            alumni: { sql: 'ct.CMUQGraduate = 1' },
+            'resume-book': { sql: 'ct.ResumeBook = 1' },
+          },
+        },
       ],
+      page: {
+        sorts: {
+          name: { columns: ['ct.LastName', 'ct.FirstName'], text: true },
+          employer: { columns: ['c.CompanyName'], text: true },
+          title: { columns: ['ct.JobTitle'], text: true },
+          status: { columns: ['ct.Status'], text: true },
+          added: { columns: ['ct.DateAdded'] },
+        },
+        defaultSort: ['name', 'asc'],
+      },
     },
   },
   {
@@ -150,7 +246,23 @@ const RECORD_TYPES = Object.freeze([
         { param: 'interactionType', match: 'equals', column: 'o.InteractionType' },
         { param: 'interactionStatus', match: 'equals', column: 'o.InteractionStatus' },
         ...dateRangeFilters('o.InteractionDate'),
+        {
+          param: 'q',
+          match: 'contains',
+          columns: ['c.CompanyName', contactNameExpr, 'o.DiscussionItems', 'o.ActionPlan'],
+        },
       ],
+      page: {
+        sorts: {
+          date: { columns: ['o.InteractionDate'] },
+          employer: { columns: ['c.CompanyName'], text: true },
+          contact: { columns: ['co.LastName', 'co.FirstName'], text: true },
+          type: { columns: ['o.InteractionType'], text: true },
+          followUp: { columns: ['o.FollowUpDate'] },
+          status: { columns: ['o.InteractionStatus'], text: true },
+        },
+        defaultSort: ['date', 'desc'],
+      },
     },
   },
   {
@@ -197,7 +309,20 @@ const RECORD_TYPES = Object.freeze([
         { param: 'status', match: 'equals', column: 'r.Status' },
         { param: 'targetGroup', match: 'equals', column: 'r.TargetGroup' },
         ...dateRangeFilters('r.DatePosted'),
+        { param: 'q', match: 'contains', columns: ['r.OpportunityTitle', 'c.CompanyName', 'r.Country'] },
       ],
+      page: {
+        sorts: {
+          title: { columns: ['r.OpportunityTitle'], text: true },
+          employer: { columns: ['c.CompanyName'], text: true },
+          posted: { columns: ['r.DatePosted'] },
+          mode: { columns: ['r.Mode'], text: true },
+          pay: { columns: ['r.Status'], text: true },
+          target: { columns: ['r.TargetGroup'], text: true },
+          hired: { columns: ['r.HiredStudentAlumni'], text: true },
+        },
+        defaultSort: ['posted', 'desc'],
+      },
     },
   },
   {
@@ -221,7 +346,18 @@ const RECORD_TYPES = Object.freeze([
         { param: 'eventName', match: 'contains', columns: ['e.EventName'] },
         { param: 'registeredStatus', match: 'equals', column: 'e.RegisteredStatus' },
         ...dateRangeFilters('e.EventDate'),
+        { param: 'q', match: 'contains', columns: ['e.EventName', 'c.CompanyName', contactNameExpr] },
       ],
+      page: {
+        sorts: {
+          event: { columns: ['e.EventName'], text: true },
+          date: { columns: ['e.EventDate'] },
+          employer: { columns: ['c.CompanyName'], text: true },
+          contact: { columns: ['co.LastName', 'co.FirstName'], text: true },
+          status: { columns: ['e.RegisteredStatus'], text: true },
+        },
+        defaultSort: ['date', 'desc'],
+      },
     },
   },
   {
@@ -241,7 +377,31 @@ const RECORD_TYPES = Object.freeze([
       select: 'p.*, c.CompanyName',
       joins: ['JOIN Company c ON p.CompanyID = c.CompanyID'],
       orderBy: 'p.CreatedAt DESC',
-      filters: [],
+      filters: [
+        { param: 'q', match: 'contains', columns: ['c.CompanyName', 'p.Comment'] },
+        {
+          param: 'opportunity',
+          match: 'choice',
+          choices: Object.fromEntries(
+            COLLABORATION_OPPORTUNITIES.map((type) => [
+              type,
+              {
+                sql: `EXISTS (SELECT 1 FROM PotentialCollaboration_Opportunities po
+                  WHERE po.PotentialCollaborationID = p.PotentialCollaborationID AND po.OpportunityType = ?)`,
+                args: () => [type],
+              },
+            ])
+          ),
+        },
+      ],
+      page: {
+        sorts: {
+          employer: { columns: ['c.CompanyName'], text: true },
+          added: { columns: ['p.CreatedAt'] },
+          updated: { columns: ['p.UpdatedAt'] },
+        },
+        defaultSort: ['added', 'desc'],
+      },
     },
   },
   {
@@ -279,7 +439,30 @@ const RECORD_TYPES = Object.freeze([
       filters: [
         { param: 'engagementType', match: 'equals', column: 'a.EngagementType' },
         ...dateRangeFilters('a.SessionDate'),
+        {
+          param: 'q',
+          match: 'contains',
+          columns: [
+            'a.GuestSpeakerName',
+            'a.CourseNumber',
+            'a.CourseTitle',
+            'a.TopicTheme',
+            'a.FacultyName',
+            'c.CompanyName',
+          ],
+        },
       ],
+      page: {
+        sorts: {
+          date: { columns: ['a.SessionDate', 'a.SessionTime'] },
+          type: { columns: ['a.EngagementType'], text: true },
+          speaker: { columns: ['a.GuestSpeakerName'], text: true },
+          course: { columns: ['a.CourseNumber'], text: true },
+          employer: { columns: ['c.CompanyName'], text: true },
+          faculty: { columns: ['a.FacultyName'], text: true },
+        },
+        defaultSort: ['date', 'desc'],
+      },
     },
   },
   {
@@ -314,7 +497,23 @@ const RECORD_TYPES = Object.freeze([
       filters: [
         { param: 'collaborationOutcome', match: 'equals', column: 's.CollaborationOutcome' },
         ...dateRangeFilters('s.ProposalDate'),
+        {
+          param: 'q',
+          match: 'contains',
+          columns: ['s.OrganizationName', 's.EventTitle', 's.StudentName', 'c.CompanyName'],
+        },
       ],
+      page: {
+        sorts: {
+          proposed: { columns: ['s.ProposalDate'] },
+          organization: { columns: ['s.OrganizationName'], text: true },
+          title: { columns: ['s.EventTitle'], text: true },
+          employer: { columns: ['c.CompanyName'], text: true },
+          outcome: { columns: ['s.CollaborationOutcome'], text: true },
+          date: { columns: ['s.EventDate'] },
+        },
+        defaultSort: ['proposed', 'desc'],
+      },
     },
   },
   {
@@ -346,7 +545,22 @@ const RECORD_TYPES = Object.freeze([
         { param: 'feedbackProvider', match: 'equals', column: 'h.FeedbackProvider' },
         { param: 'hiredStudentAlumni', match: 'equals', column: 'h.HiredStudentAlumni' },
         ...dateRangeFilters('h.DateReported'),
+        {
+          param: 'q',
+          match: 'contains',
+          columns: ['c.CompanyName', contactNameExpr, 'h.HiredStudentName', 'h.Comment'],
+        },
       ],
+      page: {
+        sorts: {
+          date: { columns: ['h.DateReported'] },
+          employer: { columns: ['c.CompanyName'], text: true },
+          contact: { columns: ['co.LastName', 'co.FirstName'], text: true },
+          provider: { columns: ['h.FeedbackProvider'], text: true },
+          hired: { columns: ['h.HiredStudentAlumni'], text: true },
+        },
+        defaultSort: ['date', 'desc'],
+      },
     },
   },
 ]);

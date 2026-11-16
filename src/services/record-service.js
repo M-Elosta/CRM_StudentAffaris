@@ -183,6 +183,37 @@ function createRecordService({
       return repository.list(filters, { withheldColumns }).map((record) => present(user, record));
     },
 
+    /**
+     * One page of the list screen, as the user may see it.
+     * @param {{ filters?: object, sort?: string, dir?: string, page?: number, pageSize?: number }} query
+     *   already validated; unknown sort keys fall back to the default sort
+     * @param {{ user: object }} ctx
+     * @returns {{ rows: object[], total: number, sort: string, dir: string, page: number, pageSize: number }}
+     */
+    page({ filters = {}, sort, dir, page = 1, pageSize = 25 } = {}, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_READ, recordType);
+      const currentDay = today();
+      const total = repository.count(filters, { user, today: currentDay });
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      const current = Math.min(Math.max(1, page), pages);
+      const result = repository.page(filters, {
+        sort,
+        dir,
+        limit: pageSize,
+        offset: (current - 1) * pageSize,
+        user,
+        today: currentDay,
+      });
+      return {
+        rows: result.rows.map((record) => present(user, record)),
+        total,
+        sort: result.sort,
+        dir: result.dir,
+        page: current,
+        pageSize,
+      };
+    },
+
     /** One record in the list shape; NotFoundError when it does not exist. */
     get(id, ctx) {
       const user = authorize.requireRecordAccess(ctx, P.RECORD_READ, recordType);

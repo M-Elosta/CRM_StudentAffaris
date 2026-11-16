@@ -1,0 +1,54 @@
+'use strict';
+
+const express = require('express');
+const { version } = require('../../package.json');
+const { createLocals } = require('./locals');
+const { createCsrfGuard } = require('./csrf');
+const { renderErrorPage, createPageErrorHandler } = require('./errors');
+const { createAuthController } = require('./controllers/auth');
+const { createDashboardController } = require('./controllers/dashboard');
+
+/** Paths a user who must change their password may still open. */
+const ROTATION_ALLOWED = new Set(['/account', '/account/password', '/auth/sign-out', '/login', '/session/extend']);
+
+/**
+ * The server-rendered pages: every route outside /api. Pages are complete
+ * HTML from the server; htmx swaps parts of them.
+ *
+ * @param {object} deps
+ * @param {object} deps.services  the result of createServices()
+ * @param {object} deps.config
+ * @param {{ error: Function }} [deps.logger]
+ */
+function createWebRouter({ services, config, logger = console }) {
+  const router = express.Router();
+
+  // The JSON API has its own handlers.
+  router.use((req, _res, next) => (req.path.startsWith('/api/') ? next('router') : next()));
+
+  router.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit, parameterLimit: 500 }));
+  router.use(createLocals({ config, assetVersion: version, followUps: services.activity }));
+  router.use(
+    createCsrfGuard((req, res) =>
+      renderErrorPage(req, res, 403, {
+        title: 'This form has expired',
+        message: 'This form has expired. Reload the page and try again.',
+        action: 'Anything you typed may need to be entered again.',
+      })
+    )
+  );
+  router.use((req, res, next) => {
+    if (req.user?.mustChangePassword && !ROTATION_ALLOWED.has(req.path)) return res.redirect('/account');
+    return next();
+  });
+
+  router.get('/', (_req, res) => res.redirect('/dashboard'));
+  router.use(createAuthController({ services, config }));
+  router.use(createDashboardController({ services, config }));
+
+  router.use((req, res) => renderErrorPage(req, res, 404));
+  router.use(createPageErrorHandler(logger));
+  return router;
+}
+
+module.exports = { createWebRouter, ASSET_VERSION: version };

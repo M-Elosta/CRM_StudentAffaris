@@ -40,6 +40,24 @@ module.exports = Object.freeze({
     'Artificial Intelligence',
     'Computational Biology',
   ]),
+  /** Opportunity types a posting form offers (not a database constraint). */
+  OPPORTUNITY_TYPES: freeze([
+    'Internship',
+    'Part-time Job',
+    'Full-time Job',
+    'Graduate Program',
+    'Summer Research Program',
+    'Training Program',
+    'Mentorship Program',
+    'Fellowship',
+    'Competition/Hackathon',
+    'Volunteering',
+    'Others',
+  ]),
+  /** How a posting collects applications (not a database constraint). */
+  APPLICATION_CHANNELS: freeze(['Resume book', 'Handshake', 'Email', 'Other']),
+  /** Class levels a posting targets (not a database constraint). */
+  CLASS_LEVELS: freeze(['Freshman', 'Sophomore', 'Junior', 'Senior', 'Alumni']),
   /** Collaboration opportunity types offered by the import template (not a database constraint). */
   COLLABORATION_OPPORTUNITIES: freeze([
     'Intern/Graduate Hiring',

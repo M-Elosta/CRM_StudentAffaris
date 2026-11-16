@@ -36,9 +36,9 @@ describe('The signed-in user is read from the database on every request', () => 
     const user = createUser(ctx.db, { username: 'page-reader', role: 'readonly' });
     const agent = await login(ctx.app, 'page-reader');
     ctx.db.prepare('UPDATE Users SET IsActive = 0 WHERE UserID = ?').run(user.id);
-    const res = await agent.get('/index.html');
+    const res = await agent.get('/employers');
     assert.equal(res.status, 302);
-    assert.equal(res.headers.location, '/login.html');
+    assert.equal(res.headers.location, '/login?next=%2Femployers');
   });
 
   it('a role changed in the database applies on the next request', async () => {

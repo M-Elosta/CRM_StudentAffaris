@@ -18,6 +18,8 @@ const { createImportRepository } = require('../db/repositories/import-repository
 const { createImportService } = require('./import-service');
 const { createReportsRepository } = require('../db/repositories/reports-repository');
 const { createReportsService } = require('./reports');
+const { createActivityRepository } = require('../db/repositories/activity-repository');
+const { createActivityService } = require('./activity-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -91,6 +93,11 @@ function createServices({ db, config, logger = console }) {
       recordServices: records,
       importRepository: createImportRepository(db),
       logger,
+    }),
+    activity: createActivityService({
+      activityRepository: createActivityRepository(db),
+      records,
+      timeZone: config.timeZone,
     }),
     reports: createReportsService({ reportsRepository: createReportsRepository(db), timeZone: config.timeZone }),
   };

@@ -6,6 +6,8 @@
  * definition; every value is a bound parameter.
  */
 
+const permissions = require('../../security/permissions');
+
 /** 'ct.EmailAddress' -> 'EmailAddress'. */
 const bareColumn = (column) => column.slice(column.lastIndexOf('.') + 1);
 
@@ -15,13 +17,21 @@ const bareColumn = (column) => column.slice(column.lastIndexOf('.') + 1);
  * against: a filter left with no column matches no row, so a withheld value
  * cannot be probed through a search.
  */
-function buildListFilters(definition, filters, withheldColumns = []) {
+function buildListFilters(definition, filters, withheldColumns = [], options = {}) {
   const withheld = new Set(withheldColumns);
   const conditions = [];
   const params = [];
   for (const filter of definition.list.filters) {
     const value = filters[filter.param];
     if (value === undefined || value === null || value === '') continue;
+    if (filter.match === 'choice') {
+      // Only a declared choice applies; its condition is fixed text from the definition.
+      if (typeof value !== 'string' || !Object.hasOwn(filter.choices, value)) continue;
+      const choice = filter.choices[value];
+      conditions.push(choice.sql);
+      params.push(...(choice.args ? choice.args(options) : []));
+      continue;
+    }
     const columns = (filter.columns ?? [filter.column]).filter((column) => !withheld.has(bareColumn(column)));
     if (!columns.length) {
       conditions.push('0 = 1');
@@ -44,6 +54,32 @@ function buildListFilters(definition, filters, withheldColumns = []) {
   return { where: conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
+/** The columns a user may not match against: the type's sensitive fields and withheld joined columns. */
+function withheldColumnsFor(definition, user) {
+  if (permissions.can(user, permissions.PERMISSIONS.SENSITIVE_READ)) return [];
+  return [...permissions.sensitiveFieldsFor(definition.path), ...(definition.list.withheldColumns ?? [])];
+}
+
+/**
+ * ORDER BY for a sort key and direction. Only keys declared in the
+ * definition's page.sorts are used; anything else falls back to the default
+ * sort. The record id breaks ties so paging is stable.
+ * @returns {{ sql: string, sort: string, dir: 'asc'|'desc' }}
+ */
+function buildOrder(definition, sort, dir) {
+  const page = definition.list.page;
+  const [defaultKey, defaultDir] = page.defaultSort;
+  const known = typeof sort === 'string' && Object.hasOwn(page.sorts, sort);
+  const key = known ? sort : defaultKey;
+  let direction = defaultDir;
+  if (known && (dir === 'asc' || dir === 'desc')) direction = dir;
+  const { columns, text } = page.sorts[key];
+  const keyword = direction === 'asc' ? 'ASC' : 'DESC';
+  const parts = columns.map((column) => `${column}${text ? ' COLLATE NOCASE' : ''} ${keyword}`);
+  parts.push(`${definition.list.alias}.${definition.idColumn} ${keyword}`);
+  return { sql: parts.join(', '), sort: key, dir: direction };
+}
+
 /**
  * Create the repository for one record type.
  * @param {import('better-sqlite3').Database} db
@@ -52,6 +88,13 @@ function buildListFilters(definition, filters, withheldColumns = []) {
 function createCrudRepository(db, definition) {
   const { table, idColumn, columns, children, list } = definition;
   const readBase = `SELECT ${list.select} FROM ${table} ${list.alias} ${list.joins.join(' ')}`;
+  const page = list.page ?? { sorts: {}, defaultSort: [] };
+  const pageFrom = `FROM ${table} ${list.alias} ${[...list.joins, ...(page.joins ?? [])].join(' ')}`;
+  const pageWith = page.with ? `WITH ${page.with} ` : '';
+  const pageBase = `${pageWith}SELECT ${list.select}${page.select ?? ''} ${pageFrom}`;
+  const countBase = `${pageWith}SELECT COUNT(*) AS n ${pageFrom}`;
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const withArgs = (today) => (page.withArgs ? page.withArgs({ today }) : []);
 
   const statements = {
     getById: db.prepare(`${readBase} WHERE ${list.alias}.${idColumn} = ?`),
@@ -112,6 +155,35 @@ function createCrudRepository(db, definition) {
     list(filters = {}, { withheldColumns = [] } = {}) {
       const { where, params } = buildListFilters(definition, filters, withheldColumns);
       return withChildren(db.prepare(`${readBase}${where} ORDER BY ${list.orderBy}`).all(...params));
+    },
+
+    /**
+     * One page of the list screen: rows matching the filters, sorted by a
+     * whitelisted key, with children. A user without sensitive:read never
+     * matches against withheld columns.
+     * @param {object} [filters]  validated filter values, by param
+     * @param {{ sort?: string, dir?: string, limit?: number, offset?: number, user?: object, today?: string }} [options]
+     * @returns {{ rows: object[], sort: string, dir: 'asc'|'desc' }}
+     */
+    page(filters = {}, { sort, dir, limit = 25, offset = 0, user, today = todayIso() } = {}) {
+      const order = buildOrder(definition, sort, dir);
+      const { where, params } = buildListFilters(definition, filters, withheldColumnsFor(definition, user), { today });
+      const safeLimit = Math.min(Math.max(Math.trunc(Number(limit)) || 25, 1), 10000);
+      const safeOffset = Math.max(Math.trunc(Number(offset)) || 0, 0);
+      const rows = db
+        .prepare(`${pageBase}${where} ORDER BY ${order.sql} LIMIT ? OFFSET ?`)
+        .all(...withArgs(today), ...params, safeLimit, safeOffset);
+      return { rows: withChildren(rows), sort: order.sort, dir: order.dir };
+    },
+
+    /**
+     * How many rows match the filters (the same rules as page()).
+     * @param {object} [filters]
+     * @param {{ user?: object, today?: string }} [options]
+     */
+    count(filters = {}, { user, today = todayIso() } = {}) {
+      const { where, params } = buildListFilters(definition, filters, withheldColumnsFor(definition, user), { today });
+      return db.prepare(`${countBase}${where}`).get(...withArgs(today), ...params).n;
     },
 
     /** One row in the list shape (with joined names and children), or undefined. */

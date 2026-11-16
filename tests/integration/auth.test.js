@@ -283,12 +283,15 @@ describe('Authentication', () => {
       assert.equal(res.status, 401);
     });
 
-    it('page requests without a session redirect to the login page', async () => {
-      for (const url of ['/pages/companies.html', '/index.html', '/']) {
+    it('page requests without a session redirect to the sign-in page and back', async () => {
+      for (const url of ['/employers', '/dashboard?x=1']) {
         const res = await supertest(ctx.app).get(url);
         assert.equal(res.status, 302, url);
-        assert.equal(res.headers.location, '/login.html', url);
+        assert.equal(res.headers.location, `/login?next=${encodeURIComponent(url)}`, url);
       }
+      const root = await supertest(ctx.app).get('/');
+      assert.equal(root.status, 302);
+      assert.equal(root.headers.location, '/login');
     });
 
     it('the login page and its assets are public', async () => {

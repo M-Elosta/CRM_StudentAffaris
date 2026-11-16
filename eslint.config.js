@@ -33,8 +33,16 @@ module.exports = [
     },
   },
   {
+    // The client script of the server-rendered pages: plain browser JavaScript, all rules on.
+    files: ['public/assets/js/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { ...globals.browser },
+    },
+  },
+  {
     // Browser scripts share functions through the global scope until the UI is rebuilt.
-    files: ['public/**/*.js'],
+    files: ['public/js/**/*.js'],
     languageOptions: {
       sourceType: 'script',
       globals: { ...globals.browser, bootstrap: 'readonly', Chart: 'readonly' },
