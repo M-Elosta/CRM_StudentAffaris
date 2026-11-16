@@ -57,8 +57,8 @@
   {% elif f.control == 'checkboxes' %}
     {{ checkboxGroup(f.name, f.label, form, f.options) }}
   {% else %}
-    {% set types = { email: 'email', url: 'url', tel: 'tel', number: 'number', date: 'date', time: 'time' } %}
-    {% set autocompletes = { email: 'email', tel: 'tel' } %}
+    {% set types = { email: 'email', url: 'url', tel: 'tel', number: 'number', date: 'date', time: 'time', password: 'password' } %}
+    {% set autocompletes = { email: 'email', tel: 'tel', password: 'new-password' } %}
     {{ field(f.name, f.label, form, type=(types[f.control] or 'text'), required=f.required, hint=f.hint or '', full=f.full, userText=(f.control == 'text'), maxlength=f.max or 255, autocomplete=(autocompletes[f.control] or 'off')) }}
   {% endif %}
 {%- endmacro %}

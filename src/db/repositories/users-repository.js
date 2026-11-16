@@ -17,6 +17,9 @@ function createUsersRepository(db) {
     remove: db.prepare('DELETE FROM Users WHERE UserID = ?'),
     countActiveAdmins: db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Role = 'admin' AND IsActive = 1"),
     list: db.prepare('SELECT UserID, Username, Role, CreatedAt FROM Users ORDER BY CreatedAt'),
+    listAccounts: db.prepare(
+      `SELECT ${PUBLIC_COLUMNS} FROM Users ORDER BY IsActive DESC, COALESCE(DisplayName, Username) COLLATE NOCASE`
+    ),
     findPublicById: db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM Users WHERE UserID = ?`),
     findById: db.prepare('SELECT * FROM Users WHERE UserID = ?'),
     findByUsername: db.prepare('SELECT * FROM Users WHERE Username = ?'),
@@ -61,6 +64,9 @@ function createUsersRepository(db) {
 
     /** Every account in the administrator's view, oldest first. */
     list: () => statements.list.all(),
+
+    /** Every account in the administrator's view with its status and last sign-in, active ones first. */
+    listAccounts: () => statements.listAccounts.all(),
 
     /** One account in the administrator's view, or undefined. */
     findPublicById: (id) => statements.findPublicById.get(id),

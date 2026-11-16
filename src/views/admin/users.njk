@@ -1,0 +1,61 @@
+{#
+  User accounts: name, username, role, status, last sign-in, and what an administrator can do.
+  Locals: accounts [{ UserID, name, Username, Role, roleLabel, IsActive, LastLoginAt, DeactivatedAt, isSelf }]
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, linkButton, button, badge %}
+
+{% set pageTitle = 'Users' %}
+{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog' %}
+
+{% block content %}
+  {% call pageHeader('Users', 'Who can sign in, and what their role lets them do.') %}
+    {{ linkButton('Add user', '/admin/users/new', 'primary', 'plus', 'hx-get="/admin/users/new"' ~ dialogAttrs) }}
+  {% endcall %}
+
+  <div class="table-wrap">
+    <table class="table">
+      <caption class="visually-hidden">User accounts, active first</caption>
+      <colgroup><col class="col--name" /><col class="col--md" /><col class="col--sm" /><col class="col--sm" /><col class="col--md" /><col /></colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Name</th><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last sign-in</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for account in accounts %}
+          <tr>
+            <td class="cell--primary cell--truncate"><span dir="auto">{{ account.name }}</span>{% if account.isSelf %} <span class="text-subtle">(you)</span>{% endif %}</td>
+            <td class="cell--truncate">{{ account.Username }}</td>
+            <td>{{ account.roleLabel }}</td>
+            <td>{% if account.IsActive %}{{ badge('Active', 'success') }}{% else %}{{ badge('Deactivated') }}{% endif %}</td>
+            <td class="tabular">{% if account.LastLoginAt %}{{ account.LastLoginAt | datetime }}{% else %}<span class="text-subtle">Never</span>{% endif %}</td>
+            <td class="cell--actions">
+              {% if not account.isSelf %}
+                <div class="row">
+                  {{ linkButton('Change role', '/admin/users/' ~ account.UserID ~ '/role', '', '', 'hx-get="/admin/users/' ~ account.UserID ~ '/role"' ~ dialogAttrs ~ ' aria-label="Change the role of ' ~ account.name ~ '"', true) }}
+                  {% if account.IsActive %}
+                    <form action="/admin/users/{{ account.UserID }}/deactivate" method="post" data-confirm
+                          data-confirm-title="Deactivate {{ account.name }}?"
+                          data-confirm-text="{{ account.name }} is signed out everywhere and can no longer sign in. You can reactivate the account later."
+                          data-confirm-action="Deactivate">
+                      <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+                      {{ button('Deactivate', 'danger', 'submit', '', 'aria-label="Deactivate ' ~ account.name ~ '"', true) }}
+                    </form>
+                  {% else %}
+                    <form action="/admin/users/{{ account.UserID }}/reactivate" method="post">
+                      <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+                      {{ button('Reactivate', '', 'submit', '', 'aria-label="Reactivate ' ~ account.name ~ '"', true) }}
+                    </form>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-footer"><span>{{ accounts.length }} {{ 'account' if accounts.length == 1 else 'accounts' }}</span></div>
+{% endblock %}
