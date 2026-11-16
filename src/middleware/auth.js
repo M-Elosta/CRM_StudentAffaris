@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { normalizeRole, ROLES } = require('../security/permissions');
 
 // Reachable without signing in: the sign-in page and the assets it needs.
-const PUBLIC_PREFIXES = ['/login', '/api/auth/login', '/assets/', '/vendor/', '/css/', '/js/', '/favicon'];
+const PUBLIC_PREFIXES = ['/login', '/api/auth/login', '/assets/', '/vendor/'];
 
 const PASSWORD_ROTATION_ALLOWED = new Set(['/api/auth/check', '/api/auth/change-password', '/api/auth/logout']);
 

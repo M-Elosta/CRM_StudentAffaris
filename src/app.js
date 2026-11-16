@@ -94,12 +94,10 @@ function createApp({ config, db, logger = console, sessionStore }) {
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
           formAction: ["'self'"],
-          // 'unsafe-inline' and the CDN are required by the current static
-          // pages. Both are removed when the UI is rebuilt with self-hosted assets.
-          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
           imgSrc: ["'self'", 'data:'],
-          fontSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
+          fontSrc: ["'self'"],
           connectSrc: ["'self'"],
           // Over plain HTTP (development) upgrading would send redirects after a form to https and fail.
           upgradeInsecureRequests: config.isProductionLike ? [] : null,
@@ -169,7 +167,6 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.get([...VENDOR_FILES.keys()], (req, res, next) => {
     res.sendFile(VENDOR_FILES.get(req.path), LONG_CACHE, (err) => err && next(err));
   });
-  app.use(express.static(PUBLIC_DIR, { index: false }));
 
   // ── Routes ────────────────────────────────────────────────────────────────
   app.use('/api/auth/login', loginLimiter);
@@ -188,7 +185,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
 
   app.use(createWebRouter({ services, config, logger }));
 
-  app.use(notFoundHandler(PUBLIC_DIR));
+  app.use(notFoundHandler());
   app.use(createErrorHandler(logger));
 
   return app;

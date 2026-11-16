@@ -64,7 +64,7 @@ describe('Security middleware', () => {
     it('accepts a same-origin Referer when no Origin header is sent', async () => {
       const res = await admin
         .post('/api/companies')
-        .set('Referer', `${ORIGIN}/pages/companies.html`)
+        .set('Referer', `${ORIGIN}/employers`)
         .send({ ...COMPANY, CompanyName: 'Referer Co' });
       assert.equal(res.status, 201);
     });
@@ -143,7 +143,7 @@ describe('Security middleware', () => {
 
   describe('headers', () => {
     it('sets a Content-Security-Policy that forbids framing', async () => {
-      const res = await supertest(ctx.app).get('/login.html');
+      const res = await supertest(ctx.app).get('/login');
       const csp = res.headers['content-security-policy'];
       assert.ok(csp, 'Content-Security-Policy header');
       assert.match(csp, /default-src 'self'/);
@@ -151,8 +151,16 @@ describe('Security middleware', () => {
       assert.match(csp, /object-src 'none'/);
     });
 
+    it('allows scripts, styles and fonts from the application only', async () => {
+      const csp = (await supertest(ctx.app).get('/login')).headers['content-security-policy'];
+      assert.match(csp, /script-src 'self'(;|$)/);
+      assert.match(csp, /style-src 'self'(;|$)/);
+      assert.match(csp, /font-src 'self'(;|$)/);
+      assert.doesNotMatch(csp, /unsafe-inline|cdn\.jsdelivr/);
+    });
+
     it('sets X-Content-Type-Options, X-Frame-Options and Referrer-Policy', async () => {
-      const res = await supertest(ctx.app).get('/login.html');
+      const res = await supertest(ctx.app).get('/login');
       assert.equal(res.headers['x-content-type-options'], 'nosniff');
       assert.match(res.headers['x-frame-options'] || '', /SAMEORIGIN|DENY/i);
       assert.equal(res.headers['referrer-policy'], 'no-referrer');
@@ -165,12 +173,12 @@ describe('Security middleware', () => {
     });
 
     it('does not advertise the framework', async () => {
-      const res = await supertest(ctx.app).get('/login.html');
+      const res = await supertest(ctx.app).get('/login');
       assert.equal(res.headers['x-powered-by'], undefined);
     });
 
     it('does not send HSTS outside production-like environments', async () => {
-      const res = await supertest(ctx.app).get('/login.html');
+      const res = await supertest(ctx.app).get('/login');
       assert.equal(res.headers['strict-transport-security'], undefined);
     });
   });

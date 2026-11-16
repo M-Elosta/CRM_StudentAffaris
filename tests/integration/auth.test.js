@@ -253,10 +253,13 @@ describe('Authentication', () => {
       assert.equal(blocked.body.code, 'PASSWORD_CHANGE_REQUIRED');
     });
 
-    it('does not block page requests for a user who must rotate', async () => {
+    it('sends page requests of a user who must rotate to the account page', async () => {
       createUser(ctx.db, { username: 'flagged-3', password: 'flagged-password-1', mustChangePassword: true });
       const agent = await login(ctx.app, 'flagged-3', 'flagged-password-1');
-      assert.equal((await agent.get('/pages/companies.html')).status, 200);
+      const page = await agent.get('/employers');
+      assert.equal(page.status, 302);
+      assert.equal(page.headers.location, '/account');
+      assert.equal((await agent.get('/account')).status, 200);
     });
   });
 
@@ -295,22 +298,22 @@ describe('Authentication', () => {
     });
 
     it('the login page and its assets are public', async () => {
-      const page = await supertest(ctx.app).get('/login.html');
+      const page = await supertest(ctx.app).get('/login');
       assert.equal(page.status, 200);
       assert.match(page.headers['content-type'], /html/);
 
-      const css = await supertest(ctx.app).get('/css/style.css');
+      const css = await supertest(ctx.app).get('/assets/css/app.css');
       assert.equal(css.status, 200);
       assert.match(css.headers['content-type'], /css/);
 
-      const js = await supertest(ctx.app).get('/js/app.js');
+      const js = await supertest(ctx.app).get('/assets/js/app.js');
       assert.equal(js.status, 200);
       assert.match(js.headers['content-type'], /javascript/);
     });
 
     it('signed-in users can load application pages', async () => {
       const agent = await login(ctx.app, 'alice');
-      const res = await agent.get('/pages/companies.html');
+      const res = await agent.get('/employers');
       assert.equal(res.status, 200);
       assert.match(res.headers['content-type'], /html/);
     });

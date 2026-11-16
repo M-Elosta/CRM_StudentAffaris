@@ -40,23 +40,5 @@ module.exports = [
       globals: { ...globals.browser },
     },
   },
-  {
-    // Browser scripts share functions through the global scope until the UI is rebuilt.
-    files: ['public/js/**/*.js'],
-    languageOptions: {
-      sourceType: 'script',
-      globals: { ...globals.browser, bootstrap: 'readonly', Chart: 'readonly' },
-    },
-    // The legacy UI is not edited before it is replaced (Phase 4), so its known style findings are off.
-    rules: {
-      'no-unused-vars': 'off',
-      'no-undef': 'off',
-      eqeqeq: 'off',
-      'no-useless-assignment': 'off',
-      'no-useless-escape': 'off',
-      'prefer-const': 'off',
-      'no-empty': 'off',
-    },
-  },
   prettier,
 ];
