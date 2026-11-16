@@ -1,0 +1,41 @@
+# Employer Relations CRM — send an alert when another unit fails.
+# Started by OnFailure=ero-crm-alert@%n.service; the instance (%i) is the
+# name of the unit that failed, e.g. ero-crm-alert@ero-crm-backup.service.service.
+# Test it with:
+#   sudo systemctl start ero-crm-alert@test.service
+
+[Unit]
+Description=Employer Relations CRM alert for %i
+
+[Service]
+Type=oneshot
+User=ero-crm
+Group=ero-crm
+# Lets the alert include the last 20 lines of the failed unit's own journal.
+SupplementaryGroups=systemd-journal
+WorkingDirectory=/opt/ero-crm/current
+EnvironmentFile=/etc/ero-crm/ero-crm.env
+ExecStart=/usr/bin/node /opt/ero-crm/current/scripts/ops/alert.js %i
+TimeoutStartSec=2min
+
+UMask=0027
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/ero-crm
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

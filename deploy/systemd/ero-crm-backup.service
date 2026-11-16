@@ -1,0 +1,52 @@
+# Employer Relations CRM — encrypted backup with off-server copy.
+# Started nightly by ero-crm-backup.timer. Run by hand with:
+#   sudo systemctl start ero-crm-backup.service
+
+[Unit]
+Description=Employer Relations CRM backup
+Documentation=file:///opt/ero-crm/current/RESTORE.md file:///opt/ero-crm/current/RUNBOOK.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/ero-crm/current/scripts/backup.js
+OnFailure=ero-crm-alert@%n.service
+
+[Service]
+Type=oneshot
+User=ero-crm
+Group=ero-crm
+WorkingDirectory=/opt/ero-crm/current
+EnvironmentFile=/etc/ero-crm/ero-crm.env
+ExecStart=/usr/bin/node /opt/ero-crm/current/scripts/backup.js nightly
+# Tell whoever received a failure alert that it works again (no-op otherwise).
+ExecStartPost=-/usr/bin/node /opt/ero-crm/current/scripts/ops/alert.js --recovered %n
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle
+
+UMask=0027
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ero-crm /var/backups/ero-crm
+# If BACKUP_REMOTE_DIR is a mounted share, it must be writable here too. Add it
+# with a drop-in, not by editing this file:
+#   sudo systemctl edit ero-crm-backup.service
+#   [Service]
+#   ReadWritePaths=/mnt/ero-crm-backups
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
