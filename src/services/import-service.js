@@ -497,6 +497,17 @@ function createImportService({ db, recordServices, importRepository, logger }) {
       return { fileName: `template-${entity.replace(/ /g, '-')}.xlsx`, buffer };
     },
 
+    /**
+     * The template columns of an entity: { required, optional }. NotFoundError for an unknown entity.
+     * The import screen matches a file's headers to these.
+     */
+    columns(entity, ctx) {
+      requirePermission(ctx, PERMISSIONS.IMPORT_RUN);
+      const fields = IMPORT_FIELDS.get(entity);
+      if (!fields) throw new NotFoundError('Unknown entity');
+      return { required: [...fields.required], optional: [...fields.optional] };
+    },
+
     /** Read an uploaded workbook: headers, a ten-row preview, the row count and every row. */
     async parse(buffer, ctx) {
       requirePermission(ctx, PERMISSIONS.IMPORT_RUN);

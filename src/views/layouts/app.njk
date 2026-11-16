@@ -27,24 +27,7 @@
         <span class="brand__mark" aria-hidden="true"></span>
         <span class="brand__name">Employer Relations<span class="brand__org">CMU-Q</span></span>
       </a>
-      <nav class="nav" id="nav">
-        {% for group in nav %}
-          <div class="nav__group">
-            {% if group.heading %}<div class="nav__heading" id="nav-{{ loop.index }}">{{ group.heading }}</div>{% endif %}
-            <ul role="list" {% if group.heading %}aria-labelledby="nav-{{ loop.index }}"{% endif %}>
-              {% for item in group.items %}
-                <li>
-                  <a class="nav__link" href="{{ item.href }}" {% if item.current %}aria-current="page"{% endif %}>
-                    {{ icon(item.icon) }}
-                    <span>{{ item.label }}</span>
-                    {% if item.count %}<span class="nav__count" aria-label="{{ item.count }} {{ item.countLabel }}">{{ item.count }}</span>{% endif %}
-                  </a>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% endfor %}
-      </nav>
+      {% include "partials/nav.njk" %}
     </aside>
 
     <header class="topbar">
@@ -58,8 +41,8 @@
           <label class="visually-hidden" for="global-search">Search employers, contacts and events</label>
           <input class="input" id="global-search" name="q" type="search" dir="auto" autocomplete="off"
                  placeholder="Search employers, contacts, events"
-                 hx-get="/search/suggest" hx-trigger="input changed delay:250ms, focus" hx-target="#search-suggestions" hx-swap="innerHTML" hx-push-url="false"
-                 aria-controls="search-suggestions" data-shortcut="/" />
+                 hx-get="/search/suggest" hx-trigger="input changed delay:250ms, focus" hx-target="#search-suggestions" hx-select="unset" hx-swap="innerHTML" hx-push-url="false" hx-sync="this:replace"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggestions" data-shortcut="/" />
           <kbd class="input-group__kbd" aria-hidden="true">/</kbd>
         </div>
         <div id="search-suggestions" class="menu" role="listbox" hidden></div>

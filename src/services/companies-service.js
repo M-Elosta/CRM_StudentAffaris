@@ -4,6 +4,8 @@ const { NotFoundError } = require('../lib/errors');
 const { PERMISSIONS } = require('../security/permissions');
 const { createAuthorizer } = require('../security/authorize');
 const { createRecordService } = require('./record-service');
+const { DORMANT_AFTER_DAYS } = require('../domain/activity');
+const { addDaysToIsoDate, todayInTimeZone } = require('../lib/dates');
 
 /** Keys of the related counts → the record type each one counts. */
 const RELATED_RECORD_TYPES = Object.freeze({
@@ -40,6 +42,18 @@ function createCompaniesService({ companiesRepository, ...deps }) {
 
   return {
     ...service,
+
+    /**
+     * One page of the employer list. Each row also says whether the employer
+     * is dormant: no activity of any type for DORMANT_AFTER_DAYS (counted from
+     * the date added when there has never been any).
+     */
+    page(query, ctx) {
+      const result = service.page(query, ctx);
+      const cutoff = addDaysToIsoDate(todayInTimeZone(deps.timeZone), -DORMANT_AFTER_DAYS);
+      const isDormant = (row) => !row.Blacklisted && String(row.lastContactAt ?? row.DateAdded ?? '') < cutoff;
+      return { ...result, rows: result.rows.map((row) => ({ ...row, isDormant: isDormant(row) })) };
+    },
 
     /**
      * The employer's name and how many records of each kind belong to it.

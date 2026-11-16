@@ -20,8 +20,37 @@ const { createDashboardRouter } = require('./routes/dashboard');
 const { createMetaRouter } = require('./routes/meta');
 const { createImportRouter } = require('./routes/import');
 const { createReportsRouter } = require('./routes/reports');
+const { createWebRouter } = require('./web');
+const { createNunjucksEnv } = require('./web/nunjucks');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
+const MODULES_DIR = path.join(__dirname, '..', 'node_modules');
+
+/** Third-party browser files, served read-only from node_modules: published path -> file. */
+const VENDOR_FILES = new Map([
+  ['/vendor/htmx.min.js', path.join(MODULES_DIR, 'htmx.org', 'dist', 'htmx.min.js')],
+  ['/vendor/chart.umd.min.js', path.join(MODULES_DIR, 'chart.js', 'dist', 'chart.umd.min.js')],
+  ...['400', '500', '600'].flatMap((weight) => [
+    [
+      `/vendor/fonts/ibm-plex-sans-latin-${weight}-normal.woff2`,
+      path.join(MODULES_DIR, '@fontsource', 'ibm-plex-sans', 'files', `ibm-plex-sans-latin-${weight}-normal.woff2`),
+    ],
+    [
+      `/vendor/fonts/ibm-plex-sans-arabic-arabic-${weight}-normal.woff2`,
+      path.join(
+        MODULES_DIR,
+        '@fontsource',
+        'ibm-plex-sans-arabic',
+        'files',
+        `ibm-plex-sans-arabic-arabic-${weight}-normal.woff2`
+      ),
+    ],
+  ]),
+]);
+
+/** Versioned static files (?v=<package version>) may be cached for a year. */
+const LONG_CACHE = { maxAge: '365d', immutable: true };
 
 /**
  * Build the Express application. Nothing here opens a port or touches the
@@ -36,6 +65,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
  */
 function createApp({ config, db, logger = console, sessionStore }) {
   const app = express();
+  createNunjucksEnv(config, app);
 
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy);
@@ -64,13 +94,13 @@ function createApp({ config, db, logger = console, sessionStore }) {
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
           formAction: ["'self'"],
-          // 'unsafe-inline' and the CDN are required by the current static
-          // pages. Both are removed when the UI is rebuilt with self-hosted assets.
-          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
           imgSrc: ["'self'", 'data:'],
-          fontSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
+          fontSrc: ["'self'"],
           connectSrc: ["'self'"],
+          // Over plain HTTP (development) upgrading would send redirects after a form to https and fail.
+          upgradeInsecureRequests: config.isProductionLike ? [] : null,
         },
       },
       hsts: config.isProductionLike ? { maxAge: 31536000, includeSubDomains: true } : false,
@@ -133,7 +163,10 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.use(createCurrentUserLoader(services.auth));
   app.use(requireAuth);
   app.use(requirePasswordRotation);
-  app.use(express.static(PUBLIC_DIR, { index: false }));
+  app.use('/assets', express.static(ASSETS_DIR, { index: false, fallthrough: false, ...LONG_CACHE }));
+  app.get([...VENDOR_FILES.keys()], (req, res, next) => {
+    res.sendFile(VENDOR_FILES.get(req.path), LONG_CACHE, (err) => err && next(err));
+  });
 
   // ── Routes ────────────────────────────────────────────────────────────────
   app.use('/api/auth/login', loginLimiter);
@@ -150,9 +183,9 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.use('/api/users', createUsersRouter(services.users));
   app.use('/api/meta', createMetaRouter(services.meta));
 
-  app.get('/', (_req, res) => res.redirect('/index.html'));
+  app.use(createWebRouter({ services, config, logger }));
 
-  app.use(notFoundHandler(PUBLIC_DIR));
+  app.use(notFoundHandler());
   app.use(createErrorHandler(logger));
 
   return app;

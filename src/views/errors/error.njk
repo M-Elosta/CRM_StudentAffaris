@@ -1,0 +1,18 @@
+{#
+  Friendly error page: what happened, what to do, a way home. Never a stack trace.
+  Locals: status, title, message, action, homeHref, homeLabel
+#}
+{% extends "layouts/plain.njk" %}
+{% from "macros/ui.njk" import linkButton %}
+
+{% set pageTitle = title %}
+
+{% block content %}
+  <p class="error-code">Error {{ status }}</p>
+  <h1 class="mt-2">{{ title }}</h1>
+  <p class="mt-4">{{ message }}</p>
+  {% if action %}<p class="mt-2 text-muted">{{ action }}</p>{% endif %}
+  <div class="row mt-6">
+    {{ linkButton(homeLabel or 'Go to the dashboard', homeHref or '/dashboard', 'primary') }}
+  </div>
+{% endblock %}

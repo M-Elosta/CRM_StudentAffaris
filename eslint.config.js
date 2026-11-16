@@ -33,21 +33,11 @@ module.exports = [
     },
   },
   {
-    // Browser scripts share functions through the global scope until the UI is rebuilt.
-    files: ['public/**/*.js'],
+    // The client script of the server-rendered pages: plain browser JavaScript, all rules on.
+    files: ['public/assets/js/**/*.js'],
     languageOptions: {
       sourceType: 'script',
-      globals: { ...globals.browser, bootstrap: 'readonly', Chart: 'readonly' },
-    },
-    // The legacy UI is not edited before it is replaced (Phase 4), so its known style findings are off.
-    rules: {
-      'no-unused-vars': 'off',
-      'no-undef': 'off',
-      eqeqeq: 'off',
-      'no-useless-assignment': 'off',
-      'no-useless-escape': 'off',
-      'prefer-const': 'off',
-      'no-empty': 'off',
+      globals: { ...globals.browser },
     },
   },
   prettier,

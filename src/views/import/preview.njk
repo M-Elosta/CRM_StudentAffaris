@@ -1,0 +1,75 @@
+{#
+  Import, step 2 of 3: every row checked, with its problems and duplicates. Nothing saved yet.
+  Locals: batch { entity, fileName, rows }, label, counts { valid, duplicate, error }, columns, rows, more
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, button, badge, icon %}
+
+{% set pageTitle = 'Check the import' %}
+
+{% block content %}
+  {% call pageHeader('Check the import', 'Step 2 of 3 · ' ~ label ~ ' from ' ~ batch.fileName ~ '. Nothing is saved yet.') %}
+    <form action="/import/cancel" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+      {{ button('Cancel', 'ghost', 'submit') }}
+    </form>
+  {% endcall %}
+
+  <section class="grid grid--3" aria-label="Summary">
+    <div class="card stat"><p class="stat__label">Ready to import</p><p class="stat__value">{{ counts.valid | number }}</p></div>
+    <div class="card stat"><p class="stat__label">Already in the system</p><p class="stat__value">{{ counts.duplicate | number }}</p></div>
+    <div class="card stat"><p class="stat__label">With problems (skipped)</p><p class="stat__value">{{ counts.error | number }}</p></div>
+  </section>
+
+  <form class="card mt-4" action="/import/confirm" method="post">
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+    <div class="card__body">
+      {% if counts.duplicate %}
+        <fieldset class="field">
+          <legend class="field__label">Rows that are already in the system</legend>
+          <div class="row row--wrap">
+            <label class="check"><input type="radio" name="duplicates" value="skip" checked /> <span>Skip them</span></label>
+            <label class="check"><input type="radio" name="duplicates" value="overwrite" /> <span>Update the existing records with the file’s values</span></label>
+          </div>
+        </fieldset>
+      {% endif %}
+      {% if counts.valid or counts.duplicate %}
+        <p class="text-muted{% if counts.duplicate %} mt-4{% endif %}">Step 3 saves the rows. You will see how many were imported.</p>
+      {% else %}
+        <div class="notice notice--warning" role="alert">{{ icon('warning') }}<p>No row can be imported. Correct the problems listed below in the file, then choose it again.</p></div>
+      {% endif %}
+    </div>
+    {% if counts.valid or counts.duplicate %}
+      <div class="dialog__footer">{{ button('Import', 'primary', 'submit', 'import') }}</div>
+    {% endif %}
+  </form>
+
+  <div class="table-wrap mt-4">
+    <table class="table">
+      <caption class="visually-hidden">Rows of the file and what will happen to each</caption>
+      <colgroup><col class="col--xs" /><col class="col--sm" />{% for column in columns %}<col class="col--md" />{% endfor %}<col /></colgroup>
+      <thead>
+        <tr>
+          <th scope="col" class="cell--num">Row</th><th scope="col">Result</th>
+          {% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}
+          <th scope="col">Problems</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in rows %}
+          <tr>
+            <td class="cell--num">{{ item.rowIndex + 2 }}</td>
+            <td>
+              {% if item.status == 'valid' %}{{ badge('Ready', 'success') }}
+              {% elif item.status == 'duplicate' %}{{ badge('Duplicate', 'warning') }}
+              {% else %}{{ badge('Problem', 'danger') }}{% endif %}
+            </td>
+            {% for column in columns %}<td class="cell--truncate"><span dir="auto">{{ item.row[column] }}</span></td>{% endfor %}
+            <td class="cell--wrap">{{ item.errors | join('; ') }}{% if item.dupReason %}{{ item.dupReason }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-footer"><span>{% if more %}The first {{ rows.length }} of {{ batch.rows.length }} rows are shown; all are imported.{% else %}{{ batch.rows.length }} rows{% endif %}</span></div>
+{% endblock %}

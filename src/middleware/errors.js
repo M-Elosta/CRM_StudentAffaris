@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('node:path');
 const { ZodError } = require('zod');
 const { AppError, validationErrorFromZod } = require('../lib/errors');
 
@@ -12,11 +11,12 @@ function respondServerError(logger, req, res, err) {
   return res.status(500).json({ error: 'Something went wrong on our side. Please try again.' });
 }
 
-function notFoundHandler(publicDir) {
-  return (req, res) => {
-    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
-    return res.status(404).sendFile(path.join(publicDir, '404.html'));
-  };
+/**
+ * 404 for the JSON API. Pages have their own friendly 404 (src/web); this
+ * only answers what reaches the end of the stack, as JSON.
+ */
+function notFoundHandler() {
+  return (_req, res) => res.status(404).json({ error: 'Not found' });
 }
 
 /** Send an application error as { error, fields?, code? } with its status. */

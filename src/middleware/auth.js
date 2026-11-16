@@ -3,8 +3,8 @@
 const crypto = require('node:crypto');
 const { normalizeRole, ROLES } = require('../security/permissions');
 
-// Reachable without signing in: the login page and the assets it needs.
-const PUBLIC_PREFIXES = ['/login.html', '/api/auth/login', '/css/', '/js/', '/favicon'];
+// Reachable without signing in: the sign-in page and the assets it needs.
+const PUBLIC_PREFIXES = ['/login', '/api/auth/login', '/assets/', '/vendor/'];
 
 const PASSWORD_ROTATION_ALLOWED = new Set(['/api/auth/check', '/api/auth/change-password', '/api/auth/logout']);
 
@@ -12,7 +12,12 @@ const isPublic = (req) => PUBLIC_PREFIXES.some((prefix) => req.path.startsWith(p
 
 function denyUnauthenticated(req, res) {
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Not authenticated' });
-  return res.redirect('/login.html');
+  // Come back to the page after signing in. Only a GET can be repeated safely.
+  const target =
+    req.method === 'GET' && req.originalUrl !== '/' ? `/login?next=${encodeURIComponent(req.originalUrl)}` : '/login';
+  // htmx follows HX-Redirect with a full page load instead of swapping the sign-in page into the current one.
+  if (req.get('HX-Request') === 'true') return res.set('HX-Redirect', target).status(401).end();
+  return res.redirect(target);
 }
 
 /**
