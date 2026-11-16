@@ -4,10 +4,19 @@ Single source of truth for where the production-readiness work stands. Updated a
 
 ## Current phase
 
-**Phase 2 — Clean up and restructure: complete, except the branch plan, which waits for owner approval.**
-**Phase 3 — Security: starting.**
+**Re-prioritised by the owner (2026-11-16): limited budget, so the focus is repository clean-up, the redesigned interface, and a README with screenshots.**
 
-All work is on `claude/busy-bohr-0gad6e`. No remote branch other than this one has been touched. No real data has been touched.
+- Phase 2: complete. Branch plan applied as far as this environment allows (see "Owner actions").
+- Phase 3: partly done and merged — database sessions, user loaded on every request, role and sensitive-field enforcement in the record and import services, security schema (migration 0003). Deferred: SSO providers, TOTP, lockout, audit-log writes, soft delete and restore, privacy tools, role checks on dashboard and reports.
+- Phase 4 (UI): in progress, delegated.
+- Phase 7: deferred. Unfinished, unreviewed work is saved on `feature/ops-tooling`.
+- Phases 5, 6, 8, 10: not started. Phase 9 (README, screenshots) follows the UI.
+
+## Owner actions
+
+1. Delete these old branches in GitHub (each is preserved as an `archive/*` branch): `final_version_secure_and_proper_code`, `postgresql-version`, `claude/help-coding-task-Bucx3`, `claude/ero-usability-audit-3vv4z1` (kept as `feature/usability-a11y-reports`), `feat/issue-5-fix-badgetag-positioning-and-color-semantics-consi`.
+2. Protect `main` in GitHub settings (require a pull request and the CI check).
+3. Review and merge the pull request from `develop` into `main` when it is opened.
 
 ## Done
 
@@ -56,18 +65,19 @@ See `AUDIT.md` section 12. Short form:
 
 ## Delegation log
 
-| Phase | Task                                                                                                                                                                                | Delegated to              | Branch                    | Status                 |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------- | ---------------------- |
-| 1     | Audit                                                                                                                                                                               | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete               |
-| 2     | Foundation: config, data layer, migrations, app factory, critical fixes                                                                                                             | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete               |
-| 2     | Integration and unit test suite (owns `tests/`)                                                                                                                                     | Opus subagent             | `phase2/api-tests`        | Reviewed and merged    |
-| 2     | Fully fictional demo seed data (owns `scripts/seed-demo.js`, `scripts/seed/`)                                                                                                       | Opus subagent             | `phase2/fictional-seed`   | Reviewed and merged    |
-| 2     | Layered refactor of the API code, nine defects, dead code, lint and format                                                                                                          | Opus subagent             | `phase2/layered-refactor` | Reviewed and merged    |
-| 3     | Role and permission matrix (`src/security/permissions.js`)                                                                                                                          | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete               |
-| 3     | Migration 0003: accounts, roles, audit log, soft delete, versions, sessions, settings                                                                                               | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete               |
-| 3     | Database sessions, per-request user, RBAC enforcement with field redaction, user deactivation                                                                                       | Opus subagent             | `phase3/sessions-rbac`    | Running                |
-| 4     | UI specification as templates: page shell, component macros, reference list screen (`src/views/`)                                                                                   | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete, not wired in |
-| 7     | Encrypted backups with retention and off-server copy, restore, systemd, nginx, logrotate, install and deploy scripts with rollback, monitoring, Docker alternative, operations docs | Opus subagent             | `phase7/ops-tooling`      | Running                |
+| Phase | Task                                                                                                                                                                                | Delegated to              | Branch                    | Status                                                         |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------- | -------------------------------------------------------------- |
+| 1     | Audit                                                                                                                                                                               | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete                                                       |
+| 2     | Foundation: config, data layer, migrations, app factory, critical fixes                                                                                                             | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete                                                       |
+| 2     | Integration and unit test suite (owns `tests/`)                                                                                                                                     | Opus subagent             | `phase2/api-tests`        | Reviewed and merged                                            |
+| 2     | Fully fictional demo seed data (owns `scripts/seed-demo.js`, `scripts/seed/`)                                                                                                       | Opus subagent             | `phase2/fictional-seed`   | Reviewed and merged                                            |
+| 2     | Layered refactor of the API code, nine defects, dead code, lint and format                                                                                                          | Opus subagent             | `phase2/layered-refactor` | Reviewed and merged                                            |
+| 3     | Role and permission matrix (`src/security/permissions.js`)                                                                                                                          | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete                                                       |
+| 3     | Migration 0003: accounts, roles, audit log, soft delete, versions, sessions, settings                                                                                               | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete                                                       |
+| 3     | Database sessions, per-request user, RBAC enforcement with field redaction, user deactivation                                                                                       | Opus subagent             | `phase3/sessions-rbac`    | Partly delivered (cut off by usage limit); reviewed and merged |
+| 4     | UI specification as templates: page shell, component macros, reference list screen (`src/views/`)                                                                                   | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete, not wired in                                         |
+| 4     | Server-rendered UI: all screens, CSRF, server-side lists, removal of the old static UI                                                                                              | Opus subagent             | `phase4/ui`               | Running                                                        |
+| 7     | Encrypted backups with retention and off-server copy, restore, systemd, nginx, logrotate, install and deploy scripts with rollback, monitoring, Docker alternative, operations docs | Opus subagent             | `feature/ops-tooling`     | Interrupted; parked, not merged                                |
 
 ## Notes for the next session
 
