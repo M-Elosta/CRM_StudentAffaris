@@ -28,7 +28,7 @@
       {{ linkButton('Export', list.url({ format: 'xlsx', page: none }), '', 'download', 'hx-boost="false" download') }}
     {% endif %}
     {% if can.create %}
-      {{ linkButton('Add employer', '/employers/new', 'primary', 'plus', 'hx-get="/employers/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
+      {{ linkButton('Add employer', '/employers/new', 'primary', 'plus', 'hx-get="/employers/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
     {% endif %}
   {% endcall %}
 

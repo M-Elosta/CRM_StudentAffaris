@@ -13,7 +13,7 @@
 
 {% set pageTitle = employer.CompanyName %}
 {% set id = employer.CompanyID %}
-{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog' %}
+{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog' %}
 
 {% block content %}
   <nav aria-label="Breadcrumb"><ol class="breadcrumb" role="list">

@@ -171,6 +171,19 @@ describe('web: sign-in, shell and error pages', () => {
       assertNoInlineCode(res.text, '404');
     });
 
+    it('shows a friendly 500 page without details when something breaks', async () => {
+      const broken = await buildApp();
+      createUser(broken.db, { username: 'bob', role: 'staff' });
+      const agent = await webLogin(broken.app, 'bob');
+      broken.db.prepare('DROP TABLE OutreachEngagement').run();
+      const res = await agent.get('/interactions');
+      assert.equal(res.status, 500);
+      assert.match(res.text, /Something went wrong on our side/);
+      assert.doesNotMatch(res.text, /SqliteError|no such table|at \w+ \(/);
+      assertNoInlineCode(res.text, '500');
+      broken.close();
+    });
+
     it('accepts the CSRF token in the X-CSRF-Token header', async () => {
       const agent = await webLogin(ctx.app, 'alice');
       const res = await htmxPost(agent, '/session/extend');

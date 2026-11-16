@@ -11,7 +11,7 @@
 {% from "macros/record.njk" import formField %}
 
 <form id="form" action="{{ action }}" method="post" novalidate data-guard
-      hx-post="{{ action }}" hx-target="#form" hx-select="#form" hx-swap="outerHTML" hx-push-url="false"
+      hx-post="{{ action }}" hx-target="#form" hx-select="#form" hx-swap="outerHTML" hx-push-url="false" hx-select-oob="unset"
       aria-labelledby="dialog-title">
   <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
   {% if form.values.UpdatedAt %}<input type="hidden" name="UpdatedAt" value="{{ form.values.UpdatedAt }}" />{% endif %}

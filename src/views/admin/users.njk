@@ -6,7 +6,7 @@
 {% from "macros/ui.njk" import pageHeader, linkButton, button, badge %}
 
 {% set pageTitle = 'Users' %}
-{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog' %}
+{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog' %}
 
 {% block content %}
   {% call pageHeader('Users', 'Who can sign in, and what their role lets them do.') %}

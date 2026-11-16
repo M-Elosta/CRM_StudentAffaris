@@ -66,7 +66,8 @@ function createPageErrorHandler(logger) {
     if (res.headersSent) return next(err);
     const status = err instanceof AppError ? err.status : err?.statusCode || err?.status;
     if (status === 401) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
-    if (status === 403) return renderErrorPage(req, res, 403, { message: err.message });
+    // The service's message already says who to ask.
+    if (status === 403) return renderErrorPage(req, res, 403, { message: err.message, action: '' });
     if (status === 404 || err instanceof ZodError || status === 400) return renderErrorPage(req, res, 404);
     if (status === 413) {
       return renderErrorPage(req, res, 400, {

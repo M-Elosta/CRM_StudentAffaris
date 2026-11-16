@@ -16,10 +16,10 @@
   {% call pageHeader(name, screen.singular | capitalize, breadcrumb) %}
     {% if can.delete %}{{ deleteForm(screen.base ~ '/' ~ record[screen.idField] ~ '/delete', name, csrfToken, deleteText) }}{% endif %}
     {% if can.update %}
-      {{ linkButton('Edit', screen.base ~ '/' ~ record[screen.idField] ~ '/edit', 'primary' if not can.logInteraction else '', 'edit', 'hx-get="' ~ screen.base ~ '/' ~ record[screen.idField] ~ '/edit" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
+      {{ linkButton('Edit', screen.base ~ '/' ~ record[screen.idField] ~ '/edit', 'primary' if not can.logInteraction else '', 'edit', 'hx-get="' ~ screen.base ~ '/' ~ record[screen.idField] ~ '/edit" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
     {% endif %}
     {% if can.logInteraction %}
-      {{ linkButton('Log interaction', '/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode), 'primary', 'plus', 'hx-get="/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode) ~ '" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
+      {{ linkButton('Log interaction', '/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode), 'primary', 'plus', 'hx-get="/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode) ~ '" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
     {% endif %}
   {% endcall %}
 

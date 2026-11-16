@@ -36,7 +36,7 @@
         {% endcall %}
       {% else %}
         {% call emptyState('No ' ~ screen.plural ~ ' yet', 'They appear here as soon as the first one is added.') %}
-          {% if can.create %}{{ linkButton(screen.addLabel or ('Add ' ~ screen.singular), screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}{% endif %}
+          {% if can.create %}{{ linkButton(screen.addLabel or ('Add ' ~ screen.singular), screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}{% endif %}
         {% endcall %}
       {% endif %}
     {% endif %}
