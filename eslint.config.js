@@ -40,5 +40,10 @@ module.exports = [
       globals: { ...globals.browser },
     },
   },
+  {
+    // Playwright scripts pass functions to the browser, where window and document exist.
+    files: ['scripts/check-routes.js', 'scripts/capture-screenshots.js'],
+    languageOptions: { globals: { ...globals.node, window: 'readonly', document: 'readonly' } },
+  },
   prettier,
 ];
