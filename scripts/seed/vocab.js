@@ -4,7 +4,7 @@
  * Value lists the application offers in its forms and groups by in its
  * filters and charts. They are copied exactly from the UI and routes:
  *   - public/js/recruitment.js     OPP_TYPES, COLLECT_CH, MAJORS, CLASS_LEVELS
- *   - public/pages/contacts.html   graduate majors
+ *   - the contact form   graduate majors
  *   - src/domain/enums.js          collaboration opportunities
  *   - src/db/migrations            CHECK constraints
  */

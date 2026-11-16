@@ -22,7 +22,7 @@ Single source of truth for where the production-readiness work stands. Updated a
 
 ### Phase 1 (complete, 2026-11-14)
 
-- Audited all seven remote branches; wrote `AUDIT.md` and `DECISIONS.md`.
+- Audited all seven remote branches; wrote `docs/AUDIT.md` and `docs/DECISIONS.md`.
 
 ### Phase 2 (complete, 2026-11-16)
 
@@ -49,11 +49,11 @@ Phase 3, in this order (schema and auth work runs one task at a time):
 5. CSRF tokens, privacy tools (export or erase a person, retention), `PRIVACY.md`.
 6. ZAP baseline scan once the rebuilt UI exists.
 
-Blocked on owner approval (not started): archive tags, `develop`, branch deletions and renames, merging `main`'s history. See `DECISIONS.md` entry 13.
+Blocked on owner approval (not started): archive tags, `develop`, branch deletions and renames, merging `main`'s history. See `docs/DECISIONS.md` entry 13.
 
 ## Open questions for the owner
 
-See `AUDIT.md` section 12. Short form:
+See `docs/AUDIT.md` section 12. Short form:
 
 1. Which version runs in production, and what are its schema and row counts?
 2. Approve base branch and branch plan (includes permission to push tags, create `develop`, delete or rename branches).

@@ -19,7 +19,9 @@
     "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "screenshots": "node scripts/capture-screenshots.js",
+    "check:routes": "node scripts/check-routes.js"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "5.3.0",
