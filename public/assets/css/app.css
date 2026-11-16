@@ -473,6 +473,8 @@ textarea[dir='auto'] {
 
 /* Icons: inline SVG from the sprite, sized by the text around them */
 .icon {
+  display: inline-block;
+  vertical-align: -3px;
   width: 16px;
   height: 16px;
   flex: none;
@@ -912,6 +914,25 @@ th[aria-sort='descending'] .table__sort .icon {
   text-decoration-color: var(--grey-300);
 }
 
+/* Column widths are fixed per table so rows arriving later cannot resize them */
+.table--fixed,
+.table:has(colgroup) {
+  table-layout: fixed;
+  min-width: 960px;
+}
+.col--name {
+  width: 24%;
+}
+.col--md {
+  width: 14%;
+}
+.col--sm {
+  width: 11%;
+}
+.col--xs {
+  width: 8%;
+}
+
 .table-footer {
   display: flex;
   align-items: center;
@@ -1160,6 +1181,31 @@ th[aria-sort='descending'] .table__sort .icon {
   padding: var(--space-2) var(--space-3) var(--space-1);
   font-size: var(--text-xs);
   color: var(--text-subtle);
+}
+
+.account-menu {
+  position: relative;
+}
+.account-menu > summary {
+  list-style: none;
+}
+.account-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.menu--end {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 30;
+}
+#search-suggestions {
+  position: absolute;
+  z-index: 30;
+  width: min(480px, calc(100vw - 2rem));
+  margin-top: var(--space-1);
+}
+.topbar__search {
+  position: relative;
 }
 
 /* Inline notices */
