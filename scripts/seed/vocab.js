@@ -5,7 +5,7 @@
  * filters and charts. They are copied exactly from the UI and routes:
  *   - public/js/recruitment.js     OPP_TYPES, COLLECT_CH, MAJORS, CLASS_LEVELS
  *   - public/pages/contacts.html   graduate majors
- *   - src/routes/import.js         COLLAB_OPPS
+ *   - src/domain/enums.js          collaboration opportunities
  *   - src/db/migrations            CHECK constraints
  */
 

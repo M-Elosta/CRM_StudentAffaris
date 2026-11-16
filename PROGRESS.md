@@ -4,7 +4,8 @@ Single source of truth for where the production-readiness work stands. Updated a
 
 ## Current phase
 
-**Phase 2 — Clean up and restructure: in progress.**
+**Phase 2 — Clean up and restructure: complete, except the branch plan, which waits for owner approval.**
+**Phase 3 — Security: starting.**
 
 All work is on `claude/busy-bohr-0gad6e`. No remote branch other than this one has been touched. No real data has been touched.
 
@@ -14,32 +15,30 @@ All work is on `claude/busy-bohr-0gad6e`. No remote branch other than this one h
 
 - Audited all seven remote branches; wrote `AUDIT.md` and `DECISIONS.md`.
 
-### Phase 2 (2026-11-15)
+### Phase 2 (complete, 2026-11-16)
 
 - Removed committed tool runtime files; `.gitignore` now blocks databases, backups, exports, env files, keys, logs.
-- Application moved under `src/` (config, db, middleware, routes, services, lib). `src/app.js` is an app factory; `src/server.js` is the entry point with graceful shutdown.
-- Configuration from environment variables only, validated at start, with per-environment defaults (`src/config`). `.env.example` documents every variable.
-- Data layer foundation: one connection module (WAL, foreign keys on, busy timeout, synchronous FULL), integrity check, verified single-file backups.
-- Versioned forward-only migrations with checksum protection, automatic pre-migration backup, and rollback if a table would lose rows. `0001_baseline` adopts databases created by any earlier version; `0002` adds foreign key indexes. Verified against databases created by `main`, `final_version…` and the oldest branch: identical row counts, integrity ok.
-- Fixed C1 (create failed on all nine record types) and C2 (stale edits accepted).
-- Fixed C3 (global rate limit locked everyone out): only `/api` is limited now.
-- Fixed C4 (seed wiped the live database path): moved to `scripts/seed-demo.js`, refuses staging/production and non-empty databases.
-- Fixed C6 (database inside the app folder): path is configurable and mandatory outside development.
-- Dependencies pinned to exact versions and updated; `npm audit` reports 0 vulnerabilities. Node pinned to 22.
-- ESLint, Prettier, EditorConfig, Dependabot configuration added. `/healthz` added.
-- Smoke test of the restructured app: 160 of 160 checks pass.
-
-## In progress
-
-- Test suite (delegated, see log).
-- Fictional demo data (delegated, see log).
+- Application moved under `src/` in clear layers: `routes` (HTTP only), `services` (rules), `db/repositories` (all SQL), `validation` (zod schemas), `domain` (record definitions), `middleware`, `config`, `lib`. `src/app.js` is an app factory; `src/server.js` is the entry point with graceful shutdown.
+- Configuration from environment variables only, validated at start, with per-environment defaults. `.env.example` documents every variable.
+- One connection module (WAL, foreign keys on, busy timeout, synchronous FULL), integrity check, verified single-file backups.
+- Versioned forward-only migrations with checksum protection, automatic pre-migration backup, and rollback if a table would lose rows. Verified against databases created by `main`, `final_version…` and the oldest branch: identical row counts, integrity ok.
+- Audit findings fixed: C1 (create failed), C2 (stale edits accepted), C3 (rate limit lockout), C4 (seed wiped the live path), C6 (database inside the app folder), H9 (ad hoc schema changes), H11 (dependency vulnerabilities: `npm audit` reports 0), H12 (non-transactional writes), M1 (UTC dates: now office time zone), M4 (missing indexes), M9 (duplication), M10 (dead code).
+- Further defects found by the new tests and fixed: invalid enum values and unknown employer or contact ids returned 500; impossible dates accepted; import accepted invalid rows and unchecked ids; `last-updated` ignored edits; reserved names such as `constructor` crashed report and import lookups; contacts of a blacklisted employer could be set back to Mailable.
+- Test suite: 773 tests (771 pass, 2 marked todo for the session defects fixed in Phase 3).
+- Demo data replaced with a fully fictional, deterministic dataset (80 employers, 240 contacts, 600 interactions, Arabic and English, `.example` domains only).
+- ESLint and Prettier pass for the whole repository. Dependabot, CI workflow, PR and issue templates added.
+- Groundwork for later phases: design-system stylesheet and icon sprite (Phase 4), role and permission matrix with tests (Phase 3).
 
 ## Next
 
-1. Review and merge the two delegated branches.
-2. Delegate the layered refactor of the route modules (routes, services, repositories, zod validation, transactions, shared date handling, dead report-builder API removed), verified by the new tests.
-3. Format the whole codebase with Prettier and make lint pass; add the CI workflow file.
-4. Phase 3: security schema migration (users, roles, audit log, soft delete, record versions, sessions), then auth providers and RBAC.
+Phase 3, in this order (schema and auth work runs one task at a time):
+
+1. Migration 0003: user accounts, four roles, audit log, soft delete, record versions, sessions, settings (lead).
+2. Sessions in the database, user loaded on every request, RBAC enforced in services with field redaction, user deactivation.
+3. Audit log, soft delete and restore, record history.
+4. Pluggable sign-in: OIDC, SAML, local break-glass with TOTP and lockout; `SSO_SETUP.md`.
+5. CSRF tokens, privacy tools (export or erase a person, retention), `PRIVACY.md`.
+6. ZAP baseline scan once the rebuilt UI exists.
 
 Blocked on owner approval (not started): archive tags, `develop`, branch deletions and renames, merging `main`'s history. See `DECISIONS.md` entry 13.
 
@@ -69,5 +68,6 @@ See `AUDIT.md` section 12. Short form:
 - Working branch: `claude/busy-bohr-0gad6e`. Delegated work happens on local branches in separate worktrees and is merged here after review; those branches are not pushed.
 - Run locally: `npm ci`, `npm run seed:demo`, `npm start` (development defaults; database at `./data/dev/employer.db`). `npm run migrate:status` shows applied migrations.
 - The current static UI still loads Bootstrap and Chart.js from a public CDN; it is replaced in Phase 4.
-- Lint currently reports errors in legacy route files; they are fixed by the layered refactor.
+- Subagent worktrees start from the repository's default branch, not from the working branch. Every brief must tell the subagent to create its branch from an explicit commit.
+- Commands: `npm run lint`, `npm run format:check`, `npm test`.
 - Pushing is only authorised to the working branch until the owner approves the branch plan.
