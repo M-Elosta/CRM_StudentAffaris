@@ -113,12 +113,13 @@ function createActivityService({ activityRepository, records, timeZone, now = ()
      * Mark an interaction's follow-up as done (its status becomes Complete),
      * through the interaction service so its permission and validation rules apply.
      * @param {number} id  OutreachEngagementID
-     * @returns {object} the saved interaction
+     * @returns {object} the saved interaction, with employer and contact names
      */
     completeFollowUp(id, ctx) {
       const outreach = records.get('outreach').service;
       const stored = outreach.get(id, ctx);
-      return outreach.update(id, { ...stored, InteractionStatus: 'Complete' }, ctx);
+      outreach.update(id, { ...stored, InteractionStatus: 'Complete' }, ctx);
+      return outreach.get(id, ctx);
     },
   };
 }

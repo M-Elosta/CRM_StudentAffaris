@@ -1,0 +1,67 @@
+{#
+  Follow-ups: open interactions with a follow-up date, grouped by when they are due.
+  Locals: groups [{ key, title, empty, items }], total, can { complete }
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, badge, button, emptyState %}
+
+{% set pageTitle = 'Follow-ups' %}
+
+{% block content %}
+  {% call pageHeader('Follow-ups', 'Interactions still in progress, by the date their follow-up is due.') %}{% endcall %}
+
+  {% if not total %}
+    <div class="card">
+      {{ emptyState('No open follow-ups', 'When an interaction is logged with a follow-up date, it appears here until it is marked complete.') }}
+    </div>
+  {% endif %}
+
+  {% for group in groups %}
+    {% if total %}
+      <section class="mt-6" aria-labelledby="group-{{ group.key }}">
+        <div class="row row--between">
+          <h2 id="group-{{ group.key }}">{{ group.title }} <span class="tabs__count">{{ group.items.length }}</span></h2>
+        </div>
+        <div class="table-wrap mt-2">
+          {% if group.items.length %}
+            <table class="table">
+              <caption class="visually-hidden">{{ group.title }}: follow-ups</caption>
+              <colgroup><col class="col--due" /><col class="col--name" /><col class="col--md" /><col /><col class="col--action" /></colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Due</th><th scope="col">Employer</th><th scope="col">Contact</th><th scope="col">Action plan</th>
+                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in group.items %}
+                  <tr id="follow-up-{{ item.id }}">
+                    <td class="tabular">
+                      <a href="/interactions/{{ item.id }}">{{ item.followUpDate | date }}</a>
+                    </td>
+                    <td class="cell--primary cell--truncate"><a href="/employers/{{ item.companyId }}" dir="auto">{{ item.companyName }}</a></td>
+                    <td class="cell--truncate">{% if item.contactName %}<a href="/contacts/{{ item.contactId }}" dir="auto">{{ item.contactName }}</a>{% endif %}</td>
+                    <td class="cell--truncate"><span dir="auto">{{ item.actionPlan or item.discussionItems }}</span></td>
+                    <td class="cell--actions">
+                      {% if can.complete %}
+                        <form action="/follow-ups/{{ item.id }}/complete" method="post"
+                              hx-post="/follow-ups/{{ item.id }}/complete" hx-target="#follow-up-{{ item.id }}" hx-select="#follow-up-{{ item.id }}" hx-swap="outerHTML">
+                          <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+                          {{ button('Mark complete', '', 'submit', 'check', 'aria-label="Mark the follow-up with ' ~ item.companyName ~ ' complete"', true) }}
+                        </form>
+                      {% elif group.key == 'overdue' %}
+                        {{ badge('Overdue', 'danger') }}
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="card__body text-muted">{{ group.empty }}</p>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+  {% endfor %}
+{% endblock %}

@@ -983,6 +983,9 @@ th[aria-sort='descending'] .table__sort .icon {
 .col--status {
   width: 104px;
 }
+.col--action {
+  width: 156px;
+}
 
 .table-footer {
   display: flex;
