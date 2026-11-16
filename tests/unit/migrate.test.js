@@ -12,6 +12,8 @@ const { createSilentLogger } = require('../helpers/app');
 
 const EXPECTED_TABLES = [
   'AcademicClassroomEngagement',
+  'AuditLog',
+  'AuditMaintenance',
   'CareerEvent',
   'Company',
   'Contact',
@@ -25,12 +27,20 @@ const EXPECTED_TABLES = [
   'Recruitment_OpportunityType',
   'Recruitment_TargetMajors',
   'SavedReports',
+  'Sessions',
+  'Settings',
   'StudentLedEvent',
   'Users',
   'schema_migrations',
 ];
 
 const quiet = () => ({ logger: createSilentLogger() });
+
+// The real migrations, read from disk, so adding one does not break these tests.
+const REAL_MIGRATIONS = listMigrations();
+const REAL_FILES = REAL_MIGRATIONS.map((m) => m.file);
+const REAL_VERSIONS = REAL_MIGRATIONS.map((m) => m.version);
+const NEXT_VERSION = String(Math.max(...REAL_VERSIONS) + 1).padStart(4, '0');
 
 function tableNames(db) {
   return db
@@ -191,12 +201,12 @@ const OLD_TABLES_WITHOUT_UPDATED_AT = [
 
 describe('migrate', () => {
   describe('a fresh database', () => {
-    it('gets every table and records both migrations', async () => {
+    it('gets every table and records every migration', async () => {
       const db = openDatabase(':memory:');
       const result = await migrate(db, quiet());
-      assert.deepEqual(result.applied, ['0001_baseline.js', '0002_foreign_key_indexes.sql']);
+      assert.deepEqual(result.applied, REAL_FILES);
       assert.deepEqual(tableNames(db), EXPECTED_TABLES);
-      assert.deepEqual(appliedVersions(db), [1, 2]);
+      assert.deepEqual(appliedVersions(db), REAL_VERSIONS);
       const rows = db.prepare('SELECT version, name, checksum, applied_at FROM schema_migrations').all();
       for (const row of rows) {
         assert.match(row.checksum, /^[0-9a-f]{64}$/);
@@ -221,7 +231,7 @@ describe('migrate', () => {
       const countsBefore = tableCounts(db);
       const second = await migrate(db, quiet());
       assert.deepEqual(second.applied, []);
-      assert.deepEqual(appliedVersions(db), [1, 2]);
+      assert.deepEqual(appliedVersions(db), REAL_VERSIONS);
       assert.deepEqual(tableCounts(db), countsBefore);
       assert.equal(migrationStatus(db).pending.length, 0);
       db.close();
@@ -247,7 +257,7 @@ describe('migrate', () => {
       const db = buildOldDatabase();
       const before = tableCounts(db);
       const result = await migrate(db, quiet());
-      assert.equal(result.applied.length, 2);
+      assert.equal(result.applied.length, REAL_FILES.length);
       const after = tableCounts(db);
       for (const [table, count] of Object.entries(before)) {
         assert.equal(after[table], count, table);
@@ -336,10 +346,10 @@ describe('migrate', () => {
       const dir = copyRealMigrations(t);
       const db = openDatabase(':memory:');
       await migrate(db, { ...quiet(), dir });
-      writeMigration(dir, '0003_add_note.sql', 'ALTER TABLE Company ADD COLUMN Note TEXT;');
+      writeMigration(dir, `${NEXT_VERSION}_add_note.sql`, 'ALTER TABLE Company ADD COLUMN Note TEXT;');
       const labels = [];
       await migrate(db, { ...quiet(), dir, backup: async (label) => labels.push(label) });
-      assert.deepEqual(labels, ['pre-migration-0003']);
+      assert.deepEqual(labels, [`pre-migration-${NEXT_VERSION}`]);
       db.close();
     });
   });
@@ -495,6 +505,7 @@ describe('migrate', () => {
         [
           [1, 'baseline', 'js'],
           [2, 'foreign_key_indexes', 'sql'],
+          [3, 'security_foundations', 'sql'],
         ]
       );
       for (const migration of migrations) assert.match(migration.checksum, /^[0-9a-f]{64}$/);

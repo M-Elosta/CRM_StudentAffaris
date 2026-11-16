@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { openDatabase, tableCounts } = require('../../src/db/connection');
-const { migrate } = require('../../src/db/migrate');
+const { migrate, listMigrations } = require('../../src/db/migrate');
 const { backupDatabase, pruneBackups } = require('../../src/db/backup');
 const { makeTempDir } = require('../helpers/tmp');
 const { createSilentLogger } = require('../helpers/app');
@@ -55,7 +55,7 @@ describe('backupDatabase', () => {
         copy.prepare('SELECT CompanyName FROM Company WHERE CompanyID = 2').get().CompanyName,
         'شركة النسخ الاحتياطي'
       );
-      assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 2);
+      assert.equal(copy.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, listMigrations().length);
     } finally {
       copy.close();
     }
