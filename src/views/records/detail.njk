@@ -35,7 +35,7 @@
         <div class="card__footer">Last edited {{ record.UpdatedAt | datetime }}</div>
       </section>
 
-      {% if timeline %}
+      {% if showTimeline %}
         <section class="card" aria-labelledby="timeline-heading">
           <div class="card__header"><h2 id="timeline-heading">Interactions</h2><span class="text-sm text-muted">{{ timeline.length }} recorded</span></div>
           <div class="card__body">

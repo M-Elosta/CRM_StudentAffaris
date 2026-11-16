@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { asyncHandler } = require('../../lib/async-handler');
+const { todayInTimeZone } = require('../../lib/dates');
 const { NotFoundError } = require('../../lib/errors');
 const { canAccessRecord, can, sensitiveFieldsFor, PERMISSIONS: P } = require('../../security/permissions');
 const authorize = require('../../security/authorize');
@@ -91,7 +92,7 @@ function renderList(req, res, services, screen, extra = {}) {
  * @param {boolean} [deps.detail]  serve the generic detail page
  * @param {(record: object, ctx: object) => string} [deps.deleteText]  what deleting removes
  */
-function createRecordController({ services, screen, list = true, detail = true, deleteText }) {
+function createRecordController({ services, config, screen, list = true, detail = true, deleteText }) {
   const router = express.Router();
   const type = screen.recordType;
   const service = services.records.get(type).service;
@@ -141,6 +142,10 @@ function createRecordController({ services, screen, list = true, detail = true, 
       authorize.requireRecordAccess(req.ctx, P.RECORD_CREATE, type);
       const values = valuesFromRecord(screen, {});
       delete values.UpdatedAt;
+      for (const field of screen.fields) {
+        if (field.default !== undefined) values[field.name] = field.default;
+        if (field.defaultToday) values[field.name] = todayInTimeZone(config.timeZone);
+      }
       for (const key of ['CompanyID', 'ContactID']) {
         if (typeof req.query[key] === 'string' && ID_RE.test(req.query[key])) values[key] = req.query[key];
       }
@@ -186,6 +191,7 @@ function createRecordController({ services, screen, list = true, detail = true, 
           record,
           name,
           timeline,
+          showTimeline: timeline !== null,
           deleteText: deleteText
             ? deleteText(record, req.ctx)
             : `This permanently deletes the ${screen.singular}. It cannot be undone.`,

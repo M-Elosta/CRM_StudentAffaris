@@ -12,7 +12,7 @@
 {% block content %}
   {% call pageHeader(screen.title, screen.description) %}
     {% if can.create %}
-      {{ linkButton('Add ' ~ screen.singular, screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
+      {{ linkButton(screen.addLabel or ('Add ' ~ screen.singular), screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
     {% endif %}
   {% endcall %}
 

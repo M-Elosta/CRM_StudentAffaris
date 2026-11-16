@@ -723,6 +723,19 @@ textarea[dir='auto'] {
   accent-color: var(--grey-800);
 }
 
+fieldset.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+fieldset.field > .field__label {
+  padding: 0;
+  margin-bottom: var(--space-1);
+}
+fieldset.field .row {
+  column-gap: var(--space-4);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -871,6 +884,10 @@ kbd {
   color: var(--text);
 }
 .table .cell--primary a {
+  color: inherit;
+}
+/* Links to related records read as text in a table and underline on hover */
+.table td a {
   color: inherit;
 }
 .table .cell--muted {

@@ -15,7 +15,7 @@
   {%- elif column.type == 'badge' -%}{{ badge(value, column.tones[value] if column.tones else '') }}
   {%- elif column.type == 'bool' -%}{{ 'Yes' if value else 'No' }}
   {%- elif column.type == 'number' -%}{{ value | number }}
-  {%- elif column.type == 'tags' -%}<span class="row row--wrap">{% for tag in value %}<span class="tag">{{ tag }}</span>{% endfor %}</span>
+  {%- elif column.type == 'tags' -%}{{ value | join(', ') }}
   {%- elif column.href -%}<a href="{{ column.href(row) }}" dir="auto">{{ value }}</a>
   {%- else -%}<span dir="auto">{{ value }}</span>
   {%- endif -%}

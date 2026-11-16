@@ -48,12 +48,12 @@ function createWebRouter({ services, config, logger = console }) {
   router.get('/', (_req, res) => res.redirect('/dashboard'));
   router.use(createAuthController({ services, config }));
   router.use(createDashboardController({ services, config }));
-  router.use(createEmployersController({ services }));
+  router.use(createEmployersController({ services, config }));
   router.use(createEventsController({ services }));
   router.use(createOptionsController({ services }));
   for (const screen of SCREENS) {
     if (screen.recordType !== 'companies')
-      router.use(createRecordController({ services, screen, list: !screen.listPath }));
+      router.use(createRecordController({ services, config, screen, list: !screen.listPath }));
   }
 
   router.use((req, res) => renderErrorPage(req, res, 404));

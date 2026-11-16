@@ -65,7 +65,7 @@ function statusText(row) {
  * record controller) the form, create, update and delete.
  * @param {{ services: object }} deps
  */
-function createEmployersController({ services }) {
+function createEmployersController({ services, config }) {
   const router = express.Router();
   const companies = services.records.get('companies').service;
   const screen = screenFor('companies');
@@ -192,6 +192,7 @@ function createEmployersController({ services }) {
   router.use(
     createRecordController({
       services,
+      config,
       screen,
       list: false,
       detail: false,

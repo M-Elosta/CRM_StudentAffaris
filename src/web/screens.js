@@ -20,7 +20,8 @@
  *                   parameter from the URL without showing a control
  *   sorts           sort key -> label (keys must exist in the record type's page.sorts)
  *   defaultSort     [key, dir]
- *   fields          form fields: { name, label, control, required?, options?, hint?, full?, max? }
+ *   fields          form fields: { name, label, control, required?, options?, hint?, full?, max?,
+ *                   default? (value of a new record), defaultToday? (a new record starts on today) }
  *                   control: text | textarea | select | date | time | email | url | tel | number |
  *                   checkbox | checkboxes | employer | contact
  */
@@ -167,6 +168,7 @@ const SCREENS = [
         control: 'select',
         options: opts(E.CONTACT_STATUSES),
         placeholder: '',
+        default: 'Mailable',
         hint: 'Contacts of a do-not-engage employer are always non-mailable.',
       },
       { name: 'DateAdded', label: 'Date added', control: 'date', hint: 'Today if left empty.' },
@@ -183,6 +185,7 @@ const SCREENS = [
     recordType: 'outreach',
     base: '/interactions',
     singular: 'interaction',
+    addLabel: 'Log interaction',
     plural: 'interactions',
     title: 'Interactions',
     description: 'Calls, meetings and visits with employers, and what was agreed.',
@@ -240,7 +243,7 @@ const SCREENS = [
         options: opts(E.INTERACTION_TYPES),
         required: true,
       },
-      { name: 'InteractionDate', label: 'Date', control: 'date', required: true },
+      { name: 'InteractionDate', label: 'Date', control: 'date', required: true, defaultToday: true },
       { name: 'DiscussionItems', label: 'What was discussed', control: 'textarea', required: true, full: true },
       { name: 'ActionPlan', label: 'Action plan', control: 'textarea', full: true, rows: 3 },
       { name: 'FollowUpDate', label: 'Follow-up date', control: 'date', hint: 'Shows on the follow-ups list.' },
@@ -250,6 +253,7 @@ const SCREENS = [
         control: 'select',
         options: opts(E.INTERACTION_STATUSES),
         placeholder: '',
+        default: 'In-progress',
       },
     ],
   },
@@ -334,6 +338,7 @@ const SCREENS = [
         control: 'select',
         options: opts(E.RECRUITMENT_HIRED_VALUES),
         placeholder: '',
+        default: 'Not Reported',
       },
       { name: 'TargetMajors', label: 'Target majors', control: 'checkboxes', options: E.CONTACT_MAJORS },
       { name: 'ClassLevels', label: 'Class levels', control: 'checkboxes', options: E.CLASS_LEVELS },
@@ -479,6 +484,7 @@ const SCREENS = [
         control: 'select',
         options: opts(E.COLLABORATION_OUTCOMES),
         placeholder: '',
+        default: 'Pending',
       },
       notesField(),
     ],
@@ -632,6 +638,7 @@ const SCREENS = [
         ...employerColumn,
         col: 'col--name',
         primary: true,
+        href: (row) => `/collaboration-ideas/${row.PotentialCollaborationID}`,
       },
       { label: 'Opportunities', field: 'Opportunities', type: 'tags', col: 'col--name' },
       {
@@ -639,7 +646,6 @@ const SCREENS = [
         field: 'Comment',
         type: 'text',
         col: 'col--name',
-        href: (row) => `/collaboration-ideas/${row.PotentialCollaborationID}`,
       },
       { label: 'Added', field: 'CreatedAt', type: 'date', sort: 'added', col: 'col--sm' },
     ],
