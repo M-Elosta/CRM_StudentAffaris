@@ -60,15 +60,11 @@ describe('Meta: last updated', () => {
     ['hiringFeedback', 'HiringFeedback', 'HiringFeedbackID'],
     ['collaboration', 'PotentialCollaboration', 'PotentialCollaborationID'],
   ]) {
-    it(
-      `reflects the latest ${key} update, not only the latest creation`,
-      { todo: 'src/routes/meta.js uses MAX(CreatedAt) for these five tables and ignores UpdatedAt' },
-      async () => {
-        const row = ctx.db.prepare(`SELECT ${idField} AS id FROM ${table} LIMIT 1`).get();
-        setStoredUpdatedAt(ctx.db, table, idField, row.id, '2098-06-06 06:06:06');
-        const res = await admin.get('/api/meta/last-updated');
-        assert.equal(res.body[key], '2098-06-06 06:06:06');
-      }
-    );
+    it(`reflects the latest ${key} update, not only the latest creation`, async () => {
+      const row = ctx.db.prepare(`SELECT ${idField} AS id FROM ${table} LIMIT 1`).get();
+      setStoredUpdatedAt(ctx.db, table, idField, row.id, '2098-06-06 06:06:06');
+      const res = await admin.get('/api/meta/last-updated');
+      assert.equal(res.body[key], '2098-06-06 06:06:06');
+    });
   }
 });

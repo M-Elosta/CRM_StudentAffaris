@@ -13,7 +13,9 @@ async function start() {
   const logger = console;
 
   if (config.sessionSecretIsEphemeral) {
-    logger.warn('SESSION_SECRET is not set; using a temporary secret. Everyone is signed out when the server restarts.');
+    logger.warn(
+      'SESSION_SECRET is not set; using a temporary secret. Everyone is signed out when the server restarts.'
+    );
   }
 
   const db = openDatabase(config.databasePath);

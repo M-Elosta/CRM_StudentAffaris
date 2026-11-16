@@ -57,12 +57,12 @@ See `AUDIT.md` section 12. Short form:
 
 ## Delegation log
 
-| Phase | Task | Delegated to | Branch | Status |
-| --- | --- | --- | --- | --- |
-| 1 | Audit | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete |
-| 2 | Foundation: config, data layer, migrations, app factory, critical fixes | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete |
-| 2 | Integration and unit test suite (owns `tests/`) | Opus subagent | `phase2/api-tests` (local worktree) | Running |
-| 2 | Fully fictional demo seed data (owns `scripts/seed-demo.js`, `scripts/seed/`) | Opus subagent | `phase2/fictional-seed` (local worktree) | Running |
+| Phase | Task                                                                          | Delegated to              | Branch                                   | Status   |
+| ----- | ----------------------------------------------------------------------------- | ------------------------- | ---------------------------------------- | -------- |
+| 1     | Audit                                                                         | Not delegated (lead work) | `claude/busy-bohr-0gad6e`                | Complete |
+| 2     | Foundation: config, data layer, migrations, app factory, critical fixes       | Not delegated (lead work) | `claude/busy-bohr-0gad6e`                | Complete |
+| 2     | Integration and unit test suite (owns `tests/`)                               | Opus subagent             | `phase2/api-tests` (local worktree)      | Running  |
+| 2     | Fully fictional demo seed data (owns `scripts/seed-demo.js`, `scripts/seed/`) | Opus subagent             | `phase2/fictional-seed` (local worktree) | Running  |
 
 ## Notes for the next session
 

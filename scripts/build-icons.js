@@ -101,4 +101,6 @@ const sprite = [
 
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, sprite);
-console.log(`Wrote ${Object.keys(ICONS).length} icons to ${path.relative(process.cwd(), outFile)} (${sprite.length} bytes)`);
+console.log(
+  `Wrote ${Object.keys(ICONS).length} icons to ${path.relative(process.cwd(), outFile)} (${sprite.length} bytes)`
+);

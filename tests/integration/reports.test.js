@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -9,25 +7,20 @@ const ExcelJS = require('exceljs');
 
 const { buildApp, loginAs, binaryParser, XLSX_CONTENT_TYPE } = require('../helpers/app');
 const { seedEverything } = require('../helpers/records');
+const { QUICK_REPORTS } = require('../../src/services/reports');
 
 /**
- * The quick report types, read from the keys of QUICK_REPORTS in the route
- * source (the object is not exported). Reading the source means a newly added
- * report is tested automatically.
+ * The quick report types, taken from the registry the reports service
+ * exports, so a newly added report is tested automatically.
  */
 function quickReportTypes() {
-  const source = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'routes', 'reports.js'), 'utf8');
-  const start = source.indexOf('const QUICK_REPORTS = {');
-  const end = source.indexOf('\n};', start);
-  assert.ok(start > -1 && end > start, 'QUICK_REPORTS object not found in src/routes/reports.js');
-  const body = source.slice(start, end);
-  return [...body.matchAll(/^ {2}'([a-z0-9-]+)':\s*\(/gm)].map((match) => match[1]);
+  return [...QUICK_REPORTS.keys()];
 }
 
 const QUICK_REPORT_TYPES = quickReportTypes();
 
 describe('Reports', () => {
-  it('finds the quick report types in the route source', () => {
+  it('finds the quick report types in the registry', () => {
     assert.ok(QUICK_REPORT_TYPES.length >= 30, `found only ${QUICK_REPORT_TYPES.length} quick report types`);
     assert.ok(QUICK_REPORT_TYPES.includes('mailable-contacts'));
     assert.ok(QUICK_REPORT_TYPES.includes('semester-comparison'));
@@ -89,14 +82,10 @@ describe('Reports', () => {
       assert.equal(res.status, 404);
     });
 
-    it(
-      'does not treat inherited object properties as report types',
-      { todo: 'QUICK_REPORTS[type] is a plain-object lookup, so /quick/constructor runs Object() and fails with 500' },
-      async () => {
-        assert.equal((await viewer.get('/api/reports/quick/constructor')).status, 404);
-        assert.equal((await viewer.get('/api/reports/quick/toString')).status, 404);
-      }
-    );
+    it('does not treat inherited object properties as report types', async () => {
+      assert.equal((await viewer.get('/api/reports/quick/constructor')).status, 404);
+      assert.equal((await viewer.get('/api/reports/quick/toString')).status, 404);
+    });
 
     it('lists the mailable contacts in the populated database', async () => {
       const res = await viewer.get('/api/reports/quick/mailable-contacts');

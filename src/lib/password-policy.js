@@ -1,6 +1,6 @@
-const INSECURE_PASSWORDS = new Set([
-  'admin123',
-]);
+'use strict';
+
+const INSECURE_PASSWORDS = new Set(['admin123']);
 
 function isInsecurePassword(password) {
   if (typeof password !== 'string') return false;

@@ -24,7 +24,8 @@ async function main() {
     if (process.argv.includes('--status')) {
       const { applied, pending } = migrationStatus(db);
       console.log(`Database: ${config.databasePath}`);
-      for (const row of applied) console.log(`  applied  ${String(row.version).padStart(4, '0')}_${row.name}  (${row.applied_at})`);
+      for (const row of applied)
+        console.log(`  applied  ${String(row.version).padStart(4, '0')}_${row.name}  (${row.applied_at})`);
       for (const m of pending) console.log(`  pending  ${m.file}`);
       if (!applied.length && !pending.length) console.log('  no migrations found');
       return;
@@ -46,7 +47,9 @@ async function main() {
         const after = result.countsAfter[table];
         const flag = before !== undefined && (after === undefined || after < before) ? '  <-- ROWS LOST' : '';
         if (flag) lost = true;
-        console.log(`  ${table.padEnd(40)} ${String(before ?? '-').padStart(8)} -> ${String(after ?? '-').padStart(8)}${flag}`);
+        console.log(
+          `  ${table.padEnd(40)} ${String(before ?? '-').padStart(8)} -> ${String(after ?? '-').padStart(8)}${flag}`
+        );
       }
       if (lost) throw new Error('One or more tables lost rows. Restore the pre-migration backup and investigate.');
     }

@@ -1,15 +1,18 @@
+'use strict';
+
 const ExcelJS = require('exceljs');
+const { isoDateFromUtcDate } = require('./dates');
 
 function excelSerialDateToISO(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const excelEpochMs = Date.UTC(1899, 11, 30);
   const date = new Date(excelEpochMs + Math.round(value * 24 * 60 * 60 * 1000));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? null : isoDateFromUtcDate(date);
 }
 
 function normalizeCellValue(value) {
   if (value == null) return '';
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) return isoDateFromUtcDate(value);
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   if (typeof value === 'string') return value;
 

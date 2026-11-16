@@ -29,10 +29,15 @@ module.exports = [
       sourceType: 'script',
       globals: { ...globals.browser, bootstrap: 'readonly', Chart: 'readonly' },
     },
+    // The legacy UI is not edited before it is replaced (Phase 4), so its known style findings are off.
     rules: {
       'no-unused-vars': 'off',
       'no-undef': 'off',
       eqeqeq: 'off',
+      'no-useless-assignment': 'off',
+      'no-useless-escape': 'off',
+      'prefer-const': 'off',
+      'no-empty': 'off',
     },
   },
   prettier,
