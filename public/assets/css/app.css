@@ -444,7 +444,7 @@ textarea[dir='auto'] {
 }
 .toolbar .select {
   width: auto;
-  max-width: 240px;
+  max-width: 320px;
 }
 .toolbar__end {
   margin-inline-start: auto;
@@ -1401,6 +1401,40 @@ th[aria-sort='descending'] .table__sort .icon {
 /* A record form on its own page: the same markup as in the dialog, inside a
    card. The page header already names the form, so the dialog header is not shown. */
 .form-page .dialog__header {
+  display: none;
+}
+
+/* The list of reports: name and one line, as one link per row */
+.report-list {
+  padding: var(--space-1) 0;
+}
+.report-list__item {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  color: var(--text);
+}
+.report-list__item:hover {
+  background: var(--grey-25);
+  text-decoration: none;
+}
+.report-list__item:hover .report-list__name {
+  text-decoration: underline;
+}
+.report-list__name {
+  display: block;
+  font-weight: 500;
+}
+.report-list__text {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* A date input in a toolbar keeps the width of a date */
+.toolbar .input--date {
+  width: 160px;
+}
+.toolbar .field__error:empty {
   display: none;
 }
 

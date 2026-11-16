@@ -16,6 +16,9 @@ const {
   reportAcademicYearSeries,
 } = require('./periods');
 const { reportWorkbook } = require('./export');
+const { REPORT_CATALOG, REPORT_BY_TYPE } = require('./catalog');
+const authorize = require('../../security/authorize');
+const { PERMISSIONS: P } = require('../../security/permissions');
 
 const ISO_DATEISH_RE = /^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/;
 
@@ -47,10 +50,11 @@ function formatRowsForOutput(rows) {
  * Run one quick report.
  * @param {string} type  a key of QUICK_REPORTS
  * @param {object} query  the validated quick report query
- * @param {{ queries: object, today: string }} deps  the reports repository and today's date
+ * @param {{ queries: object, today: string, formatDates?: boolean }} deps  the reports repository and
+ *   today's date; formatDates: false keeps dates as stored (YYYY-MM-DD) for the pages to format
  * @returns {{ rows: object[], count: number, chartData: object, meta: object }}
  */
-function runQuickReport(type, query, { queries, today }) {
+function runQuickReport(type, query, { queries, today, formatDates = true }) {
   const report = QUICK_REPORTS.get(type);
   if (!report) throw new NotFoundError(`Unknown report type: ${type}`);
   const period = resolveQuickReportPeriod(query);
@@ -67,7 +71,7 @@ function runQuickReport(type, query, { queries, today }) {
     academicYears: () => reportAcademicYearSeries(dateBounds(), period.from, period.to, today),
   });
 
-  const rows = formatRowsForOutput(result.rows);
+  const rows = formatDates ? formatRowsForOutput(result.rows) : result.rows;
   const meta = {
     periodMode: period.mode,
     periodLabel: result.meta?.periodLabel || period.label,
@@ -106,6 +110,46 @@ function createReportsService({ reportsRepository, timeZone }) {
     async exportQuickReport(type, query) {
       const { rows } = runQuickReport(type, query, { queries: reportsRepository, today: today() });
       return reportWorkbook(rows, `report-${type}`);
+    },
+
+    /**
+     * The reports this user may run, grouped: [{ group, reports: [{ type, name, description, period }] }].
+     * @param {{ user: object }} ctx
+     */
+    catalog(ctx) {
+      authorize.requirePermission(ctx, P.REPORTS_VIEW);
+      const seesSensitive = authorize.has(ctx, P.SENSITIVE_READ);
+      return REPORT_CATALOG.map((group) => ({
+        group: group.group,
+        reports: group.reports
+          .filter((report) => seesSensitive || !report.sensitive)
+          .map((report) => REPORT_BY_TYPE.get(report.type)),
+      })).filter((group) => group.reports.length);
+    },
+
+    /**
+     * One report of the catalog for this user: its description, or an error when
+     * it does not exist (404) or the user may not run it (403).
+     */
+    reportFor(type, ctx) {
+      authorize.requirePermission(ctx, P.REPORTS_VIEW);
+      const report = REPORT_BY_TYPE.get(type);
+      if (!report || !QUICK_REPORTS.has(type)) throw new NotFoundError(`Unknown report type: ${type}`);
+      if (report.sensitive) authorize.requirePermission(ctx, P.SENSITIVE_READ);
+      return report;
+    },
+
+    /** Run a report of the catalog for this user, with dates kept as YYYY-MM-DD for display. */
+    runForUser(type, query, ctx) {
+      this.reportFor(type, ctx);
+      return runQuickReport(type, query, { queries: reportsRepository, today: today(), formatDates: false });
+    },
+
+    /** Export a report of the catalog for this user (needs export:run). */
+    async exportForUser(type, query, ctx) {
+      this.reportFor(type, ctx);
+      authorize.requirePermission(ctx, P.EXPORT_RUN);
+      return this.exportQuickReport(type, query);
     },
   };
 }

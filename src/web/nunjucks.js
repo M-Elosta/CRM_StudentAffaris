@@ -92,6 +92,14 @@ function createNunjucksEnv(config, app) {
   env.addFilter('date', formatters.date);
   env.addFilter('datetime', formatters.datetime);
   env.addFilter('number', formatters.number);
+  // A report cell: stored dates in the one date format, numbers with separators, text as it is.
+  env.addFilter('cell', (value) => {
+    if (typeof value === 'number') return formatters.number(value);
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(value)) {
+      return formatters.date(value);
+    }
+    return value ?? '';
+  });
   env.addFilter(
     'blank',
     (value) => value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)

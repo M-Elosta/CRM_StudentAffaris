@@ -1,0 +1,73 @@
+{#
+  One report: period form, figures, at most one chart, the table. Prints cleanly.
+  Locals: report { type, name, description, period }, presets, form, error, result { rows, count, meta },
+          columns, numeric, chartSpec, exportHref, can { export }
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import icon, pageHeader, button, linkButton, emptyState, formErrors %}
+{% from "macros/chart.njk" import chart %}
+
+{% set pageTitle = report.name %}
+
+{% block content %}
+  {% call pageHeader(report.name, report.description, [{ label: 'Reports', href: '/reports' }, { label: report.name }]) %}
+    {{ button('Print', '', 'button', 'print', 'data-action="print"') }}
+    {% if can.export and result %}
+      {{ linkButton('Export to Excel', exportHref, '', 'download', 'hx-boost="false" download') }}
+    {% endif %}
+  {% endcall %}
+
+  {% if report.period %}
+    <form class="toolbar" action="/reports/{{ report.type }}" method="get" aria-label="Period of the report">
+      <label class="visually-hidden" for="period">Period</label>
+      <select class="select" id="period" name="period">
+        {% for preset in presets %}<option value="{{ preset.value }}" {% if form.values.period == preset.value %}selected{% endif %}>{{ preset.label }}</option>{% endfor %}
+      </select>
+      <label class="text-sm text-muted" for="from">From</label>
+      <input class="input input--date" id="from" name="from" type="date" value="{{ form.values.from }}" {% if error %}aria-invalid="true" aria-describedby="period-error"{% endif %} />
+      <label class="text-sm text-muted" for="to">to</label>
+      <input class="input input--date" id="to" name="to" type="date" value="{{ form.values.to }}" />
+      {{ button('Show report', 'primary', 'submit') }}
+      <span class="field__error" id="period-error" role="alert">{{ error }}</span>
+    </form>
+    <p class="text-sm text-subtle no-print">The dates apply when “Custom dates” is chosen.</p>
+  {% else %}
+    <p class="text-sm text-muted">This report shows the records as they are today; no period applies.</p>
+  {% endif %}
+
+  {% if result %}
+    <p class="print-only text-sm">{{ report.name }} · {{ result.meta.periodLabel }} · printed {{ now | datetime }}</p>
+    <p class="page-header__meta mt-4">
+      <strong>{% if form.values.period == 'custom' %}{{ (form.values.from | date) or 'Start' }} – {{ (form.values.to | date) or 'today' }}{% else %}{{ result.meta.periodLabel }}{% endif %}</strong> · {{ result.count | number }} {{ 'row' if result.count == 1 else 'rows' }}
+    </p>
+
+    {% if chartSpec %}
+      <section class="card mt-4" aria-label="Chart">
+        <div class="card__body">{{ chart('report-chart', report.name, chartSpec) }}</div>
+      </section>
+    {% endif %}
+
+    <div class="table-wrap mt-4">
+      {% if result.rows.length %}
+        <table class="table">
+          <caption class="visually-hidden">{{ report.name }}, {{ result.meta.periodLabel }}</caption>
+          <thead>
+            <tr>{% for column in columns %}<th scope="col"{% if numeric[loop.index0] %} class="cell--num"{% endif %}>{{ column }}</th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for row in result.rows %}
+              <tr>
+                {% for column in columns %}
+                  {% if numeric[loop.index0] %}<td class="cell--num">{{ row[column] | cell }}</td>
+                  {% else %}<td class="cell--truncate"><span dir="auto">{{ row[column] | cell }}</span></td>{% endif %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        {{ emptyState('Nothing to report for this period', 'Choose a longer period, or All time.') }}
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

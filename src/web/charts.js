@@ -57,4 +57,36 @@ function monthRange(today) {
   return { from: `${prefix}-01`, to: `${prefix}-${String(lastDay).padStart(2, '0')}` };
 }
 
-module.exports = { lastMonths, monthLabel, monthlyChart, monthRange, MONTHS };
+/**
+ * A report's Chart.js data in the neutral style: bar or line only (pie and
+ * doughnut become bars), at most two series (the second is the accent).
+ * Returns null when there is nothing to draw or more than two series, where
+ * the table says it better.
+ * @param {{ type: string, labels: string[], datasets: Array<{ label?: string, data: number[] }>, indexAxis?: string }} chartData
+ * @param {string} name  the report name, used as the axis label of a single unnamed series
+ */
+function fromReportChart(chartData, name) {
+  if (!chartData || !Array.isArray(chartData.labels) || !chartData.labels.length) return null;
+  const datasets = (chartData.datasets ?? []).filter((dataset) => Array.isArray(dataset.data));
+  if (!datasets.length || datasets.length > 2) return null;
+  if (datasets.every((dataset) => dataset.data.every((value) => !Number(value)))) return null;
+  const type = chartData.type === 'line' ? 'line' : 'bar';
+  const series = datasets.map((dataset) => ({
+    label: dataset.label || name,
+    data: dataset.data.map((value) => Number(value) || 0),
+  }));
+  const wasRound = chartData.type === 'pie' || chartData.type === 'doughnut';
+  const horizontal = type === 'bar' && (chartData.indexAxis === 'y' || wasRound || chartData.labels.length > 12);
+  // A fixed-height box holds about a dozen bars side by side, or two dozen points on a line.
+  if (chartData.labels.length > (horizontal ? 12 : 24)) return null;
+  return {
+    type,
+    labels: chartData.labels.map(String),
+    series,
+    horizontal,
+    yLabel: series.length === 1 ? series[0].label : '',
+    xLabel: '',
+  };
+}
+
+module.exports = { lastMonths, monthLabel, monthlyChart, monthRange, fromReportChart, MONTHS };

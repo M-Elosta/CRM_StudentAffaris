@@ -409,6 +409,8 @@
       if (sidebar && sidebar.dataset.open === 'true') setSidebar(false);
     }
 
+    if (event.target.closest('[data-action="print"]')) window.print();
+
     const dismiss = event.target.closest('[data-action="dismiss-toast"]');
     if (dismiss) {
       const toast = dismiss.closest('[data-toast]');
