@@ -4,14 +4,25 @@ const { z } = require('zod');
 const { ConflictError, NotFoundError, ValidationError } = require('../lib/errors');
 const { normalizeTimestamp, todayInTimeZone } = require('../lib/dates');
 const { parseWith, recordTimestamp } = require('../validation/common');
+const defaultPermissions = require('../security/permissions');
+const { createAuthorizer } = require('../security/authorize');
 
 const STALE_RECORD_MESSAGE =
   'This record was changed by someone else while you were editing. Please reload and try again.';
 
 const versionSchema = z.object({ UpdatedAt: recordTimestamp() });
 
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
 /**
  * The generic service behind the five CRUD endpoints of a record type.
+ *
+ * Every method takes the request context ({ user, requestId, ip }) as its last
+ * argument and checks the user's permission for this record type first.
+ * Everything returned is redacted for that user: a user who may not read
+ * sensitive fields gets them as null and named in `_withheld`, cannot search
+ * by them, and cannot change them (they keep their stored value on update and
+ * are stored as null on create).
  *
  * Every write runs in one transaction, child tables included, so a failure
  * part-way leaves nothing behind.
@@ -28,6 +39,7 @@ const versionSchema = z.object({ UpdatedAt: recordTimestamp() });
  * @param {(id: number, values: object, context: object) => void} [deps.hooks.afterWrite]  follow-up writes
  * @param {(stored: object) => object} [deps.hooks.describeRemoval]  response body for a deletion
  * @param {() => Date} [deps.now]  clock, replaceable in tests
+ * @param {object} [deps.permissions]  the permission module (src/security/permissions.js), replaceable in tests
  */
 function createRecordService({
   db,
@@ -38,8 +50,42 @@ function createRecordService({
   timeZone,
   hooks = {},
   now = () => new Date(),
+  permissions = defaultPermissions,
 }) {
+  const { PERMISSIONS: P } = defaultPermissions;
+  const recordType = definition.path;
+  const authorize = createAuthorizer(permissions);
   const today = () => todayInTimeZone(timeZone, now());
+
+  /** Sensitive fields that are columns of this record type, and joined columns that carry sensitive values. */
+  const sensitiveColumns = permissions
+    .sensitiveFieldsFor(recordType)
+    .filter((field) => definition.columns.includes(field));
+  const withheldJoined = definition.list.withheldColumns ?? [];
+  const withheldForSearch = [...permissions.sensitiveFieldsFor(recordType), ...withheldJoined];
+
+  const seesSensitive = (user) => permissions.can(user, P.SENSITIVE_READ);
+
+  /** A record as this user may see it. */
+  function present(user, record) {
+    if (!record || seesSensitive(user)) return record;
+    const redacted = permissions.redactRecord(user, recordType, record);
+    const joined = withheldJoined.filter((column) => column in redacted);
+    if (!joined.length) return redacted;
+    const copy = { ...redacted };
+    for (const column of joined) copy[column] = null;
+    copy._withheld = [...(redacted._withheld ?? []), ...joined];
+    return copy;
+  }
+
+  /** The body with every sensitive field replaced by its stored value (or null) for a user who may not read them. */
+  function protectSensitive(user, body, existing) {
+    if (seesSensitive(user) || !isPlainObject(body) || !sensitiveColumns.length) return body;
+    const copy = { ...body };
+    for (const field of sensitiveColumns) copy[field] = existing ? existing[field] : null;
+    delete copy._withheld;
+    return copy;
+  }
 
   function notFound() {
     return new NotFoundError(definition.notFoundMessage);
@@ -76,8 +122,8 @@ function createRecordService({
     }
   }
 
-  function save(id, body, { existing, currentDay }) {
-    const values = parseWith(schema.bodySchema, body ?? {});
+  function save(id, body, { existing, currentDay, user }) {
+    const values = parseWith(schema.bodySchema, protectSensitive(user, body ?? {}, existing));
     applyDateDefaults(values, existing, currentDay);
     const references = resolveReferences(values);
     const context = { today: currentDay, existing, ...references };
@@ -94,9 +140,11 @@ function createRecordService({
     return repository.getStoredById(recordId);
   }
 
-  const createInTransaction = db.transaction((body, currentDay) => save(null, body, { existing: null, currentDay }));
+  const createInTransaction = db.transaction((body, currentDay, user) =>
+    save(null, body, { existing: null, currentDay, user })
+  );
 
-  const updateInTransaction = db.transaction((id, body, currentDay, { checkVersion }) => {
+  const updateInTransaction = db.transaction((id, body, currentDay, { checkVersion, user }) => {
     const storedUpdatedAt = repository.getUpdatedAt(id);
     if (storedUpdatedAt === undefined) throw notFound();
     if (checkVersion) {
@@ -105,7 +153,7 @@ function createRecordService({
       // Any difference means the record was saved again after this copy was loaded.
       if (current && current !== loaded) throw new ConflictError(STALE_RECORD_MESSAGE);
     }
-    return save(id, body, { existing: repository.getStoredById(id), currentDay });
+    return save(id, body, { existing: repository.getStoredById(id), currentDay, user });
   });
 
   const removeInTransaction = db.transaction((id) => {
@@ -124,38 +172,49 @@ function createRecordService({
       resolveReferences(values);
     },
 
-    /** Records matching already validated list filters. */
-    list(filters) {
-      return repository.list(filters);
+    /**
+     * Records matching already validated list filters, as the user may see them.
+     * @param {object} filters
+     * @param {{ user: object }} ctx
+     */
+    list(filters, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_READ, recordType);
+      const withheldColumns = seesSensitive(user) ? [] : withheldForSearch;
+      return repository.list(filters, { withheldColumns }).map((record) => present(user, record));
     },
 
     /** One record in the list shape; NotFoundError when it does not exist. */
-    get(id) {
+    get(id, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_READ, recordType);
       const record = repository.getById(id);
       if (!record) throw notFound();
-      return record;
+      return present(user, record);
     },
 
     /** Validate and insert a record (with its child arrays); returns it as stored. */
-    create(body) {
-      return createInTransaction(body, today());
+    create(body, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_CREATE, recordType);
+      return present(user, createInTransaction(body, today(), user));
     },
 
     /**
      * Validate and save an edit. The body must carry the UpdatedAt the edit was
      * based on; a different stored value means someone else saved first (409).
      */
-    update(id, body) {
-      return updateInTransaction(id, body, today(), { checkVersion: true });
+    update(id, body, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_UPDATE, recordType);
+      return present(user, updateInTransaction(id, body, today(), { checkVersion: true, user }));
     },
 
     /** Replace an existing record in place without the version check (used by import "overwrite"). */
-    overwrite(id, body) {
-      return updateInTransaction(id, body, today(), { checkVersion: false });
+    overwrite(id, body, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_UPDATE, recordType);
+      return present(user, updateInTransaction(id, body, today(), { checkVersion: false, user }));
     },
 
     /** Delete a record; returns the response body describing the deletion. */
-    remove(id) {
+    remove(id, ctx) {
+      authorize.requireRecordAccess(ctx, P.RECORD_DELETE, recordType);
       return removeInTransaction(id);
     },
   };

@@ -42,7 +42,7 @@ describe('Meta: last updated', () => {
   });
 
   it('is readable by a viewer', async () => {
-    const viewer = await loginAs(ctx, 'viewer');
+    const viewer = await loginAs(ctx, 'readonly');
     assert.equal((await viewer.get('/api/meta/last-updated')).status, 200);
   });
 

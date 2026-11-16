@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcrypt');
 const { isInsecurePassword } = require('../lib/password-policy');
-const { ROLES } = require('../lib/roles');
+const { ROLES } = require('../security/permissions');
 const { createUsersRepository } = require('../db/repositories/users-repository');
 const { BCRYPT_COST } = require('./users-service');
 

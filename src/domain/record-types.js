@@ -18,6 +18,10 @@
  * - children        child tables replaced as a whole with the parent; field is the API array name
  * - list            the read query: alias, selected columns, joins, default order and filters
  *   filters: { param, match: 'equals' | 'contains' | 'from' | 'to', column | columns }
+ *   withheldColumns (optional): joined columns that carry a sensitive value under another
+ *   name (e.g. a contact's email joined as ContactEmail). They are withheld, like the
+ *   record type's own SENSITIVE_FIELDS, from users who may not read sensitive data.
+ *   Today the only joined columns are CompanyName and ContactName, which are not sensitive.
  */
 
 const contactName = "co.FirstName || ' ' || co.LastName AS ContactName";

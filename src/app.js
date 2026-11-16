@@ -8,9 +8,10 @@ const rateLimit = require('express-rate-limit');
 
 const { rejectPoisonedKeys } = require('./middleware/poison-keys');
 const { createOriginGuard } = require('./middleware/trusted-origin');
-const { requireAuth, requirePasswordRotation, blockWritesForViewers } = require('./middleware/auth');
+const { requestContext, createCurrentUserLoader, requireAuth, requirePasswordRotation } = require('./middleware/auth');
 const { notFoundHandler, createErrorHandler } = require('./middleware/errors');
 const { createServices } = require('./services');
+const { DatabaseSessionStore } = require('./security/session-store');
 const { createRecordRouter } = require('./routes/record-router');
 const { createCompaniesRouter } = require('./routes/companies');
 const { createAuthRouter } = require('./routes/auth');
@@ -31,7 +32,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
  * @param {object} deps.config   result of loadConfig()
  * @param {import('better-sqlite3').Database} deps.db
  * @param {{info: Function, warn: Function, error: Function}} [deps.logger]
- * @param {import('express-session').Store} [deps.sessionStore]
+ * @param {import('express-session').Store} [deps.sessionStore]  defaults to the database-backed store
  */
 function createApp({ config, db, logger = console, sessionStore }) {
   const app = express();
@@ -77,23 +78,31 @@ function createApp({ config, db, logger = console, sessionStore }) {
     })
   );
 
+  app.use(requestContext);
   app.use(express.json({ limit: config.jsonBodyLimit }));
   app.use(rejectPoisonedKeys);
 
+  // Sessions live in the database, so a restart signs no one out and an
+  // account's sessions can be ended at once. The cookie is rolling: each
+  // request extends the idle window; the store enforces the absolute limit.
+  const idleMs = config.sessionIdleMinutes * 60 * 1000;
+  const store =
+    sessionStore ?? new DatabaseSessionStore({ db, idleMs, absoluteMs: config.sessionMaxAgeMinutes * 60 * 1000 });
   app.use(
     session({
       name: 'ero.sid',
       secret: config.sessionSecret,
-      store: sessionStore,
+      store,
       resave: false,
       saveUninitialized: false,
+      rolling: true,
       proxy: config.trustProxy !== false,
       unset: 'destroy',
       cookie: {
         httpOnly: true,
         sameSite: 'strict',
         secure: config.sessionCookieSecure,
-        maxAge: config.sessionMaxAgeMinutes * 60 * 1000,
+        maxAge: Math.min(idleMs, config.sessionMaxAgeMinutes * 60 * 1000),
       },
     })
   );
@@ -121,6 +130,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.use('/api', apiLimiter);
 
   app.use(createOriginGuard(config));
+  app.use(createCurrentUserLoader(services.auth));
   app.use(requireAuth);
   app.use(requirePasswordRotation);
   app.use(express.static(PUBLIC_DIR, { index: false }));
@@ -132,11 +142,11 @@ function createApp({ config, db, logger = console, sessionStore }) {
     const options = { listQuerySchema: schema.listQuerySchema, idLabel: service.definition.idLabel };
     const router =
       recordPath === 'companies' ? createCompaniesRouter(service, options) : createRecordRouter(service, options);
-    app.use(`/api/${recordPath}`, blockWritesForViewers, router);
+    app.use(`/api/${recordPath}`, router);
   }
   app.use('/api/reports', createReportsRouter(services.reports));
   app.use('/api/dashboard', createDashboardRouter(services.dashboard));
-  app.use('/api/import', blockWritesForViewers, createImportRouter(services.import));
+  app.use('/api/import', createImportRouter(services.import));
   app.use('/api/users', createUsersRouter(services.users));
   app.use('/api/meta', createMetaRouter(services.meta));
 

@@ -58,6 +58,7 @@ const schema = z.object({
   sessionSecret: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   sessionCookieSecure: booleanFromEnv,
   sessionMaxAgeMinutes: z.coerce.number().int().min(5),
+  sessionIdleMinutes: z.coerce.number().int().min(1),
 
   bootstrapAdminUsername: z.string().min(3),
   bootstrapAdminPassword: z.string().min(12).optional(),
@@ -109,6 +110,7 @@ function loadConfig(env = process.env) {
     sessionSecret,
     sessionCookieSecure: pick('SESSION_COOKIE_SECURE', defaults.sessionCookieSecure),
     sessionMaxAgeMinutes: pick('SESSION_MAX_AGE_MINUTES', 12 * 60),
+    sessionIdleMinutes: pick('SESSION_IDLE_MINUTES', 30),
 
     bootstrapAdminUsername: pick('BOOTSTRAP_ADMIN_USERNAME', pick('DEFAULT_ADMIN_USERNAME', 'admin')),
     bootstrapAdminPassword:

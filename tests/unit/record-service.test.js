@@ -15,6 +15,18 @@ const { createSilentLogger, setStoredUpdatedAt } = require('../helpers/app');
 
 const COMPANY = { CompanyName: 'Doha Ports', Industry: 'Logistics', Sector: 'Government', Country: 'Qatar' };
 
+/** Every service method takes the request context last; these tests act as an administrator. */
+const ADMIN = { user: { id: 1, role: 'admin', isActive: true }, requestId: 'test', ip: '127.0.0.1' };
+const asAdmin = (service) => ({
+  ...service,
+  list: (filters) => service.list(filters, ADMIN),
+  get: (id) => service.get(id, ADMIN),
+  create: (body) => service.create(body, ADMIN),
+  update: (id, body) => service.update(id, body, ADMIN),
+  overwrite: (id, body) => service.overwrite(id, body, ADMIN),
+  remove: (id) => service.remove(id, ADMIN),
+});
+
 function assertRejectsWith(fn, ErrorClass, pattern) {
   assert.throws(fn, (err) => {
     assert.ok(err instanceof ErrorClass, `expected ${ErrorClass.name}, got ${err?.name}: ${err?.message}`);
@@ -35,9 +47,9 @@ describe('record-service', () => {
     await migrate(db, { logger: createSilentLogger() });
     const config = loadConfig({ NODE_ENV: 'test' });
     records = createServices({ db, config, logger: createSilentLogger() }).records;
-    companies = records.get('companies').service;
-    contacts = records.get('contacts').service;
-    recruitment = records.get('recruitment').service;
+    companies = asAdmin(records.get('companies').service);
+    contacts = asAdmin(records.get('contacts').service);
+    recruitment = asAdmin(records.get('recruitment').service);
   });
 
   afterEach(() => db.close());
@@ -71,15 +83,17 @@ describe('record-service', () => {
     it('validates the body and fills date defaults with today in the office time zone', () => {
       const definition = recordTypeByPath('companies');
       // 22:00 UTC on 31 March is already 1 April in Qatar.
-      const service = createRecordService({
-        db,
-        repository: createCrudRepository(db, definition),
-        definition,
-        schema: records.get('companies').schema,
-        lookups: {},
-        timeZone: 'Asia/Qatar',
-        now: () => new Date(Date.UTC(2025, 2, 31, 22, 0)),
-      });
+      const service = asAdmin(
+        createRecordService({
+          db,
+          repository: createCrudRepository(db, definition),
+          definition,
+          schema: records.get('companies').schema,
+          lookups: {},
+          timeZone: 'Asia/Qatar',
+          now: () => new Date(Date.UTC(2025, 2, 31, 22, 0)),
+        })
+      );
       const created = service.create(COMPANY);
       assert.equal(created.DateAdded, '2025-04-01');
       assert.equal(created.Sector, 'Government');
@@ -232,7 +246,7 @@ describe('record-service', () => {
 
     it('collaboration opportunities are written in the same transaction', () => {
       const { company } = createCompanyAndContact();
-      const collaboration = records.get('collaboration').service;
+      const collaboration = asAdmin(records.get('collaboration').service);
       db.exec(`
         CREATE TEMP TRIGGER fail_on_opportunity BEFORE INSERT ON PotentialCollaboration_Opportunities
         BEGIN SELECT RAISE(ABORT, 'simulated failure'); END;
@@ -322,7 +336,7 @@ describe('record-service', () => {
         message: 'Company deleted',
         deleted: { contacts: 0, outreach: 0, recruitment: 0, events: 0 },
       });
-      const collaboration = records.get('collaboration').service;
+      const collaboration = asAdmin(records.get('collaboration').service);
       const other = companies.create(COMPANY);
       const created = collaboration.create({ CompanyID: other.CompanyID });
       assert.deepEqual(collaboration.remove(created.PotentialCollaborationID), { message: 'Deleted' });

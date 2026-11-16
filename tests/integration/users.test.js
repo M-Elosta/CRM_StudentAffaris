@@ -34,11 +34,11 @@ describe('User management', () => {
     const res = await post(admin, '/api/users', {
       username: 'new.viewer',
       password: 'viewer-password-123',
-      role: 'viewer',
+      role: 'readonly',
     });
     assert.equal(res.status, 201);
     assert.equal(res.body.Username, 'new.viewer');
-    assert.equal(res.body.Role, 'viewer');
+    assert.equal(res.body.Role, 'readonly');
     assert.ok(Number(res.body.UserID) > 0);
 
     const signIn = await post(supertest.agent(ctx.app), '/api/auth/login', {
@@ -46,26 +46,26 @@ describe('User management', () => {
       password: 'viewer-password-123',
     });
     assert.equal(signIn.status, 200);
-    assert.equal(signIn.body.role, 'viewer');
+    assert.equal(signIn.body.role, 'readonly');
     assert.equal(signIn.body.mustChangePassword, false);
   });
 
   it('stores a bcrypt hash, not the password', async () => {
-    await post(admin, '/api/users', { username: 'hash.check', password: 'hash-check-password', role: 'viewer' });
+    await post(admin, '/api/users', { username: 'hash.check', password: 'hash-check-password', role: 'readonly' });
     const row = ctx.db.prepare("SELECT PasswordHash FROM Users WHERE Username = 'hash.check'").get();
     assert.match(row.PasswordHash, /^\$2[aby]\$/);
     assert.ok(!row.PasswordHash.includes('hash-check-password'));
   });
 
   it('rejects a duplicate username with 409', async () => {
-    await post(admin, '/api/users', { username: 'dupe', password: 'first-password-123', role: 'viewer' });
+    await post(admin, '/api/users', { username: 'dupe', password: 'first-password-123', role: 'readonly' });
     const res = await post(admin, '/api/users', { username: 'dupe', password: 'second-password-123', role: 'admin' });
     assert.equal(res.status, 409);
-    assert.equal(roleOf(ctx.db.prepare("SELECT UserID FROM Users WHERE Username = 'dupe'").get().UserID), 'viewer');
+    assert.equal(roleOf(ctx.db.prepare("SELECT UserID FROM Users WHERE Username = 'dupe'").get().UserID), 'readonly');
   });
 
   it('rejects a password shorter than 12 characters with 400', async () => {
-    const res = await post(admin, '/api/users', { username: 'shorty', password: 'short-pw-11', role: 'viewer' });
+    const res = await post(admin, '/api/users', { username: 'shorty', password: 'short-pw-11', role: 'readonly' });
     assert.equal(res.status, 400);
     assert.equal(ctx.db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Username = 'shorty'").get().n, 0);
   });
@@ -77,33 +77,33 @@ describe('User management', () => {
 
   it('rejects a username with invalid characters with 400', async () => {
     for (const username of ['ab', 'has space', 'semi;colon', 'x'.repeat(65)]) {
-      const res = await post(admin, '/api/users', { username, password: 'valid-password-123', role: 'viewer' });
+      const res = await post(admin, '/api/users', { username, password: 'valid-password-123', role: 'readonly' });
       assert.equal(res.status, 400, username);
     }
   });
 
-  it('promotes a viewer to admin and demotes them again', async () => {
-    const user = createUser(ctx.db, { username: 'promotable', role: 'viewer' });
+  it('promotes a read-only user to admin and demotes them again', async () => {
+    const user = createUser(ctx.db, { username: 'promotable', role: 'readonly' });
     assert.equal((await patch(admin, `/api/users/${user.id}/role`, { role: 'admin' })).status, 200);
     assert.equal(roleOf(user.id), 'admin');
-    assert.equal((await patch(admin, `/api/users/${user.id}/role`, { role: 'viewer' })).status, 200);
-    assert.equal(roleOf(user.id), 'viewer');
+    assert.equal((await patch(admin, `/api/users/${user.id}/role`, { role: 'readonly' })).status, 200);
+    assert.equal(roleOf(user.id), 'readonly');
   });
 
   it('rejects an invalid role change with 400', async () => {
-    const user = createUser(ctx.db, { username: 'role-target', role: 'viewer' });
+    const user = createUser(ctx.db, { username: 'role-target', role: 'readonly' });
     assert.equal((await patch(admin, `/api/users/${user.id}/role`, { role: 'owner' })).status, 400);
-    assert.equal((await patch(admin, '/api/users/abc/role', { role: 'viewer' })).status, 400);
+    assert.equal((await patch(admin, '/api/users/abc/role', { role: 'readonly' })).status, 400);
   });
 
   it('returns 404 when changing the role of a user that does not exist', async () => {
     assert.equal((await patch(admin, '/api/users/999999/role', { role: 'admin' })).status, 404);
-    assert.equal((await patch(admin, '/api/users/999999/role', { role: 'viewer' })).status, 404);
+    assert.equal((await patch(admin, '/api/users/999999/role', { role: 'readonly' })).status, 404);
   });
 
   it('does not let an admin change their own role', async () => {
     createUser(ctx.db, { username: 'backup-admin', role: 'admin' });
-    const res = await patch(admin, `/api/users/${adminUser.id}/role`, { role: 'viewer' });
+    const res = await patch(admin, `/api/users/${adminUser.id}/role`, { role: 'readonly' });
     assert.equal(res.status, 403);
     assert.equal(roleOf(adminUser.id), 'admin');
   });
@@ -115,7 +115,7 @@ describe('User management', () => {
   });
 
   it('deletes another user', async () => {
-    const user = createUser(ctx.db, { username: 'leaver', role: 'viewer' });
+    const user = createUser(ctx.db, { username: 'leaver', role: 'readonly' });
     assert.equal((await del(admin, `/api/users/${user.id}`)).status, 200);
     assert.equal(roleOf(user.id), undefined);
   });
@@ -145,12 +145,12 @@ describe('User management: last admin protection', () => {
     const lastAdmin = createUser(ctx.db, { username: 'only-admin', role: 'admin' });
     createUser(ctx.db, { username: 'acting-admin', role: 'admin' });
     const acting = await login(ctx.app, 'acting-admin');
-    ctx.db.prepare("UPDATE Users SET Role = 'viewer' WHERE Username = 'acting-admin'").run();
+    ctx.db.prepare("UPDATE Users SET Role = 'readonly' WHERE Username = 'acting-admin'").run();
     // The session still says admin. Whether the request is refused by the
     // last-admin rule or by a fresh role check, it must be refused.
     assert.equal(ctx.db.prepare("SELECT COUNT(*) AS n FROM Users WHERE Role = 'admin'").get().n, 1);
 
-    const demote = await patch(acting, `/api/users/${lastAdmin.id}/role`, { role: 'viewer' });
+    const demote = await patch(acting, `/api/users/${lastAdmin.id}/role`, { role: 'readonly' });
     assert.equal(demote.status, 403);
 
     const remove = await del(acting, `/api/users/${lastAdmin.id}`);
@@ -165,10 +165,10 @@ describe('User management: last admin protection', () => {
       createUser(ctx2.db, { username: 'admin-a', role: 'admin' });
       const second = createUser(ctx2.db, { username: 'admin-b', role: 'admin' });
       const agent = await login(ctx2.app, 'admin-a');
-      assert.equal((await patch(agent, `/api/users/${second.id}/role`, { role: 'viewer' })).status, 200);
+      assert.equal((await patch(agent, `/api/users/${second.id}/role`, { role: 'readonly' })).status, 200);
       // admin-a is now the last admin and cannot demote themselves either.
       const self = ctx2.db.prepare("SELECT UserID FROM Users WHERE Username = 'admin-a'").get().UserID;
-      assert.equal((await patch(agent, `/api/users/${self}/role`, { role: 'viewer' })).status, 403);
+      assert.equal((await patch(agent, `/api/users/${self}/role`, { role: 'readonly' })).status, 403);
     } finally {
       ctx2.close();
     }
@@ -195,7 +195,7 @@ describe('User management: existing sessions', () => {
     async () => {
       const demoted = createUser(ctx.db, { username: 'soon-viewer', role: 'admin' });
       const agent = await login(ctx.app, 'soon-viewer');
-      assert.equal((await patch(admin, `/api/users/${demoted.id}/role`, { role: 'viewer' })).status, 200);
+      assert.equal((await patch(admin, `/api/users/${demoted.id}/role`, { role: 'readonly' })).status, 200);
       assert.equal((await post(agent, '/api/companies', COMPANY)).status, 403);
     }
   );
@@ -204,7 +204,7 @@ describe('User management: existing sessions', () => {
     'a deleted user can no longer use their session',
     { todo: 'requireAuth (src/middleware/auth.js) trusts session.userId without checking the user still exists' },
     async () => {
-      const leaver = createUser(ctx.db, { username: 'leaving-viewer', role: 'viewer' });
+      const leaver = createUser(ctx.db, { username: 'leaving-viewer', role: 'readonly' });
       const agent = await login(ctx.app, 'leaving-viewer');
       assert.equal((await del(admin, `/api/users/${leaver.id}`)).status, 200);
       assert.equal((await agent.get('/api/companies')).status, 401);

@@ -9,6 +9,8 @@ const {
   workbookBufferFromColumns,
 } = require('../lib/excel');
 const { recordTypeByImportEntity } = require('../domain/record-types');
+const { PERMISSIONS } = require('../security/permissions');
+const { requirePermission } = require('../security/authorize');
 const enums = require('../domain/enums');
 const { MAX_IMPORT_ROWS, isPlainObject } = require('../validation/import');
 
@@ -314,6 +316,8 @@ function toRecordBody(entity, row) {
 /**
  * Spreadsheet import: templates, parsing, row validation (with the same zod
  * schemas as the API) and the confirmed save, which runs in one transaction.
+ * Every method needs IMPORT_RUN; saving also needs the record permission of
+ * the imported type. Each takes the request context as its last argument.
  *
  * @param {object} deps
  * @param {import('better-sqlite3').Database} deps.db
@@ -465,27 +469,28 @@ function createImportService({ db, recordServices, importRepository, logger }) {
   }
 
   /** Save one confirmed row. Returns 'imported' or 'updated'; throws an AppError for a row that cannot be saved. */
-  function saveRow(entity, row, action, service) {
+  function saveRow(entity, row, action, service, ctx) {
     const body = toRecordBody(entity, row);
     if (action === 'overwrite' && isFilled(row.__existingId)) {
       const existingId = Number(row.__existingId);
       let existing;
       try {
-        existing = Number.isInteger(existingId) && existingId > 0 ? service.get(existingId) : undefined;
+        existing = Number.isInteger(existingId) && existingId > 0 ? service.get(existingId, ctx) : undefined;
       } catch (err) {
         if (!(err instanceof NotFoundError)) throw err;
       }
       if (!existing) throw new ValidationError('The record to overwrite does not exist');
-      service.overwrite(existingId, { ...existing, ...body });
+      service.overwrite(existingId, { ...existing, ...body }, ctx);
       return 'updated';
     }
-    service.create(body);
+    service.create(body, ctx);
     return 'imported';
   }
 
   return {
     /** The template workbook for an entity: { fileName, buffer }. NotFoundError for an unknown entity. */
-    async template(entity) {
+    async template(entity, ctx) {
+      requirePermission(ctx, PERMISSIONS.IMPORT_RUN);
       const fields = IMPORT_FIELDS.get(entity);
       if (!fields) throw new NotFoundError('Unknown entity');
       const buffer = await workbookBufferFromColumns(entity, [...fields.required, ...fields.optional]);
@@ -493,7 +498,8 @@ function createImportService({ db, recordServices, importRepository, logger }) {
     },
 
     /** Read an uploaded workbook: headers, a ten-row preview, the row count and every row. */
-    async parse(buffer) {
+    async parse(buffer, ctx) {
+      requirePermission(ctx, PERMISSIONS.IMPORT_RUN);
       try {
         const { headers, rows } = await readFirstWorksheet(buffer, { maxRows: MAX_IMPORT_ROWS });
         return { headers, preview: rows.slice(0, 10), totalRows: rows.length, allRows: rows };
@@ -506,7 +512,8 @@ function createImportService({ db, recordServices, importRepository, logger }) {
      * Map and check every row without saving anything.
      * @param {{ entity: string, rows: unknown[], mapping: Record<string, unknown> }} request  already validated
      */
-    validate({ entity, rows, mapping }) {
+    validate({ entity, rows, mapping }, ctx) {
+      requirePermission(ctx, PERMISSIONS.IMPORT_RUN);
       const config = entityConfig(entity);
       const seenKeys = new Map();
       return rows.map((raw, index) => {
@@ -541,7 +548,8 @@ function createImportService({ db, recordServices, importRepository, logger }) {
      * are saved. "overwrite" updates the existing record in place.
      * @param {{ entity: string, rows: unknown[] }} request  already validated
      */
-    async confirm({ entity, rows }) {
+    async confirm({ entity, rows }, ctx) {
+      requirePermission(ctx, PERMISSIONS.IMPORT_RUN);
       const { service } = entityConfig(entity);
       const counts = { imported: 0, updated: 0, skipped: 0, failed: 0 };
       const failedRows = [];
@@ -560,7 +568,7 @@ function createImportService({ db, recordServices, importRepository, logger }) {
             continue;
           }
           try {
-            counts[saveRow(entity, row, action, service)]++;
+            counts[saveRow(entity, row, action, service, ctx)]++;
           } catch (err) {
             if (!(err instanceof AppError)) logger.error('[import confirm] row could not be saved', err?.stack || err);
             counts.failed++;

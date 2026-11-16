@@ -33,7 +33,7 @@ describe('Reports', () => {
 
       before(async () => {
         ctx = await buildApp();
-        viewer = await loginAs(ctx, 'viewer');
+        viewer = await loginAs(ctx, 'readonly');
         if (state === 'populated') await seedEverything(await loginAs(ctx, 'admin'));
       });
 
@@ -71,7 +71,7 @@ describe('Reports', () => {
 
     before(async () => {
       ctx = await buildApp();
-      viewer = await loginAs(ctx, 'viewer');
+      viewer = await loginAs(ctx, 'readonly');
       await seedEverything(await loginAs(ctx, 'admin'));
     });
 

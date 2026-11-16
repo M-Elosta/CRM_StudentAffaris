@@ -16,7 +16,7 @@ function createCompaniesRouter(service, options) {
   router.get(
     '/:id/related-counts',
     asyncHandler((req, res) => {
-      res.json(service.relatedCounts(req.recordId));
+      res.json(service.relatedCounts(req.recordId, req.ctx));
     })
   );
 

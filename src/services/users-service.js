@@ -3,7 +3,7 @@
 const bcrypt = require('bcrypt');
 const { ConflictError, ForbiddenError, NotFoundError } = require('../lib/errors');
 const { isInsecurePassword } = require('../lib/password-policy');
-const { ROLES } = require('../lib/roles');
+const { ROLES } = require('../security/permissions');
 
 const BCRYPT_COST = 12;
 
@@ -24,7 +24,7 @@ function createUsersService({ db, usersRepository }) {
   }
 
   const changeRoleInTransaction = db.transaction((targetId, role) => {
-    if (role === ROLES.VIEWER) {
+    if (role !== ROLES.ADMIN) {
       const target = usersRepository.findById(targetId);
       if (!target) throw new NotFoundError('User not found.');
       ensureNotLastAdmin(target);

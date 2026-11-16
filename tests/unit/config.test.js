@@ -245,6 +245,12 @@ describe('config', () => {
       assert.equal(loadConfig({ SESSION_COOKIE_SECURE: 'nope' }).sessionCookieSecure, false);
     });
 
+    it('reads the session idle timeout, 30 minutes by default', () => {
+      assert.equal(loadConfig({}).sessionIdleMinutes, 30);
+      assert.equal(loadConfig({ SESSION_IDLE_MINUTES: '15' }).sessionIdleMinutes, 15);
+      assert.throws(() => loadConfig({ SESSION_IDLE_MINUTES: '0' }), /sessionIdleMinutes/);
+    });
+
     it('rejects out-of-range values', () => {
       assert.throws(() => loadConfig({ PORT: '70000' }), /port/);
       assert.throws(() => loadConfig({ SESSION_MAX_AGE_MINUTES: '1' }), /sessionMaxAgeMinutes/);
