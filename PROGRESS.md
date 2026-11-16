@@ -4,13 +4,22 @@ Single source of truth for where the production-readiness work stands. Updated a
 
 ## Current phase
 
-**Re-prioritised by the owner (2026-11-16): limited budget, so the focus is repository clean-up, the redesigned interface, and a README with screenshots.**
+**Stopped at the scope the owner set on 2026-11-16: clean repository, rebuilt interface, README with screenshots, pull request into `main`.** Single sign-on is to be done at a later stage.
 
-- Phase 2: complete. Branch plan applied as far as this environment allows (see "Owner actions").
-- Phase 3: partly done and merged — database sessions, user loaded on every request, role and sensitive-field enforcement in the record and import services, security schema (migration 0003). Deferred: SSO providers, TOTP, lockout, audit-log writes, soft delete and restore, privacy tools, role checks on dashboard and reports.
-- Phase 4 (UI): in progress, delegated.
-- Phase 7: deferred. Unfinished, unreviewed work is saved on `feature/ops-tooling`.
-- Phases 5, 6, 8, 10: not started. Phase 9 (README, screenshots) follows the UI.
+| Phase                        | Status                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Audit                      | Complete (`docs/AUDIT.md`)                                                                                                                                                                                                                                                                                                                                                      |
+| 2 Clean up and restructure   | Complete. Old branch names still to be deleted by the owner (see below)                                                                                                                                                                                                                                                                                                         |
+| 3 Security                   | Partly done: security schema (migration 0003), database sessions, user checked on every request, roles and sensitive fields enforced for records and import, CSRF tokens, strict CSP, user deactivation. Not done: SSO, TOTP, lockout, audit-log writes, soft delete and restore, privacy tools, role checks on the dashboard and reports JSON API, ZAP scan                    |
+| 4 UI                         | Complete: server-rendered interface for every screen; old static pages removed                                                                                                                                                                                                                                                                                                  |
+| 5 Solid                      | Partly done: all-routes browser check for four roles (94 pages, no console errors, no layout shift), busy states, inline validation, unsaved-changes prompt, named delete confirmation, friendly error pages, server-side paging, global search, import with preview. Not done: QA report, load test, Lighthouse, duplicate merge, reminders, session-expiry warning end to end |
+| 6 Reporting                  | Not started (existing 34 reports kept and restyled)                                                                                                                                                                                                                                                                                                                             |
+| 7 Reliability and deployment | Not merged. Unfinished, unreviewed work on `feature/ops-tooling`                                                                                                                                                                                                                                                                                                                |
+| 8 Tests and documentation    | Tests: 1,065 (1,063 pass, 2 marked todo). Documents beyond the README not written                                                                                                                                                                                                                                                                                               |
+| 9 Repository and README      | Complete: README, screenshots from fictional data, screenshot script, templates, clean tree                                                                                                                                                                                                                                                                                     |
+| 10 Launch                    | Not started                                                                                                                                                                                                                                                                                                                                                                     |
+
+Known weaknesses of the new interface, to pick up next: date inputs show the browser's own format; the unsaved-changes prompt is the browser's dialog; deletes are permanent until soft delete is built; generic record pages are plain field lists; accounts have no display name yet.
 
 ## Owner actions
 
@@ -76,14 +85,14 @@ See `docs/AUDIT.md` section 12. Short form:
 | 3     | Migration 0003: accounts, roles, audit log, soft delete, versions, sessions, settings                                                                                               | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete                                                       |
 | 3     | Database sessions, per-request user, RBAC enforcement with field redaction, user deactivation                                                                                       | Opus subagent             | `phase3/sessions-rbac`    | Partly delivered (cut off by usage limit); reviewed and merged |
 | 4     | UI specification as templates: page shell, component macros, reference list screen (`src/views/`)                                                                                   | Not delegated (lead work) | `claude/busy-bohr-0gad6e` | Complete, not wired in                                         |
-| 4     | Server-rendered UI: all screens, CSRF, server-side lists, removal of the old static UI                                                                                              | Opus subagent             | `phase4/ui`               | Running                                                        |
+| 4     | Server-rendered UI: all screens, CSRF, server-side lists, removal of the old static UI                                                                                              | Opus subagent             | `phase4/ui`               | Reviewed and merged                                            |
 | 7     | Encrypted backups with retention and off-server copy, restore, systemd, nginx, logrotate, install and deploy scripts with rollback, monitoring, Docker alternative, operations docs | Opus subagent             | `feature/ops-tooling`     | Interrupted; parked, not merged                                |
 
 ## Notes for the next session
 
-- Working branch: `claude/busy-bohr-0gad6e`. Delegated work happens on local branches in separate worktrees and is merged here after review; those branches are not pushed.
-- Run locally: `npm ci`, `npm run seed:demo`, `npm start` (development defaults; database at `./data/dev/employer.db`). `npm run migrate:status` shows applied migrations.
-- The current static UI still loads Bootstrap and Chart.js from a public CDN; it is replaced in Phase 4.
-- Subagent worktrees start from the repository's default branch, not from the working branch. Every brief must tell the subagent to create its branch from an explicit commit.
-- Commands: `npm run lint`, `npm run format:check`, `npm test`.
-- Pushing is only authorised to the working branch until the owner approves the branch plan.
+- Integration branch: `develop`. The session branch `claude/busy-bohr-0gad6e` holds the same commits. `main` is updated only through the pull request from `develop`.
+- Run locally: `npm ci`, `npm run seed:demo`, `npm start`. Checks: `npm run lint`, `npm run format:check`, `npm test`.
+- Browser checks need Playwright on `NODE_PATH`: `npm run check:routes -- --base <url> --user admin --password <password>` and `npm run screenshots`.
+- Subagent worktrees start from the repository's default branch. Every brief must tell the subagent to create its branch from an explicit commit.
+- This environment refuses tag pushes and branch deletions.
+- Suggested order for the remaining work: finish and review `feature/ops-tooling` (backups, restore, deploy); audit log and soft delete; SSO; reporting additions; the remaining documents; launch checklist.
