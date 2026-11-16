@@ -20,6 +20,7 @@ const { createReportsRepository } = require('../db/repositories/reports-reposito
 const { createReportsService } = require('./reports');
 const { createActivityRepository } = require('../db/repositories/activity-repository');
 const { createActivityService } = require('./activity-service');
+const { createSearchService } = require('./search-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -99,6 +100,7 @@ function createServices({ db, config, logger = console }) {
       records,
       timeZone: config.timeZone,
     }),
+    search: createSearchService({ records }),
     reports: createReportsService({ reportsRepository: createReportsRepository(db), timeZone: config.timeZone }),
   };
 }

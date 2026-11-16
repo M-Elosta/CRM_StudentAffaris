@@ -41,8 +41,8 @@
           <label class="visually-hidden" for="global-search">Search employers, contacts and events</label>
           <input class="input" id="global-search" name="q" type="search" dir="auto" autocomplete="off"
                  placeholder="Search employers, contacts, events"
-                 hx-get="/search/suggest" hx-trigger="input changed delay:250ms, focus" hx-target="#search-suggestions" hx-swap="innerHTML" hx-push-url="false"
-                 aria-controls="search-suggestions" data-shortcut="/" />
+                 hx-get="/search/suggest" hx-trigger="input changed delay:250ms, focus" hx-target="#search-suggestions" hx-select="unset" hx-swap="innerHTML" hx-push-url="false" hx-sync="this:replace"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggestions" data-shortcut="/" />
           <kbd class="input-group__kbd" aria-hidden="true">/</kbd>
         </div>
         <div id="search-suggestions" class="menu" role="listbox" hidden></div>

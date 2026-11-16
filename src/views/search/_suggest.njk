@@ -1,0 +1,27 @@
+{#
+  Suggestions under the search box: the top five of each group, then a link
+  to all results. Empty when nothing matches, so the box stays closed.
+  Locals: q, results { employers, contacts, events } (a group is null when not readable)
+#}
+{% set groups = [
+  ['Employers', results.employers, 'CompanyName'],
+  ['Contacts', results.contacts, 'contact'],
+  ['Events', results.events, 'title']
+] %}
+{% set any = (results.employers and results.employers.rows.length) or (results.contacts and results.contacts.rows.length) or (results.events and results.events.rows.length) %}
+{% if any %}
+  {% for group in groups %}
+    {% if group[1] and group[1].rows.length %}
+      <div class="menu__label" role="presentation">{{ group[0] }}</div>
+      {% for row in group[1].rows %}
+        <a class="menu__item" role="option" href="{{ row.href }}">
+          <span class="cell--truncate" dir="auto">{% if group[2] == 'contact' %}{{ row.FirstName }} {{ row.LastName }}{% else %}{{ row[group[2]] }}{% endif %}</span>
+          {% set company = row.CompanyName or row.companyName %}
+          {% if group[2] != "CompanyName" and company %}<span class="text-sm text-subtle cell--truncate" dir="auto">{{ company }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  <div class="menu__separator" role="presentation"></div>
+  <a class="menu__item" role="option" href="/search?q={{ q | urlencode }}">All results for “<bdi>{{ q }}</bdi>”</a>
+{% endif %}

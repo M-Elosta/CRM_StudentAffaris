@@ -418,6 +418,14 @@
     }
   });
 
+  // Navigating (a boosted link or the search form) closes the suggestions and menus.
+  document.addEventListener('htmx:beforeRequest', (event) => {
+    if (event.detail.target && event.detail.target.id === 'main') {
+      hideSuggestions();
+      closeMenus(null);
+    }
+  });
+
   // Suggestions appear when the server returned some, and go when it returned none.
   document.addEventListener('htmx:afterSwap', (event) => {
     const box = event.detail.target;

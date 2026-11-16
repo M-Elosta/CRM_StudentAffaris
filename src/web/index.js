@@ -12,6 +12,7 @@ const { createRecordController, createEventsController, createOptionsController 
 const { createFollowUpsController } = require('./controllers/follow-ups');
 const { createReportsController } = require('./controllers/reports');
 const { createAdminUsersController } = require('./controllers/admin-users');
+const { createSearchController } = require('./controllers/search');
 const { SCREENS } = require('./screens');
 
 /** Paths a user who must change their password may still open. */
@@ -56,6 +57,7 @@ function createWebRouter({ services, config, logger = console }) {
   router.use(createFollowUpsController({ services }));
   router.use(createReportsController({ services, config }));
   router.use(createAdminUsersController({ services }));
+  router.use(createSearchController({ services }));
   router.use(createOptionsController({ services }));
   for (const screen of SCREENS) {
     if (screen.recordType !== 'companies')
