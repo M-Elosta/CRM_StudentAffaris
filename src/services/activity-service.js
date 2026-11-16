@@ -1,6 +1,6 @@
 'use strict';
 
-const { ACTIVITY_SOURCES } = require('../domain/activity');
+const { ACTIVITY_SOURCES, DORMANT_AFTER_DAYS } = require('../domain/activity');
 const { PERMISSIONS: P } = require('../security/permissions');
 const authorize = require('../security/authorize');
 const { addDaysToIsoDate, todayInTimeZone } = require('../lib/dates');
@@ -78,6 +78,29 @@ function createActivityService({ activityRepository, records, timeZone, now = ()
         total: activityRepository.countDueBy(dueBy),
         overdue: activityRepository.countOverdue(currentDay),
       };
+    },
+
+    /** An employer's next open follow-ups (overdue ones first); [] for a user who may not read interactions. */
+    followUpsForCompany(companyId, ctx) {
+      authorize.requireRecordAccess(ctx, P.RECORD_READ, 'companies');
+      if (!authorize.canReadRecordType(ctx, 'outreach')) return [];
+      const currentDay = today();
+      return activityRepository.followUpsForCompany(companyId).map((item) => classify(item, currentDay));
+    },
+
+    /**
+     * When an employer was last in contact (any activity type, up to today) and
+     * whether that makes it dormant (DORMANT_AFTER_DAYS without activity,
+     * counted from the date added when there has been none).
+     * @param {{ CompanyID: number, DateAdded?: string, Blacklisted?: number }} company
+     */
+    contactSummary(company, ctx) {
+      authorize.requireRecordAccess(ctx, P.RECORD_READ, 'companies');
+      const currentDay = today();
+      const lastContactAt = activityRepository.lastContact(company.CompanyID, currentDay);
+      const cutoff = addDaysToIsoDate(currentDay, -DORMANT_AFTER_DAYS);
+      const isDormant = !company.Blacklisted && String(lastContactAt ?? company.DateAdded ?? '') < cutoff;
+      return { lastContactAt, isDormant };
     },
 
     /** Number of overdue follow-ups; 0 for a user who may not read interactions. */

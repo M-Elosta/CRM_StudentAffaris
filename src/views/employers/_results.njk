@@ -15,7 +15,7 @@
       </caption>
       <colgroup>
         <col class="col--name" /><col class="col--md" /><col class="col--sm" /><col class="col--sm" />
-        <col class="col--md" /><col class="col--sm" /><col class="col--xs" /><col class="col--md" />
+        <col class="col--sm" /><col class="col--xs" /><col />
       </colgroup>
       <thead>
         <tr>
@@ -23,7 +23,6 @@
           {{ sortHeader('Industry', 'industry', list) }}
           {{ sortHeader('Sector', 'sector', list) }}
           {{ sortHeader('Country', 'country', list) }}
-          {{ sortHeader('Owner', 'owner', list) }}
           {{ sortHeader('Last contact', 'lastContact', list) }}
           {{ sortHeader('Contacts', 'contacts', list, true) }}
           <th scope="col">Status</th>
@@ -37,8 +36,7 @@
             </td>
             <td class="cell--truncate" dir="auto">{{ employer.Industry }}</td>
             <td>{{ employer.Sector }}</td>
-            <td dir="auto">{{ employer.Country }}</td>
-            <td class="cell--truncate" dir="auto">{% if employer.ownerName %}{{ employer.ownerName }}{% else %}<span class="text-subtle">Unassigned</span>{% endif %}</td>
+            <td class="cell--truncate" dir="auto">{{ employer.Country }}</td>
             <td class="tabular">{% if employer.lastContactAt %}{{ employer.lastContactAt | date }}{% else %}<span class="text-subtle">Never</span>{% endif %}</td>
             <td class="cell--num">{{ employer.contactCount }}</td>
             <td>

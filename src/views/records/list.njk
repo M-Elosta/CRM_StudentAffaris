@@ -1,0 +1,61 @@
+{#
+  The generic list screen, the same layout as the employers reference screen:
+  header, optional tabs, toolbar (search and filters), #results.
+
+  Locals: screen, list, can { create }, tabs?, listHref
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import icon, button, linkButton, pageHeader %}
+
+{% set pageTitle = screen.title %}
+
+{% block content %}
+  {% call pageHeader(screen.title, screen.description) %}
+    {% if can.create %}
+      {{ linkButton('Add ' ~ screen.singular, screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}
+    {% endif %}
+  {% endcall %}
+
+  {% if tabs %}
+    <nav class="tabs" aria-label="{{ screen.title }}">
+      {% for tab in tabs %}
+        <a class="tabs__tab" href="{{ tab.href }}" {% if tab.current %}aria-current="page"{% endif %}>{{ tab.label }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  <form class="toolbar" action="{{ screen.listPath or screen.base }}" method="get" role="search" aria-label="Filter {{ screen.plural }}"
+        hx-get="{{ screen.listPath or screen.base }}" hx-target="#results" hx-select="#results" hx-push-url="true"
+        hx-trigger="submit, change from:select, input changed delay:300ms from:#q" data-filter-form>
+    {% if screen.tab %}<input type="hidden" name="tab" value="{{ screen.tab }}" />{% endif %}
+    <input type="hidden" name="sort" value="{{ list.sort }}" />
+    <input type="hidden" name="dir" value="{{ list.dir }}" />
+    {% for filter in screen.filters %}
+      {% if filter.hidden and list.filters[filter.param] %}<input type="hidden" name="{{ filter.param }}" value="{{ list.filters[filter.param] }}" />{% endif %}
+    {% endfor %}
+
+    <div class="input-group">
+      {{ icon('search') }}
+      <label class="visually-hidden" for="q">{{ screen.searchHint or 'Search' }}</label>
+      <input class="input" id="q" name="q" type="search" value="{{ list.q }}" dir="auto" autocomplete="off" placeholder="{{ screen.searchHint or 'Search' }}" />
+    </div>
+
+    {% for filter in screen.filters %}
+      {% if not filter.hidden %}
+        <label class="visually-hidden" for="filter-{{ filter.param }}">{{ filter.label }}</label>
+        <select class="select" id="filter-{{ filter.param }}" name="{{ filter.param }}">
+          <option value="">{{ filter.all }}</option>
+          {% for option in filter.options %}<option value="{{ option.value }}" {% if list.filters[filter.param] == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+        </select>
+      {% endif %}
+    {% endfor %}
+
+    <noscript>{{ button('Apply', '', 'submit') }}</noscript>
+
+    <div class="toolbar__end">
+      {% if list.hasFilters %}<a class="btn btn--ghost btn--sm" href="{{ listHref }}">Clear filters</a>{% endif %}
+    </div>
+  </form>
+
+  {% include "records/_results.njk" %}
+{% endblock %}

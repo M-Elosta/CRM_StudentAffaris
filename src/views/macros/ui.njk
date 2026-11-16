@@ -44,10 +44,14 @@
      form.errors  { name: message } one specific sentence per invalid field
    The error line is always rendered (empty when valid) so a message appearing
    never moves the layout. #}
-{% macro _wrap(name, label, form, required, hint, full) -%}
+{# The wrapper of a field, in two halves around the control. (Not a {% call %} block:
+   Nunjucks 3 does not pass a macro's keyword arguments into a caller body.) #}
+{% macro _open(name, label, required, full) -%}
   <div class="field{% if full %} form-grid__full{% endif %}">
     <label class="field__label" for="f-{{ name }}">{{ label }}{% if required %}<span class="field__required" aria-hidden="true">*</span>{% endif %}</label>
-    {{ caller() }}
+{%- endmacro %}
+
+{% macro _close(name, form, hint) -%}
     {% if hint %}<span class="field__hint" id="f-{{ name }}-hint">{{ hint }}</span>{% endif %}
     <span class="field__error" id="f-{{ name }}-error" aria-live="polite">{{ form.errors[name] }}</span>
   </div>
@@ -62,33 +66,33 @@
 {# type: text | email | url | tel | date | time | number | search
    userText=true for anything a person types freely (names, titles): sets dir="auto". #}
 {% macro field(name, label, form, type='text', required=false, hint='', full=false, userText=true, maxlength=255, attrs='', autocomplete='off') -%}
-  {% call _wrap(name, label, form, required, hint, full) -%}
+  {{ _open(name, label, required, full) }}
     <input class="input" id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ form.values[name] }}"
            {% if userText and type in ['text', 'search'] %}dir="auto"{% endif %}
            {% if type in ['text', 'email', 'url', 'tel', 'search'] %}maxlength="{{ maxlength }}"{% endif %}
            autocomplete="{{ autocomplete }}" {{ _aria(name, form, required, hint) }} {{ attrs | safe }} />
-  {%- endcall %}
+  {{ _close(name, form, hint) }}
 {%- endmacro %}
 
 {% macro textarea(name, label, form, required=false, hint='', full=true, rows=4, maxlength=2000) -%}
-  {% call _wrap(name, label, form, required, hint, full) -%}
+  {{ _open(name, label, required, full) }}
     <textarea class="textarea" id="f-{{ name }}" name="{{ name }}" rows="{{ rows }}" maxlength="{{ maxlength }}" dir="auto"
               {{ _aria(name, form, required, hint) }}>{{ form.values[name] }}</textarea>
-  {%- endcall %}
+  {{ _close(name, form, hint) }}
 {%- endmacro %}
 
 {# options: [{ value, label }] or plain strings. placeholder adds an empty first option. #}
 {% macro select(name, label, form, options, required=false, hint='', full=false, placeholder='Select…', attrs='') -%}
-  {% call _wrap(name, label, form, required, hint, full) -%}
+  {{ _open(name, label, required, full) }}
     <select class="select" id="f-{{ name }}" name="{{ name }}" {{ _aria(name, form, required, hint) }} {{ attrs | safe }}>
       {% if placeholder %}<option value="">{{ placeholder }}</option>{% endif %}
       {% for option in options %}
         {% set value = option.value if option.value is defined else option %}
         {% set text = option.label if option.label is defined else option %}
-        <option value="{{ value }}" {% if (form.values[name] | string) == (value | string) %}selected{% endif %} dir="auto">{{ text }}</option>
+        <option value="{{ value }}" {% if form.values[name] is defined and form.values[name] !== null and (form.values[name] | string) == (value | string) %}selected{% endif %} dir="auto">{{ text }}</option>
       {% endfor %}
     </select>
-  {%- endcall %}
+  {{ _close(name, form, hint) }}
 {%- endmacro %}
 
 {% macro checkbox(name, label, form, hint='') -%}

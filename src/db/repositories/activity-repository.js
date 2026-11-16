@@ -80,6 +80,21 @@ function createActivityRepository(db) {
       ).all(date, limit);
     },
 
+    /** An employer's open follow-ups, earliest first. */
+    followUpsForCompany(companyId, limit = 5) {
+      return prepared(
+        `${followUpSelect} AND o.CompanyID = ? ORDER BY o.FollowUpDate ASC, o.OutreachEngagementID ASC LIMIT ?`
+      ).all(companyId, limit);
+    },
+
+    /** The most recent activity date of an employer up to `today`, across every activity type, or null. */
+    lastContact(companyId, today) {
+      const sql = `SELECT MAX(d) AS last FROM (${ACTIVITY_SOURCES.map(
+        (source) => `SELECT ${source.dateColumn} AS d FROM ${source.table} WHERE CompanyID = ?`
+      ).join(' UNION ALL ')}) WHERE d <= ?`;
+      return prepared(sql).get(...ACTIVITY_SOURCES.map(() => companyId), today).last ?? null;
+    },
+
     /** Number of open follow-ups due before `today`. */
     countOverdue(today) {
       return prepared(

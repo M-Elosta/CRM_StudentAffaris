@@ -3,7 +3,7 @@
 
     page header        title, count line, one primary action
     saved views        tabs: built-in views first, then the user's own
-    toolbar            search, filters, "Save view", export
+    toolbar            search, filters, export
     #results           the only region that changes: table + footer
 
   The server renders the first page of rows in the page itself. Search,
@@ -14,8 +14,8 @@
   Controller locals:
     list      { rows, total, from, to, page, pages, sort, dir, q, filters, url(overrides), activeView }
     views     [{ id, label, href, current, count?, own }]
-    options   { sectors, regions, owners, statuses }
-    can       { create, export, saveView }
+    options   { sectors, regions, statuses }
+    can       { create, export }
 #}
 {% extends "layouts/app.njk" %}
 {% from "macros/ui.njk" import icon, button, linkButton, pageHeader %}
@@ -72,21 +72,11 @@
       {% for status in options.statuses %}<option value="{{ status.value }}" {% if list.filters.status == status.value %}selected{% endif %}>{{ status.label }}</option>{% endfor %}
     </select>
 
-    <label class="visually-hidden" for="filter-owner">Relationship owner</label>
-    <select class="select" id="filter-owner" name="owner">
-      <option value="">Any owner</option>
-      <option value="me" {% if list.filters.owner == 'me' %}selected{% endif %}>Mine</option>
-      <option value="none" {% if list.filters.owner == 'none' %}selected{% endif %}>Unassigned</option>
-      {% for owner in options.owners %}<option value="{{ owner.id }}" {% if list.filters.owner == (owner.id | string) %}selected{% endif %} dir="auto">{{ owner.name }}</option>{% endfor %}
-    </select>
 
     <noscript>{{ button('Apply', '', 'submit') }}</noscript>
 
     <div class="toolbar__end">
       {% if list.hasFilters %}<a class="btn btn--ghost btn--sm" href="/employers">Clear filters</a>{% endif %}
-      {% if can.saveView and list.hasFilters %}
-        {{ button('Save view', 'ghost', 'button', 'save', 'hx-get="/views/new?list=employers&' ~ list.queryString ~ '" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog', true) }}
-      {% endif %}
     </div>
   </form>
 

@@ -1,0 +1,157 @@
+{#
+  Employer profile: header with status, a main column of tabs (timeline,
+  contacts, postings, events, notes) and a side column with the details and
+  the next follow-ups. Tabs are links; htmx swaps #tab-panel only.
+
+  Locals: employer, summary { lastContactAt, isDormant }, tabs, panel, followUps,
+          returnTo (encoded), deleteText, can
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import icon, badge, linkButton, deleteForm, emptyState, restricted %}
+{% from "macros/record.njk" import cell %}
+{% from "macros/activity.njk" import timeline %}
+
+{% set pageTitle = employer.CompanyName %}
+{% set id = employer.CompanyID %}
+{% set dialogAttrs = ' hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog' %}
+
+{% block content %}
+  <nav aria-label="Breadcrumb"><ol class="breadcrumb" role="list">
+    <li><a href="/employers">Employers</a></li>
+    <li><span dir="auto" aria-current="page">{{ employer.CompanyName }}</span></li>
+  </ol></nav>
+
+  <div class="page-header">
+    <div>
+      <h1 dir="auto">{{ employer.CompanyName }}</h1>
+      <div class="row row--wrap mt-2">
+        {% if employer.Blacklisted %}{{ badge('Do not engage', 'danger') }}
+        {% elif summary.isDormant %}{{ badge('Dormant', 'warning') }}
+        {% else %}{{ badge('Active', 'success') }}{% endif %}
+        {% if employer.FavoriteEmployer %}<span class="tag">Key partner</span>{% endif %}
+        {% if employer.SignedMoU %}<span class="tag">MoU</span>{% endif %}
+        {% if employer.Website %}
+          <a class="text-sm" href="{{ employer.Website }}" target="_blank" rel="noopener noreferrer" aria-label="Website of {{ employer.CompanyName }} (opens in a new tab)">
+            {{ employer.Website | replace('https://', '') | replace('http://', '') | replace('www.', '') | truncate(40, true, '…') }}
+          </a>
+        {% endif %}
+      </div>
+      <p class="page-header__meta">
+        Last contact {% if summary.lastContactAt %}{{ summary.lastContactAt | date }}{% else %}never{% endif %}
+        · Last edited {{ employer.UpdatedAt | datetime }}
+      </p>
+    </div>
+    <div class="page-header__actions">
+      {% if can.delete %}{{ deleteForm('/employers/' ~ id ~ '/delete', employer.CompanyName, csrfToken, deleteText) }}{% endif %}
+      {% if can.update %}
+        {{ linkButton('Edit', '/employers/' ~ id ~ '/edit', '', 'edit', 'hx-get="/employers/' ~ id ~ '/edit"' ~ dialogAttrs) }}
+      {% endif %}
+      {% if can.addContact %}
+        {% set href = '/contacts/new?CompanyID=' ~ id ~ '&returnTo=' ~ returnTo ~ '%3Ftab%3Dcontacts' %}
+        {{ linkButton('Add contact', href, '', 'plus', 'hx-get="' ~ href ~ '"' ~ dialogAttrs) }}
+      {% endif %}
+      {% if can.logInteraction %}
+        {% set href = '/interactions/new?CompanyID=' ~ id ~ '&returnTo=' ~ returnTo %}
+        {{ linkButton('Log interaction', href, 'primary', 'plus', 'hx-get="' ~ href ~ '"' ~ dialogAttrs) }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid--profile">
+    <div id="tab-panel" class="is-loading-target">
+      <nav class="tabs" aria-label="Employer sections">
+        {% for tab in tabs %}
+          <a class="tabs__tab" href="{{ tab.href }}" hx-get="{{ tab.href }}" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" {% if tab.current %}aria-current="page"{% endif %}>
+            {{ tab.label }}{% if tab.count is defined %}<span class="tabs__count">{{ tab.count }}</span>{% endif %}
+          </a>
+        {% endfor %}
+      </nav>
+
+      {% if panel.key == 'timeline' or panel.key == 'events' %}
+        <section class="card" aria-label="{{ 'Timeline' if panel.key == 'timeline' else 'Events' }}">
+          <div class="card__body">
+            {% if panel.items.length %}
+              {{ timeline(panel.items) }}
+            {% elif panel.key == 'timeline' %}
+              {% call emptyState('No activity yet', 'Interactions, postings, events and hiring outcomes with this employer appear here, newest first.') %}
+                {% if can.logInteraction %}{{ linkButton('Log interaction', '/interactions/new?CompanyID=' ~ id ~ '&returnTo=' ~ returnTo, '', 'plus', 'hx-get="/interactions/new?CompanyID=' ~ id ~ '&returnTo=' ~ returnTo ~ '"' ~ dialogAttrs) }}{% endif %}
+              {% endcall %}
+            {% else %}
+              {{ emptyState('No events yet', 'Career events, student-led events and academic engagements with this employer appear here.') }}
+            {% endif %}
+          </div>
+        </section>
+      {% elif panel.key == 'contacts' or panel.key == 'postings' %}
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="visually-hidden">{{ panel.screen.plural | capitalize }} at {{ employer.CompanyName }}</caption>
+            <colgroup>{% for column in panel.columns %}<col class="{{ column.col or 'col--md' }}" />{% endfor %}</colgroup>
+            <thead><tr>{% for column in panel.columns %}<th scope="col">{{ column.label }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for row in panel.rows %}<tr>{% for column in panel.columns %}{{ cell(column, row) }}{% endfor %}</tr>{% endfor %}
+            </tbody>
+          </table>
+          {% if not panel.rows.length %}
+            {{ emptyState('No ' ~ panel.screen.plural ~ ' yet', ('Add the people you work with at this employer.' if panel.key == 'contacts' else 'Postings this employer offers to students appear here.')) }}
+          {% endif %}
+        </div>
+      {% else %}
+        <section class="card" aria-label="Notes">
+          <div class="card__body">
+            {% if employer._withheld and ('Comment' in employer._withheld) %}
+              {{ restricted() }}
+            {% elif employer.Comment %}
+              <p class="timeline__body" dir="auto">{{ employer.Comment }}</p>
+            {% else %}
+              {{ emptyState('No notes', 'Notes about this employer are added with Edit.') }}
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="stack" aria-label="Employer details">
+      <section class="card" aria-labelledby="details-heading">
+        <div class="card__header"><h2 id="details-heading">Details</h2></div>
+        <div class="card__body">
+          <dl class="details">
+            <dt>Industry</dt><dd dir="auto">{{ employer.Industry }}</dd>
+            <dt>Sector</dt><dd>{{ employer.Sector }}</dd>
+            <dt>Country</dt><dd dir="auto">{{ employer.Country }}</dd>
+            <dt>Address</dt><dd dir="auto">{{ employer.Address or '—' }}</dd>
+            <dt>Links</dt>
+            <dd>
+              {% set links = [['Website', employer.Website], ['LinkedIn', employer.LinkedInURL], ['Handshake', employer.HandshakeURL]] %}
+              <span class="row row--wrap">
+                {% for link in links %}{% if link[1] %}<a href="{{ link[1] }}" target="_blank" rel="noopener noreferrer">{{ link[0] }}<span class="visually-hidden"> of {{ employer.CompanyName }} (opens in a new tab)</span></a>{% endif %}{% endfor %}
+                {% if not (employer.Website or employer.LinkedInURL or employer.HandshakeURL) %}<span class="text-subtle">—</span>{% endif %}
+              </span>
+            </dd>
+            <dt>Date added</dt><dd class="tabular">{{ employer.DateAdded | date }}</dd>
+          </dl>
+        </div>
+      </section>
+
+      {% if can.readInteractions %}
+        <section class="card" aria-labelledby="followups-heading">
+          <div class="card__header"><h2 id="followups-heading">Next follow-ups</h2></div>
+          {% if followUps.length %}
+            <div class="card__body"><ul class="stack--sm" role="list">
+              {% for item in followUps %}
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/{{ item.id }}" class="tabular">{{ item.followUpDate | date }}</a>
+                    {% if item.group == 'overdue' %}{{ badge('Overdue', 'danger') }}{% elif item.group == 'week' %}{{ badge('This week', 'warning') }}{% endif %}
+                  </div>
+                  <p class="text-sm text-muted" dir="auto">{{ item.actionPlan or item.discussionItems | truncate(90) }}</p>
+                </li>
+              {% endfor %}
+            </ul></div>
+          {% else %}
+            <p class="card__body text-muted text-sm">No open follow-ups.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

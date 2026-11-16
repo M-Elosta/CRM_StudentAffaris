@@ -7,6 +7,9 @@ const { createCsrfGuard } = require('./csrf');
 const { renderErrorPage, createPageErrorHandler } = require('./errors');
 const { createAuthController } = require('./controllers/auth');
 const { createDashboardController } = require('./controllers/dashboard');
+const { createEmployersController } = require('./controllers/employers');
+const { createRecordController, createEventsController, createOptionsController } = require('./controllers/records');
+const { SCREENS } = require('./screens');
 
 /** Paths a user who must change their password may still open. */
 const ROTATION_ALLOWED = new Set(['/account', '/account/password', '/auth/sign-out', '/login', '/session/extend']);
@@ -45,6 +48,13 @@ function createWebRouter({ services, config, logger = console }) {
   router.get('/', (_req, res) => res.redirect('/dashboard'));
   router.use(createAuthController({ services, config }));
   router.use(createDashboardController({ services, config }));
+  router.use(createEmployersController({ services }));
+  router.use(createEventsController({ services }));
+  router.use(createOptionsController({ services }));
+  for (const screen of SCREENS) {
+    if (screen.recordType !== 'companies')
+      router.use(createRecordController({ services, screen, list: !screen.listPath }));
+  }
 
   router.use((req, res) => renderErrorPage(req, res, 404));
   router.use(createPageErrorHandler(logger));

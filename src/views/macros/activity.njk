@@ -1,0 +1,23 @@
+{#
+  Activity timeline (interaction history), newest first.
+  items: [{ type, typeLabel, title, date, summary, contactName, contactId, companyName, companyId, href }]
+  showEmployer: also name the employer of each item (dashboard).
+#}
+
+{% macro timeline(items, showEmployer=false) -%}
+  <ol class="timeline" role="list">
+    {% for item in items %}
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title">{% if item.href %}<a href="{{ item.href }}" dir="auto">{{ item.title }}</a>{% else %}<span dir="auto">{{ item.title }}</span>{% endif %}</span>
+          {% if item.typeLabel and item.typeLabel != item.title %}<span>{{ item.typeLabel }}</span>{% endif %}
+          <span aria-hidden="true">·</span>
+          <span class="tabular">{{ item.date | date }}</span>
+          {% if showEmployer %}<span aria-hidden="true">·</span><a href="/employers/{{ item.companyId }}" dir="auto">{{ item.companyName }}</a>{% endif %}
+          {% if item.contactName %}<span aria-hidden="true">·</span><a href="/contacts/{{ item.contactId }}" dir="auto">{{ item.contactName }}</a>{% endif %}
+        </div>
+        {% if item.summary %}<p class="timeline__body" dir="auto">{{ item.summary }}</p>{% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+{%- endmacro %}

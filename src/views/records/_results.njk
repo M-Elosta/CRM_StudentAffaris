@@ -1,0 +1,46 @@
+{#
+  The results region of a generic list, built from the screen's columns.
+  Same contract as employers/_results.njk: fixed columns, fixed row height,
+  footer always present.
+#}
+{% from "macros/ui.njk" import sortHeader, tableFooter, emptyState, linkButton %}
+{% from "macros/record.njk" import cell %}
+
+<section id="results" class="is-loading-target" aria-label="{{ screen.plural | capitalize }}" aria-live="polite" aria-busy="false">
+  <div class="table-wrap">
+    <table class="table">
+      <caption class="visually-hidden">
+        {{ screen.plural | capitalize }}{% if list.q %} matching “{{ list.q }}”{% endif %}, sorted by {{ list.sortLabel }} {{ 'ascending' if list.dir == 'asc' else 'descending' }}
+      </caption>
+      <colgroup>
+        {% for column in screen.columns %}<col class="{{ column.col or 'col--md' }}" />{% endfor %}
+      </colgroup>
+      <thead>
+        <tr>
+          {% for column in screen.columns %}
+            {% if column.sort %}{{ sortHeader(column.label, column.sort, list, column.type == 'number') }}{% else %}<th scope="col">{{ column.label }}</th>{% endif %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in list.rows %}
+          <tr>{% for column in screen.columns %}{{ cell(column, row) }}{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if not list.rows.length %}
+      {% if list.hasFilters %}
+        {% call emptyState('No ' ~ screen.plural ~ ' match these filters', 'Try a different search term or remove a filter.') %}
+          {{ linkButton('Clear filters', listHref) }}
+        {% endcall %}
+      {% else %}
+        {% call emptyState('No ' ~ screen.plural ~ ' yet', 'They appear here as soon as the first one is added.') %}
+          {% if can.create %}{{ linkButton('Add ' ~ screen.singular, screen.base ~ '/new', 'primary', 'plus', 'hx-get="' ~ screen.base ~ '/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" data-opens-dialog') }}{% endif %}
+        {% endcall %}
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {{ tableFooter(list, screen.plural) }}
+</section>

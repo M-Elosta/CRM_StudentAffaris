@@ -5,6 +5,7 @@ const nunjucks = require('nunjucks');
 
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/;
 
@@ -37,13 +38,18 @@ function parseStoredDate(value) {
  * @param {string} timeZone  IANA name, e.g. 'Asia/Qatar'
  */
 function createFormatters(timeZone) {
-  const dateFormat = new Intl.DateTimeFormat('en-GB', { timeZone, day: 'numeric', month: 'short', year: 'numeric' });
-  const calendarFormat = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'UTC',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+  // Day, month and year come from Intl in the right time zone; the month names
+  // are fixed, because some ICU versions write September as "Sept".
+  const partsFormat = (zone) =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: zone, day: 'numeric', month: 'numeric', year: 'numeric' });
+  const formatWith = (formatter) => ({
+    format(date) {
+      const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+      return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]} ${parts.year}`;
+    },
   });
+  const dateFormat = formatWith(partsFormat(timeZone));
+  const calendarFormat = formatWith(partsFormat('UTC'));
   const timeFormat = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false });
   const numberFormat = new Intl.NumberFormat('en-GB');
 
@@ -86,6 +92,10 @@ function createNunjucksEnv(config, app) {
   env.addFilter('date', formatters.date);
   env.addFilter('datetime', formatters.datetime);
   env.addFilter('number', formatters.number);
+  env.addFilter(
+    'blank',
+    (value) => value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)
+  );
   env.addFilter(
     'json',
     (value) =>

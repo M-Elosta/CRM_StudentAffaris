@@ -101,6 +101,8 @@ function createApp({ config, db, logger = console, sessionStore }) {
           imgSrc: ["'self'", 'data:'],
           fontSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
           connectSrc: ["'self'"],
+          // Over plain HTTP (development) upgrading would send redirects after a form to https and fail.
+          upgradeInsecureRequests: config.isProductionLike ? [] : null,
         },
       },
       hsts: config.isProductionLike ? { maxAge: 31536000, includeSubDomains: true } : false,

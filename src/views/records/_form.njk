@@ -1,0 +1,38 @@
+{#
+  The record form. The same <form id="form"> is used on its own page and,
+  loaded by htmx (hx-select="#form"), inside the shared dialog. It posts with
+  htmx and replaces itself with the server's answer: the form again with
+  messages (422, 409) or an HX-Redirect after saving.
+
+  Locals: screen, form { values, errors, message }, action, formTitle, submitLabel,
+          cancelHref, options { employers, contacts }, withheld, returnTo, hasContact
+#}
+{% from "macros/ui.njk" import button, iconButton, formErrors %}
+{% from "macros/record.njk" import formField %}
+
+<form id="form" action="{{ action }}" method="post" novalidate data-guard
+      hx-post="{{ action }}" hx-target="#form" hx-select="#form" hx-swap="outerHTML" hx-push-url="false"
+      aria-labelledby="dialog-title">
+  <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+  {% if form.values.UpdatedAt %}<input type="hidden" name="UpdatedAt" value="{{ form.values.UpdatedAt }}" />{% endif %}
+  {% if returnTo %}<input type="hidden" name="returnTo" value="{{ returnTo }}" />{% endif %}
+
+  <div class="dialog__header">
+    <h2 id="dialog-title" dir="auto">{{ formTitle }}</h2>
+    {{ iconButton('Close', 'close', 'data-action="close-dialog"') }}
+  </div>
+
+  <div class="dialog__body">
+    {{ formErrors(form) }}
+    <div class="form-grid{% if form.message %} mt-4{% endif %}">
+      {% for f in screen.fields %}
+        {{ formField(f, form, options, withheld, hasContact) }}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="dialog__footer">
+    <a class="btn" href="{{ cancelHref }}" data-action="close-dialog">Cancel</a>
+    {{ button(submitLabel, 'primary', 'submit') }}
+  </div>
+</form>

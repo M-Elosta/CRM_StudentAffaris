@@ -123,7 +123,8 @@ const RECORD_TYPES = Object.freeze([
       page: {
         with: LAST_ACTIVITY_CTE,
         withArgs: ({ today }) => [today],
-        select: ', la.LastContactAt, (SELECT COUNT(*) FROM Contact x WHERE x.CompanyID = c.CompanyID) AS ContactCount',
+        select:
+          ', la.LastContactAt AS lastContactAt, (SELECT COUNT(*) FROM Contact x WHERE x.CompanyID = c.CompanyID) AS contactCount',
         joins: ['LEFT JOIN last_activity la ON la.CompanyID = c.CompanyID'],
         sorts: {
           name: { columns: ['c.CompanyName'], text: true },
@@ -131,7 +132,7 @@ const RECORD_TYPES = Object.freeze([
           sector: { columns: ['c.Sector'], text: true },
           country: { columns: ['c.Country'], text: true },
           lastContact: { columns: ['la.LastContactAt'] },
-          contacts: { columns: ['ContactCount'] },
+          contacts: { columns: ['contactCount'] },
           added: { columns: ['c.DateAdded'] },
         },
         defaultSort: ['name', 'asc'],
