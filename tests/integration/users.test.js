@@ -189,25 +189,17 @@ describe('User management: existing sessions', () => {
 
   const COMPANY = { CompanyName: 'Session Co', Industry: 'X', Sector: 'Private', Country: 'Qatar' };
 
-  it(
-    'a demoted admin loses write access without signing in again',
-    { todo: 'the role is cached in the session at login (src/middleware/auth.js) and never re-read' },
-    async () => {
-      const demoted = createUser(ctx.db, { username: 'soon-viewer', role: 'admin' });
-      const agent = await login(ctx.app, 'soon-viewer');
-      assert.equal((await patch(admin, `/api/users/${demoted.id}/role`, { role: 'readonly' })).status, 200);
-      assert.equal((await post(agent, '/api/companies', COMPANY)).status, 403);
-    }
-  );
+  it('a demoted admin loses write access without signing in again', async () => {
+    const demoted = createUser(ctx.db, { username: 'soon-viewer', role: 'admin' });
+    const agent = await login(ctx.app, 'soon-viewer');
+    assert.equal((await patch(admin, `/api/users/${demoted.id}/role`, { role: 'readonly' })).status, 200);
+    assert.equal((await post(agent, '/api/companies', COMPANY)).status, 403);
+  });
 
-  it(
-    'a deleted user can no longer use their session',
-    { todo: 'requireAuth (src/middleware/auth.js) trusts session.userId without checking the user still exists' },
-    async () => {
-      const leaver = createUser(ctx.db, { username: 'leaving-viewer', role: 'readonly' });
-      const agent = await login(ctx.app, 'leaving-viewer');
-      assert.equal((await del(admin, `/api/users/${leaver.id}`)).status, 200);
-      assert.equal((await agent.get('/api/companies')).status, 401);
-    }
-  );
+  it('a deleted user can no longer use their session', async () => {
+    const leaver = createUser(ctx.db, { username: 'leaving-viewer', role: 'readonly' });
+    const agent = await login(ctx.app, 'leaving-viewer');
+    assert.equal((await del(admin, `/api/users/${leaver.id}`)).status, 200);
+    assert.equal((await agent.get('/api/companies')).status, 401);
+  });
 });
