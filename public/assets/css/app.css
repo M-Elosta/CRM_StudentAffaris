@@ -820,6 +820,20 @@ kbd {
   color: var(--danger);
 }
 
+/* A key figure that opens its list: the whole card is the link */
+.stat--link {
+  display: block;
+  color: inherit;
+  transition: border-color var(--transition);
+}
+.stat--link:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+.stat--link p {
+  margin: 0;
+}
+
 /* Description lists (record details) */
 .details {
   display: grid;
@@ -956,6 +970,18 @@ th[aria-sort='descending'] .table__sort .icon {
 }
 .col--xs {
   width: 8%;
+}
+
+/* A table inside a card: the card is the frame, the table fits its width */
+.table--plain,
+.table--plain:has(colgroup) {
+  min-width: 0;
+}
+.col--due {
+  width: 112px;
+}
+.col--status {
+  width: 104px;
 }
 
 .table-footer {

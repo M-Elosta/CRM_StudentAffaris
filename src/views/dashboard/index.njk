@@ -1,8 +1,80 @@
+{#
+  Dashboard: four key figures, follow-ups due, recent activity, two charts.
+  Locals: today, weekday, stats [{ label, value, note?, href }], followUps { items, total, overdue } | null,
+          recent (timeline items), charts [{ id, title, spec }]
+#}
 {% extends "layouts/app.njk" %}
-{% from "macros/ui.njk" import pageHeader %}
+{% from "macros/ui.njk" import pageHeader, badge, emptyState, linkButton %}
+{% from "macros/activity.njk" import timeline %}
+{% from "macros/chart.njk" import chart %}
 
 {% set pageTitle = 'Dashboard' %}
 
 {% block content %}
-  {% call pageHeader('Dashboard') %}{% endcall %}
+  {% call pageHeader('Dashboard', weekday ~ ', ' ~ (today | date) ~ ' · Doha time') %}{% endcall %}
+
+  <section class="grid grid--4" aria-label="Key figures">
+    {% for stat in stats %}
+      <a class="card stat stat--link" href="{{ stat.href }}">
+        <p class="stat__label">{{ stat.label }}</p>
+        <p class="stat__value">{{ stat.value | number }}</p>
+        <p class="stat__delta">{{ stat.note or '' }}&nbsp;</p>
+      </a>
+    {% endfor %}
+  </section>
+
+  <div class="grid grid--2 mt-4">
+    {% if followUps %}
+      <section class="card" aria-labelledby="due-heading">
+        <div class="card__header">
+          <h2 id="due-heading">Follow-ups due</h2>
+          <a class="text-sm" href="/follow-ups">All follow-ups</a>
+        </div>
+        {% if followUps.items.length %}
+          <table class="table table--fixed table--plain">
+            <caption class="visually-hidden">Follow-ups overdue or due in the next seven days, earliest first</caption>
+            <colgroup><col class="col--due" /><col /><col class="col--status" /></colgroup>
+            <thead><tr><th scope="col">Due</th><th scope="col">Employer and action</th><th scope="col"><span class="visually-hidden">Status</span></th></tr></thead>
+            <tbody>
+              {% for item in followUps.items %}
+                <tr>
+                  <td class="tabular"><a href="/interactions/{{ item.id }}">{{ item.followUpDate | date }}</a></td>
+                  <td class="cell--truncate">
+                    <a class="cell--primary" href="/employers/{{ item.companyId }}" dir="auto">{{ item.companyName }}</a>
+                    <span class="text-muted" dir="auto"> · {{ item.actionPlan or item.discussionItems }}</span>
+                  </td>
+                  <td>{% if item.group == 'overdue' %}{{ badge('Overdue', 'danger') }}{% else %}{{ badge('This week', 'warning') }}{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="card__footer">{{ followUps.total }} due in the next seven days, {{ followUps.overdue }} overdue</div>
+        {% else %}
+          {{ emptyState('Nothing due this week', 'Follow-up dates set on interactions appear here.') }}
+        {% endif %}
+      </section>
+    {% endif %}
+
+    <section class="card" aria-labelledby="recent-heading">
+      <div class="card__header"><h2 id="recent-heading">Recent activity</h2></div>
+      <div class="card__body">
+        {% if recent.length %}
+          {{ timeline(recent, true) }}
+        {% else %}
+          {{ emptyState('No activity yet', 'Interactions, postings and events appear here as they are recorded.') }}
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  {% if charts.length %}
+    <div class="grid grid--2 mt-4">
+      {% for item in charts %}
+        <section class="card" aria-labelledby="{{ item.id }}-heading">
+          <div class="card__header"><h2 id="{{ item.id }}-heading">{{ item.title }}</h2><span class="text-sm text-muted">Last 12 months</span></div>
+          <div class="card__body">{{ chart(item.id, item.title, item.spec) }}</div>
+        </section>
+      {% endfor %}
+    </div>
+  {% endif %}
 {% endblock %}

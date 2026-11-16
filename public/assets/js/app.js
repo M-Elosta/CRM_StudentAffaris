@@ -498,8 +498,33 @@
     };
   }
 
+  let chartLibrary = null;
+
+  /** Load Chart.js once, the first time a page has a chart (same version as this script). */
+  function loadChartLibrary() {
+    if (window.Chart) return Promise.resolve();
+    if (!chartLibrary) {
+      chartLibrary = new Promise((resolve, reject) => {
+        const own = $('script[src*="/assets/js/app.js"]');
+        const version = own ? new URL(own.src).searchParams.get('v') || '' : '';
+        const script = document.createElement('script');
+        script.src = `/vendor/chart.umd.min.js?v=${encodeURIComponent(version)}`;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.append(script);
+      });
+    }
+    return chartLibrary;
+  }
+
   function initCharts(root) {
-    if (!window.Chart) return;
+    if (!$('script[type="application/json"][data-chart]', root)) return;
+    if (!window.Chart) {
+      loadChartLibrary()
+        .then(() => initCharts(root))
+        .catch(() => showToast('The charts could not be loaded. Reload the page to try again.', 'error'));
+      return;
+    }
     window.Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     window.Chart.defaults.font.size = 12;
     for (const block of $$('script[type="application/json"][data-chart]', root)) {
