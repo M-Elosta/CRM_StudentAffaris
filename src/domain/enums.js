@@ -29,7 +29,8 @@ module.exports = Object.freeze({
   COLLABORATION_OUTCOMES: freeze(['Completed', 'Pending']),
   FEEDBACK_PROVIDERS: freeze(['Company', 'Student/Alumni', 'Other']),
   FEEDBACK_HIRED_VALUES: freeze(['Yes', 'No']),
-  USER_ROLES: freeze(['admin', 'viewer']),
+  /** The roles of src/security/permissions.js, most privileged first. */
+  USER_ROLES: freeze(['admin', 'staff', 'readonly', 'student_worker']),
   /** Majors offered by the import template for contacts (not a database constraint). */
   CONTACT_MAJORS: freeze([
     'Computer Science',

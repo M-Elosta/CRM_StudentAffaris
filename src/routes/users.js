@@ -39,7 +39,7 @@ function createUsersRouter(usersService) {
     asyncHandler((req, res) => {
       const id = targetId(req);
       const { role } = parseWith(roleChangeSchema, req.body);
-      usersService.changeRole(req.session.userId, id, role);
+      usersService.changeRole(req.user.id, id, role);
       res.json({ success: true });
     })
   );
@@ -47,7 +47,7 @@ function createUsersRouter(usersService) {
   router.delete(
     '/:id',
     asyncHandler((req, res) => {
-      usersService.remove(req.session.userId, targetId(req));
+      usersService.remove(req.user.id, targetId(req));
       res.json({ success: true });
     })
   );

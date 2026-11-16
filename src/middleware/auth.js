@@ -1,6 +1,7 @@
 'use strict';
 
-const { ROLES, normalizeRole } = require('../lib/roles');
+const crypto = require('node:crypto');
+const { normalizeRole, ROLES } = require('../security/permissions');
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -9,16 +10,58 @@ const PUBLIC_PREFIXES = ['/login.html', '/api/auth/login', '/css/', '/js/', '/fa
 
 const PASSWORD_ROTATION_ALLOWED = new Set(['/api/auth/check', '/api/auth/change-password', '/api/auth/logout']);
 
-function requireAuth(req, res, next) {
-  if (PUBLIC_PREFIXES.some((prefix) => req.path.startsWith(prefix))) return next();
-  if (req.session?.userId) return next();
+const isPublic = (req) => PUBLIC_PREFIXES.some((prefix) => req.path.startsWith(prefix));
+
+function denyUnauthenticated(req, res) {
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Not authenticated' });
   return res.redirect('/login.html');
 }
 
+/**
+ * Give every request a context: { user, requestId, ip }. The request id is
+ * fresh for each request and sent back as X-Request-Id; the user is filled in
+ * by the current-user loader once the session is known.
+ */
+function requestContext(req, res, next) {
+  const requestId = crypto.randomUUID();
+  res.set('X-Request-Id', requestId);
+  req.ctx = { user: null, requestId, ip: req.ip };
+  next();
+}
+
+/**
+ * Load the signed-in user from the database on every request, so a changed
+ * role applies at once and a deactivated or deleted account loses access on
+ * its very next request: its session is destroyed and the request refused.
+ * @param {{ currentUser: (userId: number) => object|null }} authService
+ */
+function createCurrentUserLoader(authService) {
+  return function loadCurrentUser(req, res, next) {
+    const userId = req.session?.userId;
+    if (!userId) return next();
+    const user = authService.currentUser(userId);
+    if (user) {
+      req.user = user;
+      req.ctx.user = user;
+      return next();
+    }
+    return req.session.destroy((err) => {
+      if (err) return next(err);
+      res.clearCookie('ero.sid');
+      return isPublic(req) ? next() : denyUnauthenticated(req, res);
+    });
+  };
+}
+
+/** Everything but the login page and its assets needs a signed-in user. */
+function requireAuth(req, res, next) {
+  if (isPublic(req) || req.user) return next();
+  return denyUnauthenticated(req, res);
+}
+
 /** A user who must change their password can do nothing else through the API. */
 function requirePasswordRotation(req, res, next) {
-  if (!req.session?.mustChangePassword) return next();
+  if (!req.user?.mustChangePassword) return next();
   if (!req.path.startsWith('/api/')) return next();
   if (PASSWORD_ROTATION_ALLOWED.has(req.path)) return next();
   return res.status(403).json({
@@ -29,17 +72,24 @@ function requirePasswordRotation(req, res, next) {
 
 /** Viewers may read but never create, change or delete. */
 function blockWritesForViewers(req, res, next) {
-  if (WRITE_METHODS.has(req.method) && normalizeRole(req.session?.role) !== ROLES.ADMIN) {
+  if (WRITE_METHODS.has(req.method) && normalizeRole(req.user?.role) !== ROLES.ADMIN) {
     return res.status(403).json({ error: 'Viewers cannot make changes. Contact an admin.' });
   }
   return next();
 }
 
 function requireAdminSession(req, res, next) {
-  if (normalizeRole(req.session?.role) !== ROLES.ADMIN) {
+  if (normalizeRole(req.user?.role) !== ROLES.ADMIN) {
     return res.status(403).json({ error: 'Admin access required.' });
   }
   return next();
 }
 
-module.exports = { requireAuth, requirePasswordRotation, blockWritesForViewers, requireAdminSession };
+module.exports = {
+  requestContext,
+  createCurrentUserLoader,
+  requireAuth,
+  requirePasswordRotation,
+  blockWritesForViewers,
+  requireAdminSession,
+};

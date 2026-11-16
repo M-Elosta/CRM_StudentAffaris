@@ -8,7 +8,13 @@ const rateLimit = require('express-rate-limit');
 
 const { rejectPoisonedKeys } = require('./middleware/poison-keys');
 const { createOriginGuard } = require('./middleware/trusted-origin');
-const { requireAuth, requirePasswordRotation, blockWritesForViewers } = require('./middleware/auth');
+const {
+  requestContext,
+  createCurrentUserLoader,
+  requireAuth,
+  requirePasswordRotation,
+  blockWritesForViewers,
+} = require('./middleware/auth');
 const { notFoundHandler, createErrorHandler } = require('./middleware/errors');
 const { createServices } = require('./services');
 const { DatabaseSessionStore } = require('./security/session-store');
@@ -78,6 +84,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
     })
   );
 
+  app.use(requestContext);
   app.use(express.json({ limit: config.jsonBodyLimit }));
   app.use(rejectPoisonedKeys);
 
@@ -129,6 +136,7 @@ function createApp({ config, db, logger = console, sessionStore }) {
   app.use('/api', apiLimiter);
 
   app.use(createOriginGuard(config));
+  app.use(createCurrentUserLoader(services.auth));
   app.use(requireAuth);
   app.use(requirePasswordRotation);
   app.use(express.static(PUBLIC_DIR, { index: false }));

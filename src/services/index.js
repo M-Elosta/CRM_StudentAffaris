@@ -7,6 +7,7 @@ const { createRecordService } = require('./record-service');
 const { createCompaniesService } = require('./companies-service');
 const { createContactsService } = require('./contacts-service');
 const { createUsersRepository } = require('../db/repositories/users-repository');
+const { createSessionsRepository } = require('../db/repositories/sessions-repository');
 const { createUsersService } = require('./users-service');
 const { createAuthService } = require('./auth-service');
 const { createDashboardRepository } = require('../db/repositories/dashboard-repository');
@@ -75,10 +76,11 @@ function createRecordServices({ db, timeZone }) {
 function createServices({ db, config, logger = console }) {
   const records = createRecordServices({ db, timeZone: config.timeZone });
   const usersRepository = createUsersRepository(db);
+  const sessionsRepository = createSessionsRepository(db);
   return {
     records,
-    users: createUsersService({ db, usersRepository }),
-    auth: createAuthService({ usersRepository }),
+    users: createUsersService({ db, usersRepository, sessionsRepository }),
+    auth: createAuthService({ db, usersRepository, sessionsRepository }),
     dashboard: createDashboardService({
       dashboardRepository: createDashboardRepository(db),
       timeZone: config.timeZone,

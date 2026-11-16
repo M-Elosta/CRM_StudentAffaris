@@ -6,6 +6,7 @@ const supertest = require('supertest');
 const bcrypt = require('bcrypt');
 
 const { buildApp, createUser, login, post, ORIGIN, DEFAULT_PASSWORD } = require('../helpers/app');
+const { ALL_PERMISSIONS, can } = require('../../src/security/permissions');
 
 describe('Authentication', () => {
   let ctx;
@@ -13,7 +14,7 @@ describe('Authentication', () => {
   before(async () => {
     ctx = await buildApp();
     createUser(ctx.db, { username: 'alice', role: 'admin' });
-    createUser(ctx.db, { username: 'victor', role: 'viewer' });
+    createUser(ctx.db, { username: 'victor', role: 'readonly' });
   });
 
   after(() => ctx.close());
@@ -23,20 +24,39 @@ describe('Authentication', () => {
       const agent = supertest.agent(ctx.app);
       const res = await post(agent, '/api/auth/login', { username: 'alice', password: DEFAULT_PASSWORD });
       assert.equal(res.status, 200);
-      assert.deepEqual(res.body, { success: true, username: 'alice', role: 'admin', mustChangePassword: false });
+      assert.deepEqual(res.body, {
+        success: true,
+        username: 'alice',
+        role: 'admin',
+        roleLabel: 'Admin',
+        permissions: [...ALL_PERMISSIONS],
+        mustChangePassword: false,
+      });
       const cookie = res.headers['set-cookie']?.join(';') || '';
       assert.match(cookie, /ero\.sid=/);
       assert.match(cookie, /HttpOnly/i);
       assert.match(cookie, /SameSite=Strict/i);
     });
 
-    it('reports the viewer role for a viewer', async () => {
+    it('reports the read-only role, its label and its permissions for a read-only user', async () => {
       const res = await post(supertest.agent(ctx.app), '/api/auth/login', {
         username: 'victor',
         password: DEFAULT_PASSWORD,
       });
       assert.equal(res.status, 200);
-      assert.equal(res.body.role, 'viewer');
+      assert.equal(res.body.role, 'readonly');
+      assert.equal(res.body.roleLabel, 'Read-only');
+      assert.deepEqual(
+        res.body.permissions,
+        ALL_PERMISSIONS.filter((permission) => can('readonly', permission))
+      );
+    });
+
+    it('maps a legacy "viewer" role stored in the database to read-only', async () => {
+      createUser(ctx.db, { username: 'legacy-viewer', role: 'viewer' });
+      const agent = await login(ctx.app, 'legacy-viewer');
+      const res = await agent.get('/api/auth/check');
+      assert.equal(res.body.role, 'readonly');
     });
 
     it('rejects a wrong password with 401 and no session', async () => {
@@ -74,7 +94,17 @@ describe('Authentication', () => {
       assert.equal(res.body.authenticated, true);
       assert.equal(res.body.username, 'alice');
       assert.equal(res.body.role, 'admin');
+      assert.equal(res.body.roleLabel, 'Admin');
+      assert.deepEqual(res.body.permissions, [...ALL_PERMISSIONS]);
       assert.equal(res.body.mustChangePassword, false);
+    });
+
+    it('sends a fresh X-Request-Id on every response', async () => {
+      const agent = await login(ctx.app, 'alice');
+      const first = await agent.get('/api/auth/check');
+      const second = await agent.get('/api/auth/check');
+      assert.match(first.headers['x-request-id'], /^[0-9a-f-]{36}$/);
+      assert.notEqual(first.headers['x-request-id'], second.headers['x-request-id']);
     });
 
     it('check returns 401 when not signed in', async () => {

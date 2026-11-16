@@ -42,6 +42,15 @@ describe('Database sessions', () => {
     assert.ok(!JSON.stringify(rows).includes(sid));
   });
 
+  it('keeps only the user id in the session data', async () => {
+    const agent = await login(ctx.app, 'sam');
+    const row = ctx.db
+      .prepare('SELECT Data FROM Sessions WHERE SessionHash = ?')
+      .get(hashSessionId(sessionIdOf(agent)));
+    const data = JSON.parse(row.Data);
+    assert.deepEqual(Object.keys(data).sort(), ['cookie', 'userId']);
+  });
+
   it('logout deletes the session row', async () => {
     const agent = await login(ctx.app, 'sam');
     const hash = hashSessionId(sessionIdOf(agent));
