@@ -48,7 +48,7 @@ function createTrashController({ services }) {
       const list = buildList({
         basePath: '/trash',
         params,
-        result: { ...result, sort: 'deleted', dir: 'desc' },
+        result,
         sorts: LIST_SPEC.sorts,
       });
       const here = list.url();
