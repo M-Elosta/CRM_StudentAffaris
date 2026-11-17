@@ -9,7 +9,7 @@ const { createServices } = require('../../src/services');
 const { createRecordService, STALE_RECORD_MESSAGE } = require('../../src/services/record-service');
 const { createCrudRepository } = require('../../src/db/repositories/crud-repository');
 const { recordTypeByPath } = require('../../src/domain/record-types');
-const { ConflictError, NotFoundError, ValidationError } = require('../../src/lib/errors');
+const { ConflictError, ForbiddenError, NotFoundError, ValidationError } = require('../../src/lib/errors');
 const { loadConfig } = require('../../src/config');
 const { createSilentLogger, setStoredUpdatedAt } = require('../helpers/app');
 
@@ -340,6 +340,68 @@ describe('record-service', () => {
       const other = companies.create(COMPANY);
       const created = collaboration.create({ CompanyID: other.CompanyID });
       assert.deepEqual(collaboration.remove(created.PotentialCollaborationID), { message: 'Deleted' });
+    });
+
+    it('moves the record to the Trash: DeletedAt set, the row and its children kept', () => {
+      const refs = createCompanyAndContact();
+      const posting = recruitment.create(postingFor(refs, { TargetMajors: ['CS'] }));
+      const before = count('Recruitment_TargetMajors');
+      recruitment.remove(posting.RecruitmentID);
+      const row = db.prepare('SELECT * FROM Recruitment WHERE RecruitmentID = ?').get(posting.RecruitmentID);
+      assert.match(row.DeletedAt, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+      assert.equal(count('Recruitment_TargetMajors'), before);
+      assertRejectsWith(() => recruitment.get(posting.RecruitmentID), NotFoundError);
+      assertRejectsWith(() => recruitment.remove(posting.RecruitmentID), NotFoundError);
+    });
+  });
+
+  describe('restore and purge', () => {
+    const as = (role) => ({ user: { id: 2, role, isActive: true }, requestId: 'test', ip: '127.0.0.1' });
+
+    it('restores for roles with record:restore only', () => {
+      const { contact } = createCompanyAndContact();
+      const service = records.get('contacts').service;
+      contacts.remove(contact.ContactID);
+      for (const role of ['readonly', 'student_worker']) {
+        assertRejectsWith(() => service.restore(contact.ContactID, as(role)), ForbiddenError);
+      }
+      assert.equal(service.restore(contact.ContactID, as('staff')).ContactID, contact.ContactID);
+      assertRejectsWith(() => service.restore(contact.ContactID, as('staff')), ValidationError, /not in the Trash/);
+    });
+
+    it('refuses to restore a record whose employer is in the Trash', () => {
+      const { company, contact } = createCompanyAndContact();
+      contacts.remove(contact.ContactID);
+      companies.remove(company.CompanyID);
+      const service = records.get('contacts').service;
+      assertRejectsWith(
+        () => service.restore(contact.ContactID, ADMIN),
+        ValidationError,
+        /^Restore the employer first\.$/
+      );
+    });
+
+    it('purges for administrators only, and only from the Trash', () => {
+      const refs = createCompanyAndContact();
+      const posting = recruitment.create(postingFor(refs, { TargetMajors: ['CS'] }));
+      const service = records.get('recruitment').service;
+      assertRejectsWith(() => service.purge(posting.RecruitmentID, ADMIN), ValidationError, /in the Trash/);
+      recruitment.remove(posting.RecruitmentID);
+      assertRejectsWith(() => service.purge(posting.RecruitmentID, as('staff')), ForbiddenError);
+      assert.deepEqual(service.purge(posting.RecruitmentID, ADMIN), { message: 'Deleted permanently' });
+      assert.equal(
+        db.prepare('SELECT COUNT(*) AS n FROM Recruitment WHERE RecruitmentID = ?').get(posting.RecruitmentID).n,
+        0
+      );
+      assertRejectsWith(() => service.purge(posting.RecruitmentID, ADMIN), NotFoundError);
+    });
+
+    it('refuses a new record that points to an employer or a contact in the Trash', () => {
+      const refs = createCompanyAndContact();
+      contacts.remove(refs.contact.ContactID);
+      assertRejectsWith(() => recruitment.create(postingFor(refs)), ValidationError, /^That contact is in the Trash/);
+      companies.remove(refs.company.CompanyID);
+      assertRejectsWith(() => recruitment.create(postingFor(refs)), ValidationError, /^That employer is in the Trash/);
     });
   });
 });

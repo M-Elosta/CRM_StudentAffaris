@@ -21,6 +21,8 @@ const { createReportsService } = require('./reports');
 const { createActivityRepository } = require('../db/repositories/activity-repository');
 const { createActivityService } = require('./activity-service');
 const { createSearchService } = require('./search-service');
+const { createTrashRepository } = require('../db/repositories/trash-repository');
+const { createTrashService } = require('./trash-service');
 
 /** The zod schema module of each record type, by API path. */
 const RECORD_SCHEMAS = {
@@ -46,8 +48,8 @@ function createRecordServices({ db, timeZone }) {
     RECORD_TYPES.map((definition) => [definition.path, createCrudRepository(db, definition)])
   );
   const lookups = {
-    findCompany: (id) => repositories.get('companies').getStoredById(id),
-    findContact: (id) => repositories.get('contacts').getStoredById(id),
+    findCompany: (id) => repositories.get('companies').getStoredById(id, { includeDeleted: true }),
+    findContact: (id) => repositories.get('contacts').getStoredById(id, { includeDeleted: true }),
   };
   const companiesRepository = createCompaniesRepository(db);
 
@@ -101,6 +103,7 @@ function createServices({ db, config, logger = console }) {
       timeZone: config.timeZone,
     }),
     search: createSearchService({ records }),
+    trash: createTrashService({ trashRepository: createTrashRepository(db), records }),
     reports: createReportsService({ reportsRepository: createReportsRepository(db), timeZone: config.timeZone }),
   };
 }

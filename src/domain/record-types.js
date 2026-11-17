@@ -31,13 +31,18 @@
  *   name (e.g. a contact's email joined as ContactEmail). They are withheld, like the
  *   record type's own SENSITIVE_FIELDS, from users who may not read sensitive data.
  *   Today the only joined columns are CompanyName and ContactName, which are not sensitive.
+ *   live: the conditions that keep records in the Trash out of every read (src/domain/live.js):
+ *   the record's own DeletedAt, and its employer's for a record that belongs to one. The
+ *   repository adds them to every query unless the caller asks for deleted records explicitly.
+ *   ContactName carries " (deleted)" when the contact is in the Trash.
  */
 
 const { LAST_ACTIVITY_CTE, DORMANT_AFTER_DAYS } = require('./activity');
 const { COLLABORATION_OPPORTUNITIES } = require('./enums');
 const { addDaysToIsoDate } = require('../lib/dates');
+const { notDeleted, contactNameSql } = require('./live');
 
-const contactName = "co.FirstName || ' ' || co.LastName AS ContactName";
+const contactName = `${contactNameSql('co')} AS ContactName`;
 const contactNameExpr = "(co.FirstName || ' ' || co.LastName)";
 
 /** Countries of the Gulf Cooperation Council other than Qatar, lower case, as stored names vary. */
@@ -62,6 +67,9 @@ const COMPANY_STATUS_CHOICES = {
 function companyAndContactJoins(alias) {
   return [`JOIN Company c ON ${alias}.CompanyID = c.CompanyID`, `JOIN Contact co ON ${alias}.ContactID = co.ContactID`];
 }
+
+/** The live conditions of a record (alias) that belongs to an employer joined as c. */
+const liveUnderEmployer = (alias) => [notDeleted(alias), notDeleted('c')];
 
 function dateRangeFilters(column) {
   return [
@@ -101,6 +109,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'c',
       select: 'c.*',
       joins: [],
+      live: [notDeleted('c')],
       orderBy: 'c.CompanyName ASC',
       filters: [
         { param: 'search', match: 'contains', columns: ['c.CompanyName', 'c.Country'] },
@@ -124,7 +133,7 @@ const RECORD_TYPES = Object.freeze([
         with: LAST_ACTIVITY_CTE,
         withArgs: ({ today }) => [today],
         select:
-          ', la.LastContactAt AS lastContactAt, (SELECT COUNT(*) FROM Contact x WHERE x.CompanyID = c.CompanyID) AS contactCount',
+          ', la.LastContactAt AS lastContactAt, (SELECT COUNT(*) FROM Contact x WHERE x.CompanyID = c.CompanyID AND x.DeletedAt IS NULL) AS contactCount',
         joins: ['LEFT JOIN last_activity la ON la.CompanyID = c.CompanyID'],
         sorts: {
           name: { columns: ['c.CompanyName'], text: true },
@@ -176,6 +185,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'ct',
       select: 'ct.*, c.CompanyName',
       joins: ['JOIN Company c ON ct.CompanyID = c.CompanyID'],
+      live: liveUnderEmployer('ct'),
       orderBy: 'ct.LastName ASC, ct.FirstName ASC',
       filters: [
         { param: 'search', match: 'contains', columns: ['ct.FirstName', 'ct.LastName', 'ct.EmailAddress'] },
@@ -240,6 +250,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'o',
       select: `o.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('o'),
+      live: liveUnderEmployer('o'),
       orderBy: 'o.InteractionDate DESC',
       filters: [
         { param: 'companyId', match: 'equals', column: 'o.CompanyID' },
@@ -303,6 +314,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'r',
       select: `r.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('r'),
+      live: liveUnderEmployer('r'),
       orderBy: 'r.DatePosted DESC',
       filters: [
         { param: 'companyId', match: 'equals', column: 'r.CompanyID' },
@@ -342,6 +354,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'e',
       select: `e.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('e'),
+      live: liveUnderEmployer('e'),
       orderBy: 'e.EventDate DESC',
       filters: [
         { param: 'eventName', match: 'contains', columns: ['e.EventName'] },
@@ -377,6 +390,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'p',
       select: 'p.*, c.CompanyName',
       joins: ['JOIN Company c ON p.CompanyID = c.CompanyID'],
+      live: liveUnderEmployer('p'),
       orderBy: 'p.CreatedAt DESC',
       filters: [
         { param: 'q', match: 'contains', columns: ['c.CompanyName', 'p.Comment'] },
@@ -436,6 +450,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'a',
       select: `a.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('a'),
+      live: liveUnderEmployer('a'),
       orderBy: 'a.SessionDate DESC',
       filters: [
         { param: 'engagementType', match: 'equals', column: 'a.EngagementType' },
@@ -494,6 +509,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 's',
       select: `s.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('s'),
+      live: liveUnderEmployer('s'),
       orderBy: 's.ProposalDate DESC',
       filters: [
         { param: 'collaborationOutcome', match: 'equals', column: 's.CollaborationOutcome' },
@@ -541,6 +557,7 @@ const RECORD_TYPES = Object.freeze([
       alias: 'h',
       select: `h.*, c.CompanyName, ${contactName}`,
       joins: companyAndContactJoins('h'),
+      live: liveUnderEmployer('h'),
       orderBy: 'h.DateReported DESC',
       filters: [
         { param: 'feedbackProvider', match: 'equals', column: 'h.FeedbackProvider' },

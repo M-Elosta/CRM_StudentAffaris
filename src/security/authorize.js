@@ -34,6 +34,8 @@ const RECORD_VERBS = Object.freeze({
   [P.RECORD_CREATE]: 'add',
   [P.RECORD_UPDATE]: 'change',
   [P.RECORD_DELETE]: 'delete',
+  [P.RECORD_RESTORE]: 'restore',
+  [P.RECORD_PURGE]: 'permanently delete',
 });
 
 /** What each general permission allows, as used in messages. */
@@ -43,6 +45,7 @@ const PERMISSION_ACTIONS = Object.freeze({
   [P.EXPORT_RUN]: 'export data',
   [P.IMPORT_RUN]: 'import data',
   [P.USERS_MANAGE]: 'manage user accounts',
+  [P.TRASH_VIEW]: 'view the Trash',
 });
 
 /** The display label of a user's role, e.g. "Read-only". */

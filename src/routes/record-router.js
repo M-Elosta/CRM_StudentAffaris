@@ -7,7 +7,8 @@ const { parseWith, positiveId } = require('../validation/common');
 
 /**
  * The five CRUD endpoints of a record type:
- *   GET / (list, filtered by the query), GET /:id, POST /, PUT /:id, DELETE /:id
+ *   GET / (list, filtered by the query), GET /:id, POST /, PUT /:id, DELETE /:id (moves it to the Trash)
+ *   and POST /:id/restore (takes it out of the Trash)
  *
  * @param {ReturnType<import('../services/record-service').createRecordService>} service
  * @param {object} options
@@ -60,6 +61,13 @@ function createRecordRouter(service, { listQuerySchema, idLabel }) {
     '/:id',
     asyncHandler((req, res) => {
       res.json(service.remove(req.recordId, req.ctx));
+    })
+  );
+
+  router.post(
+    '/:id/restore',
+    asyncHandler((req, res) => {
+      res.json(service.restore(req.recordId, req.ctx));
     })
   );
 

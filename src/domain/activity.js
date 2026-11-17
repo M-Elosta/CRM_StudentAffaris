@@ -75,13 +75,14 @@ const ACTIVITY_SOURCES = Object.freeze([
 /**
  * A common table expression `last_activity(CompanyID, LastContactAt)`: the
  * most recent activity date of each employer, across every activity type,
- * up to and including today. Takes one parameter: today's date (YYYY-MM-DD).
+ * up to and including today, ignoring activity in the Trash. Join it to live
+ * employers only. Takes one parameter: today's date (YYYY-MM-DD).
  */
 const LAST_ACTIVITY_CTE = `last_activity AS (
   SELECT CompanyID, MAX(d) AS LastContactAt FROM (
-    ${ACTIVITY_SOURCES.map((source) => `SELECT CompanyID, ${source.dateColumn} AS d FROM ${source.table}`).join(
-      '\n    UNION ALL '
-    )}
+    ${ACTIVITY_SOURCES.map(
+      (source) => `SELECT CompanyID, ${source.dateColumn} AS d FROM ${source.table} WHERE DeletedAt IS NULL`
+    ).join('\n    UNION ALL ')}
   ) WHERE d <= ? GROUP BY CompanyID
 )`;
 

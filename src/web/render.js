@@ -12,9 +12,10 @@ const isBoosted = (req) => isHtmx(req) && req.get('HX-Boosted') === 'true';
  * Finish a successful form submission: remember the message for the next
  * page and go there. A plain or boosted request gets a 303 redirect; an htmx
  * request from a dialog gets HX-Redirect, so the browser loads the page.
+ * `options` as for flash() (an Undo URL).
  */
-function redirectWithMessage(req, res, url, message, kind = 'success') {
-  if (message) flash(req, message, kind);
+function redirectWithMessage(req, res, url, message, kind = 'success', options = {}) {
+  if (message) flash(req, message, kind, options);
   if (isHtmx(req) && !isBoosted(req)) {
     res.set('HX-Redirect', url);
     return res.status(200).type('html').send('');

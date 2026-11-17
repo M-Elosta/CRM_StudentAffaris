@@ -9,7 +9,8 @@ const authorize = require('../../security/authorize');
 const { parseListQuery, buildList, PAGE_SIZE } = require('../list');
 const { activityHref } = require('../forms');
 const { screenFor } = require('../screens');
-const { createRecordController } = require('./records');
+const { createRecordController, trashText } = require('./records');
+const { hiddenText } = require('../trash-text');
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const EVENT_TYPES = ['career-events', 'student-events', 'academic'];
@@ -163,7 +164,8 @@ function createEmployersController({ services, config }) {
         panel,
         followUps: services.activity.followUpsForCompany(id, req.ctx),
         returnTo: encodeURIComponent(here),
-        deleteText: deleteTextFor(employer, counts),
+        deleteText: deleteTextFor(employer, req.ctx),
+        lastEditedBy: services.users.usernameOf(employer.UpdatedBy),
         can: {
           update: canAccessRecord(req.user, P.RECORD_UPDATE, 'companies'),
           delete: canAccessRecord(req.user, P.RECORD_DELETE, 'companies'),
@@ -175,18 +177,12 @@ function createEmployersController({ services, config }) {
     })
   );
 
-  /** What deleting an employer removes with it. */
-  function deleteTextFor(employer, counts) {
-    const parts = [
-      [counts.contacts, 'contact'],
-      [counts.outreach, 'interaction'],
-      [counts.recruitment, 'posting'],
-      [counts.events, 'career event'],
-    ]
-      .filter(([count]) => count > 0)
-      .map(([count, noun]) => `${count} ${noun}${count === 1 ? '' : 's'}`);
-    const related = parts.length ? ` together with its ${parts.join(', ')}` : '';
-    return `This permanently deletes ${employer.CompanyName}${related}. It cannot be undone.`;
+  /** What the delete confirmation says: the employer moves to the Trash, and what is hidden with it. */
+  function deleteTextFor(employer, ctx) {
+    const { contacts, activities } = companies.hiddenCounts(employer.CompanyID, ctx);
+    const text = trashText(employer.CompanyName);
+    if (!contacts && !activities) return text;
+    return `${text} ${hiddenText(contacts, activities, 'Its')} are hidden with it until then.`;
   }
 
   router.use(
@@ -196,7 +192,7 @@ function createEmployersController({ services, config }) {
       screen,
       list: false,
       detail: false,
-      deleteText: (record, ctx) => deleteTextFor(record, companies.relatedCounts(record.CompanyID, ctx)),
+      deleteText: (record, ctx) => deleteTextFor(record, ctx),
     })
   );
 

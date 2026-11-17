@@ -1,14 +1,18 @@
 'use strict';
 
 const { ACTIVITY_SOURCES } = require('../../domain/activity');
+const { liveTable, contactNameSql } = require('../../domain/live');
 
-/** One SELECT of the activity union for a source; every fragment is fixed text. */
+/**
+ * One SELECT of the activity union for a source; every fragment is fixed text.
+ * Only live activity of live employers; a deleted contact is still named, with " (deleted)".
+ */
 function sourceSelect(source, where) {
   return `SELECT '${source.type}' AS type, x.${source.idColumn} AS id, x.${source.dateColumn} AS date,
       ${source.title} AS title, ${source.summary} AS summary,
       x.CompanyID AS companyId, c.CompanyName AS companyName,
-      x.ContactID AS contactId, co.FirstName || ' ' || co.LastName AS contactName
-    FROM ${source.table} x
+      x.ContactID AS contactId, ${contactNameSql('co')} AS contactName
+    FROM ${liveTable(source.table)} x
     JOIN Company c ON c.CompanyID = x.CompanyID
     LEFT JOIN Contact co ON co.ContactID = x.ContactID
     WHERE ${where}`;
@@ -29,11 +33,11 @@ function createActivityRepository(db) {
   const sourcesFor = (types) => ACTIVITY_SOURCES.filter((source) => types.includes(source.type));
 
   const followUpSelect = `SELECT o.OutreachEngagementID AS id, o.CompanyID AS companyId, c.CompanyName AS companyName,
-      o.ContactID AS contactId, co.FirstName || ' ' || co.LastName AS contactName,
+      o.ContactID AS contactId, ${contactNameSql('co')} AS contactName,
       o.InteractionType AS interactionType, o.InteractionDate AS interactionDate,
       o.FollowUpDate AS followUpDate, o.ActionPlan AS actionPlan, o.DiscussionItems AS discussionItems,
       o.UpdatedAt AS updatedAt
-    FROM OutreachEngagement o
+    FROM ${liveTable('OutreachEngagement')} o
     JOIN Company c ON c.CompanyID = o.CompanyID
     LEFT JOIN Contact co ON co.ContactID = o.ContactID
     WHERE o.InteractionStatus = 'In-progress' AND o.FollowUpDate IS NOT NULL`;
@@ -90,7 +94,7 @@ function createActivityRepository(db) {
     /** The most recent activity date of an employer up to `today`, across every activity type, or null. */
     lastContact(companyId, today) {
       const sql = `SELECT MAX(d) AS last FROM (${ACTIVITY_SOURCES.map(
-        (source) => `SELECT ${source.dateColumn} AS d FROM ${source.table} WHERE CompanyID = ?`
+        (source) => `SELECT ${source.dateColumn} AS d FROM ${liveTable(source.table)} WHERE CompanyID = ?`
       ).join(' UNION ALL ')}) WHERE d <= ?`;
       return prepared(sql).get(...ACTIVITY_SOURCES.map(() => companyId), today).last ?? null;
     },
@@ -98,7 +102,7 @@ function createActivityRepository(db) {
     /** Number of open follow-ups due before `today`. */
     countOverdue(today) {
       return prepared(
-        `SELECT COUNT(*) AS n FROM OutreachEngagement
+        `SELECT COUNT(*) AS n FROM ${liveTable('OutreachEngagement')}
          WHERE InteractionStatus = 'In-progress' AND FollowUpDate IS NOT NULL AND FollowUpDate < ?`
       ).get(today).n;
     },
@@ -106,7 +110,7 @@ function createActivityRepository(db) {
     /** Number of open follow-ups due on or before a date. */
     countDueBy(date) {
       return prepared(
-        `SELECT COUNT(*) AS n FROM OutreachEngagement
+        `SELECT COUNT(*) AS n FROM ${liveTable('OutreachEngagement')}
          WHERE InteractionStatus = 'In-progress' AND FollowUpDate IS NOT NULL AND FollowUpDate <= ?`
       ).get(date).n;
     },

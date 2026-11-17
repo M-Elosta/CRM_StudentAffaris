@@ -197,7 +197,9 @@ describe('web: employers', () => {
       const res = await postForm(agents.staff, `/employers/${id}/delete`);
       assert.equal(res.status, 303);
       assert.equal(res.headers.location, '/employers');
-      assert.match((await agents.staff.get('/employers')).text, /Delete Me deleted/);
+      const list = (await agents.staff.get('/employers')).text;
+      assert.match(list, /Delete Me moved to the Trash\./);
+      assert.match(list, new RegExp(`<form action="/trash/companies/${id}/restore" method="post">`));
       assert.equal((await agents.staff.get(`/employers/${id}`)).status, 404);
     });
 

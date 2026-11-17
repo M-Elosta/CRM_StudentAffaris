@@ -62,6 +62,14 @@ const NAV = [
     items: [
       { href: '/admin/users', label: 'Users', icon: 'shield', allowed: (user) => can(user, P.USERS_MANAGE) },
       { href: '/import', label: 'Import', icon: 'import', allowed: (user) => can(user, P.IMPORT_RUN) },
+      {
+        href: '/trash',
+        label: 'Trash',
+        icon: 'trash',
+        allowed: (user) => can(user, P.TRASH_VIEW),
+        count: 'trash',
+        countLabel: 'in the Trash',
+      },
     ],
   },
 ];
@@ -96,8 +104,9 @@ function buildNav(user, currentPath, counts = {}) {
  * @param {object} deps.config
  * @param {string} deps.assetVersion
  * @param {{ overdueCount: (ctx: object) => number }} deps.followUps
+ * @param {{ count: (ctx: object) => number }} [deps.trash]  the number shown next to Trash
  */
-function createLocals({ config, assetVersion, followUps }) {
+function createLocals({ config, assetVersion, followUps, trash }) {
   const idleSeconds = config.sessionIdleMinutes * 60;
   const warnSeconds = Math.min(120, Math.floor(idleSeconds / 4));
 
@@ -133,6 +142,7 @@ function createLocals({ config, assetVersion, followUps }) {
           const counts = canAccessRecord(user, P.RECORD_READ, 'outreach')
             ? { overdueFollowUps: followUps.overdueCount(req.ctx) }
             : {};
+          if (trash && can(user, P.TRASH_VIEW)) counts.trash = trash.count(req.ctx);
           const value = buildNav(user, req.path, counts);
           Object.defineProperty(locals, 'nav', { value, configurable: true, enumerable: true, writable: true });
           return value;

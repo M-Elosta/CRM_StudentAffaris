@@ -56,10 +56,24 @@ function createUsersService({ db, usersRepository, sessionsRepository }) {
     const target = usersRepository.findById(targetId);
     if (!target) throw new NotFoundError('User not found.');
     ensureNotLastAdmin(target);
-    usersRepository.remove(targetId);
+    try {
+      usersRepository.remove(targetId);
+    } catch (err) {
+      // Records name who created, changed or deleted them; such an account is kept.
+      if (err?.code !== 'SQLITE_CONSTRAINT_FOREIGNKEY') throw err;
+      throw new ConflictError(
+        'This account has added, changed or deleted records, so it cannot be deleted. Deactivate it instead.'
+      );
+    }
   });
 
   return {
+    /** The username of an account, for "Last edited by"; null for no id or an unknown one. */
+    usernameOf(userId) {
+      if (!Number.isInteger(userId)) return null;
+      return usersRepository.findById(userId)?.Username ?? null;
+    },
+
     /** Every account (id, username, role, created), oldest first. */
     list() {
       return usersRepository.list();
