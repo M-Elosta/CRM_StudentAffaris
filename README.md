@@ -107,7 +107,7 @@ The target is a Linux VM run by CMU-Q IT: Node.js under systemd as a non-root se
 
 - **Configuration** is entirely through environment variables. [`.env.example`](.env.example) documents each one. Staging and production refuse to start without an explicit database path, backup directory and session secret, so data never ends up inside the application folder.
 - **Database migrations** are versioned and run automatically at start. Before any migration touches a database that holds data, a verified backup is taken, and a migration that would lose rows is rolled back.
-- **Backups**: `npm run backup` produces a verified, self-contained copy of the database. Encrypted off-server backups with retention, a tested restore script, and the install and one-command deploy scripts are in progress on the `feature/ops-tooling` branch.
+- **Backups**: `npm run backup` takes a verified backup, encrypts it (AES-256-GCM), copies it off the server, applies daily/weekly/monthly retention and records the result; systemd runs it nightly, with a weekly integrity check, daily monitoring and alerts. `scripts/restore.js` restores in place or to a separate path for drills. `deploy/install.sh` prepares the server in one run and `deploy/deploy.sh` deploys a release with automatic rollback. See [DEPLOYMENT.md](DEPLOYMENT.md), [RESTORE.md](RESTORE.md), [RUNBOOK.md](RUNBOOK.md) and [IT_REQUIREMENTS.md](IT_REQUIREMENTS.md).
 - **Single sign-on** (CMU Shibboleth or Microsoft Entra ID) is planned. The account schema already carries the fields it needs. Until then, sign-in is by username and password.
 
 [`PROGRESS.md`](PROGRESS.md) lists exactly what is finished and what is not.
