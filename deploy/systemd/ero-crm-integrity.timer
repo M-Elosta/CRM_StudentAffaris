@@ -1,0 +1,13 @@
+# Weekly integrity check: Friday 03:15 Qatar time (the weekend, after the nightly backup).
+
+[Unit]
+Description=Weekly Employer Relations CRM integrity check
+
+[Timer]
+OnCalendar=Fri *-*-* 03:15:00 Asia/Qatar
+RandomizedDelaySec=10min
+Persistent=true
+Unit=ero-crm-integrity.service
+
+[Install]
+WantedBy=timers.target
