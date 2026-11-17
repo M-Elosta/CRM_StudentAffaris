@@ -21,6 +21,7 @@ start_app() {
   if app_running; then return 0; fi
   [[ -e "$ERO_PREFIX/opt/ero-crm/current/src/server.js" ]] || return 0 # ConditionPathExists
   (
+    exec 9>&- # do not hold the deploy lock: systemd would not pass it on either
     cd "$ERO_PREFIX/opt/ero-crm/current"
     exec "$NODE" --env-file="$ERO_PREFIX/etc/ero-crm/ero-crm.env" src/server.js >>"$STATE/app.log" 2>&1 </dev/null
   ) &
