@@ -1,0 +1,26 @@
+# Employer Relations CRM — rotation of this site's nginx logs.
+# Installed to /etc/logrotate.d/ero-crm by deploy/install.sh.
+# The site logs to its own directory, /var/log/nginx/ero-crm/, because the
+# distribution's nginx rotation already matches /var/log/nginx/*.log and
+# logrotate refuses a file that two rules name.
+#
+# The application itself logs to stdout/stderr, which systemd stores in the
+# journal (journalctl -u ero-crm.service); it writes no log files. To cap the
+# journal's disk use, set for example in /etc/systemd/journald.conf:
+#   SystemMaxUse=500M
+#   MaxRetentionSec=3month
+# then: sudo systemctl restart systemd-journald
+
+/var/log/nginx/ero-crm/access.log /var/log/nginx/ero-crm/error.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        # Ask nginx to reopen its log files.
+        systemctl reload nginx >/dev/null 2>&1 || true
+    endscript
+}
