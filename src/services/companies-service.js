@@ -69,6 +69,16 @@ function createCompaniesService({ companiesRepository, ...deps }) {
       }
       return { companyName: company.CompanyName, ...counts };
     },
+
+    /**
+     * How many contacts and activities are hidden together with the employer
+     * when it is in the Trash (or would be, when it is deleted).
+     * @returns {{ contacts: number, activities: number }}
+     */
+    hiddenCounts(companyId, ctx) {
+      authorize.requireRecordAccess(ctx, PERMISSIONS.RECORD_READ, 'companies');
+      return companiesRepository.countHiddenWith(companyId);
+    },
   };
 }
 

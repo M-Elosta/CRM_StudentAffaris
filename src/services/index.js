@@ -46,8 +46,8 @@ function createRecordServices({ db, timeZone }) {
     RECORD_TYPES.map((definition) => [definition.path, createCrudRepository(db, definition)])
   );
   const lookups = {
-    findCompany: (id) => repositories.get('companies').getStoredById(id),
-    findContact: (id) => repositories.get('contacts').getStoredById(id),
+    findCompany: (id) => repositories.get('companies').getStoredById(id, { includeDeleted: true }),
+    findContact: (id) => repositories.get('contacts').getStoredById(id, { includeDeleted: true }),
   };
   const companiesRepository = createCompaniesRepository(db);
 

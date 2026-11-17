@@ -1,5 +1,7 @@
 'use strict';
 
+const { liveTable } = require('../../domain/live');
+
 const normalize = (value) =>
   String(value ?? '')
     .trim()
@@ -12,10 +14,10 @@ const normalize = (value) =>
  */
 function createImportRepository(db) {
   const statements = {
-    companyByName: db.prepare('SELECT CompanyID FROM Company WHERE LOWER(TRIM(CompanyName)) = ?'),
-    contactByEmail: db.prepare('SELECT ContactID FROM Contact WHERE LOWER(TRIM(EmailAddress)) = ?'),
+    companyByName: db.prepare(`SELECT CompanyID FROM ${liveTable('Company')} WHERE LOWER(TRIM(CompanyName)) = ?`),
+    contactByEmail: db.prepare(`SELECT ContactID FROM ${liveTable('Contact')} WHERE LOWER(TRIM(EmailAddress)) = ?`),
     contactByName: db.prepare(
-      'SELECT ContactID FROM Contact WHERE LOWER(TRIM(FirstName)) = ? AND LOWER(TRIM(LastName)) = ?'
+      `SELECT ContactID FROM ${liveTable('Contact')} WHERE LOWER(TRIM(FirstName)) = ? AND LOWER(TRIM(LastName)) = ?`
     ),
   };
 
@@ -24,7 +26,7 @@ function createImportRepository(db) {
     [
       'Company',
       {
-        statement: db.prepare('SELECT CompanyID AS id FROM Company WHERE LOWER(TRIM(CompanyName)) = ?'),
+        statement: db.prepare(`SELECT CompanyID AS id FROM ${liveTable('Company')} WHERE LOWER(TRIM(CompanyName)) = ?`),
         params: (row) => [normalize(row.CompanyName)],
       },
     ],
@@ -32,7 +34,7 @@ function createImportRepository(db) {
       'Contact',
       {
         statement: db.prepare(
-          'SELECT ContactID AS id FROM Contact WHERE LOWER(TRIM(EmailAddress)) = ? AND CompanyID = ?'
+          `SELECT ContactID AS id FROM ${liveTable('Contact')} WHERE LOWER(TRIM(EmailAddress)) = ? AND CompanyID = ?`
         ),
         params: (row) => [normalize(row.EmailAddress), row.CompanyID],
       },
@@ -41,7 +43,7 @@ function createImportRepository(db) {
       'Outreach',
       {
         statement: db.prepare(
-          `SELECT OutreachEngagementID AS id FROM OutreachEngagement
+          `SELECT OutreachEngagementID AS id FROM ${liveTable('OutreachEngagement')}
            WHERE CompanyID = ? AND ContactID = ? AND InteractionDate = ? AND InteractionType = ?`
         ),
         params: (row) => [row.CompanyID, row.ContactID, row.InteractionDate, row.InteractionType || ''],
@@ -51,7 +53,7 @@ function createImportRepository(db) {
       'Recruitment',
       {
         statement: db.prepare(
-          `SELECT RecruitmentID AS id FROM Recruitment
+          `SELECT RecruitmentID AS id FROM ${liveTable('Recruitment')}
            WHERE CompanyID = ? AND LOWER(TRIM(OpportunityTitle)) = ? AND (? IS NULL OR DatePosted = ?)`
         ),
         params: (row) => [
@@ -66,7 +68,7 @@ function createImportRepository(db) {
       'Career Event',
       {
         statement: db.prepare(
-          'SELECT CareerEventID AS id FROM CareerEvent WHERE CompanyID = ? AND LOWER(TRIM(EventName)) = ? AND EventDate = ?'
+          `SELECT CareerEventID AS id FROM ${liveTable('CareerEvent')} WHERE CompanyID = ? AND LOWER(TRIM(EventName)) = ? AND EventDate = ?`
         ),
         params: (row) => [row.CompanyID, normalize(row.EventName), row.EventDate],
       },
@@ -75,7 +77,7 @@ function createImportRepository(db) {
       'Student-Led Event',
       {
         statement: db.prepare(
-          `SELECT StudentLedEventID AS id FROM StudentLedEvent
+          `SELECT StudentLedEventID AS id FROM ${liveTable('StudentLedEvent')}
            WHERE CompanyID = ? AND ProposalDate = ? AND LOWER(TRIM(StudentEmail)) = ?`
         ),
         params: (row) => [row.CompanyID, row.ProposalDate, normalize(row.StudentEmail)],
@@ -85,7 +87,7 @@ function createImportRepository(db) {
       'Academic Engagement',
       {
         statement: db.prepare(
-          `SELECT EngagementID AS id FROM AcademicClassroomEngagement
+          `SELECT EngagementID AS id FROM ${liveTable('AcademicClassroomEngagement')}
            WHERE CompanyID = ? AND SessionDate = ? AND LOWER(TRIM(GuestSpeakerName)) = ?`
         ),
         params: (row) => [row.CompanyID, row.SessionDate, normalize(row.GuestSpeakerName)],
@@ -95,7 +97,7 @@ function createImportRepository(db) {
       'Hiring Feedback',
       {
         statement: db.prepare(
-          'SELECT HiringFeedbackID AS id FROM HiringFeedback WHERE CompanyID = ? AND ContactID = ? AND DateReported = ?'
+          `SELECT HiringFeedbackID AS id FROM ${liveTable('HiringFeedback')} WHERE CompanyID = ? AND ContactID = ? AND DateReported = ?`
         ),
         params: (row) => [row.CompanyID, row.ContactID, row.DateReported],
       },
@@ -103,7 +105,9 @@ function createImportRepository(db) {
     [
       'Potential Collaboration',
       {
-        statement: db.prepare('SELECT PotentialCollaborationID AS id FROM PotentialCollaboration WHERE CompanyID = ?'),
+        statement: db.prepare(
+          `SELECT PotentialCollaborationID AS id FROM ${liveTable('PotentialCollaboration')} WHERE CompanyID = ?`
+        ),
         params: (row) => [row.CompanyID],
       },
     ],

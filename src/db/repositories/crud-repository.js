@@ -15,11 +15,12 @@ const bareColumn = (column) => column.slice(column.lastIndexOf('.') + 1);
  * Build the WHERE clause for the definition's list filters from already
  * validated values. Columns named in `withheldColumns` are never matched
  * against: a filter left with no column matches no row, so a withheld value
- * cannot be probed through a search.
+ * cannot be probed through a search. The definition's live conditions come
+ * first, so records in the Trash never match, unless `options.includeDeleted`.
  */
 function buildListFilters(definition, filters, withheldColumns = [], options = {}) {
   const withheld = new Set(withheldColumns);
-  const conditions = [];
+  const conditions = options.includeDeleted ? [] : [...definition.list.live];
   const params = [];
   for (const filter of definition.list.filters) {
     const value = filters[filter.param];
@@ -96,17 +97,34 @@ function createCrudRepository(db, definition) {
   const todayIso = () => new Date().toISOString().slice(0, 10);
   const withArgs = (today) => (page.withArgs ? page.withArgs({ today }) : []);
 
+  // A stored row is live when it is not in the Trash and neither is its employer.
+  const storedLive = list.live.length > 1 ? 't.DeletedAt IS NULL AND c.DeletedAt IS NULL' : 't.DeletedAt IS NULL';
+  const storedFrom = `${table} t${list.live.length > 1 ? ' JOIN Company c ON c.CompanyID = t.CompanyID' : ''}`;
+  const live = list.live.join(' AND ');
+  // CreatedBy, UpdatedBy and DeletedBy refer to Users: an id with no account is stored as NULL.
+  const knownUser = (param) => `(SELECT UserID FROM Users WHERE UserID = ${param})`;
+
   const statements = {
-    getById: db.prepare(`${readBase} WHERE ${list.alias}.${idColumn} = ?`),
-    getStoredById: db.prepare(`SELECT * FROM ${table} WHERE ${idColumn} = ?`),
-    getUpdatedAt: db.prepare(`SELECT UpdatedAt FROM ${table} WHERE ${idColumn} = ?`),
+    getById: db.prepare(`${readBase} WHERE ${list.alias}.${idColumn} = ? AND ${live}`),
+    getByIdAny: db.prepare(`${readBase} WHERE ${list.alias}.${idColumn} = ?`),
+    getStoredById: db.prepare(`SELECT t.* FROM ${storedFrom} WHERE t.${idColumn} = ? AND ${storedLive}`),
+    getStoredByIdAny: db.prepare(`SELECT * FROM ${table} WHERE ${idColumn} = ?`),
+    getUpdatedAt: db.prepare(`SELECT t.UpdatedAt FROM ${storedFrom} WHERE t.${idColumn} = ? AND ${storedLive}`),
     insert: db.prepare(
-      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map((column) => `@${column}`).join(', ')})`
+      `INSERT INTO ${table} (${columns.join(', ')}, CreatedBy)
+       VALUES (${columns.map((column) => `@${column}`).join(', ')}, ${knownUser('@__userId')})`
     ),
     update: db.prepare(
-      `UPDATE ${table} SET ${columns.map((column) => `${column} = @${column}`).join(', ')} WHERE ${idColumn} = @__id`
+      `UPDATE ${table} SET ${columns.map((column) => `${column} = @${column}`).join(', ')}, UpdatedBy = ${knownUser('@__userId')}
+       WHERE ${idColumn} = @__id AND DeletedAt IS NULL`
     ),
-    remove: db.prepare(`DELETE FROM ${table} WHERE ${idColumn} = ?`),
+    softDelete: db.prepare(
+      `UPDATE ${table} SET DeletedAt = ?, DeletedBy = ${knownUser('?')} WHERE ${idColumn} = ? AND DeletedAt IS NULL`
+    ),
+    restore: db.prepare(
+      `UPDATE ${table} SET DeletedAt = NULL, DeletedBy = NULL WHERE ${idColumn} = ? AND DeletedAt IS NOT NULL`
+    ),
+    purge: db.prepare(`DELETE FROM ${table} WHERE ${idColumn} = ? AND DeletedAt IS NOT NULL`),
   };
 
   const childStatements = children.map((child) => ({
@@ -149,17 +167,18 @@ function createCrudRepository(db, definition) {
     /**
      * Rows of the list query (joins and default order) matching the validated
      * filters, with children. Filters never match the `withheldColumns`.
+     * Records in the Trash are left out unless `includeDeleted`.
      * @param {object} [filters]
-     * @param {{ withheldColumns?: string[] }} [options]
+     * @param {{ withheldColumns?: string[], includeDeleted?: boolean }} [options]
      */
-    list(filters = {}, { withheldColumns = [] } = {}) {
-      const { where, params } = buildListFilters(definition, filters, withheldColumns);
+    list(filters = {}, { withheldColumns = [], includeDeleted = false } = {}) {
+      const { where, params } = buildListFilters(definition, filters, withheldColumns, { includeDeleted });
       return withChildren(db.prepare(`${readBase}${where} ORDER BY ${list.orderBy}`).all(...params));
     },
 
     /**
-     * One page of the list screen: rows matching the filters, sorted by a
-     * whitelisted key, with children. A user without sensitive:read never
+     * One page of the list screen: live rows matching the filters, sorted by
+     * a whitelisted key, with children. A user without sensitive:read never
      * matches against withheld columns.
      * @param {object} [filters]  validated filter values, by param
      * @param {{ sort?: string, dir?: string, limit?: number, offset?: number, user?: object, today?: string }} [options]
@@ -177,7 +196,7 @@ function createCrudRepository(db, definition) {
     },
 
     /**
-     * How many rows match the filters (the same rules as page()).
+     * How many live rows match the filters (the same rules as page()).
      * @param {object} [filters]
      * @param {{ user?: object, today?: string }} [options]
      */
@@ -186,37 +205,53 @@ function createCrudRepository(db, definition) {
       return db.prepare(`${countBase}${where}`).get(...withArgs(today), ...params).n;
     },
 
-    /** One row in the list shape (with joined names and children), or undefined. */
-    getById(id) {
-      return withChildrenOne(statements.getById.get(id));
+    /**
+     * One live row in the list shape (with joined names and children), or undefined.
+     * With `includeDeleted` (the Trash), a record in the Trash or under a deleted employer too.
+     */
+    getById(id, { includeDeleted = false } = {}) {
+      return withChildrenOne((includeDeleted ? statements.getByIdAny : statements.getById).get(id));
     },
 
-    /** One row exactly as stored in the table, with children, or undefined. */
-    getStoredById(id) {
-      return withChildrenOne(statements.getStoredById.get(id));
+    /** One live row exactly as stored in the table, with children, or undefined; `includeDeleted` as for getById. */
+    getStoredById(id, { includeDeleted = false } = {}) {
+      return withChildrenOne((includeDeleted ? statements.getStoredByIdAny : statements.getStoredById).get(id));
     },
 
-    /** The stored UpdatedAt of a record: undefined when the record does not exist, else the value (maybe null). */
+    /** The stored UpdatedAt of a live record: undefined when there is no such record, else the value (maybe null). */
     getUpdatedAt(id) {
       const row = statements.getUpdatedAt.get(id);
       return row ? row.UpdatedAt : undefined;
     },
 
-    /** Insert the definition's columns from values and return the new id. */
-    insert(values) {
+    /** Insert the definition's columns from values, recording who created it; returns the new id. */
+    insert(values, { userId = null } = {}) {
       const params = Object.fromEntries(columns.map((column) => [column, values[column] ?? null]));
-      return Number(statements.insert.run(params).lastInsertRowid);
+      return Number(statements.insert.run({ ...params, __userId: userId }).lastInsertRowid);
     },
 
-    /** Overwrite the definition's columns of one record; returns the number of changed rows. */
-    update(id, values) {
+    /** Overwrite the definition's columns of one live record, recording who changed it; returns the changed rows. */
+    update(id, values, { userId = null } = {}) {
       const params = Object.fromEntries(columns.map((column) => [column, values[column] ?? null]));
-      return statements.update.run({ ...params, __id: id }).changes;
+      return statements.update.run({ ...params, __id: id, __userId: userId }).changes;
     },
 
-    /** Delete one record (child rows cascade); returns the number of deleted rows. */
-    remove(id) {
-      return statements.remove.run(id).changes;
+    /**
+     * Move one record to the Trash: set DeletedAt (UTC, YYYY-MM-DD HH:MM:SS) and
+     * DeletedBy. Nothing else is changed and no row is removed. Returns the changed rows.
+     */
+    softDelete(id, { userId = null, deletedAt }) {
+      return statements.softDelete.run(deletedAt, userId, id).changes;
+    },
+
+    /** Take one record out of the Trash; returns the changed rows (0 when it was not in the Trash). */
+    restore(id) {
+      return statements.restore.run(id).changes;
+    },
+
+    /** Permanently delete one record that is in the Trash (child rows cascade); returns the deleted rows. */
+    purge(id) {
+      return statements.purge.run(id).changes;
     },
 
     loadChildren,

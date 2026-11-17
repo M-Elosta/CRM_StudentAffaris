@@ -10,6 +10,13 @@ const { createAuthorizer } = require('../security/authorize');
 const STALE_RECORD_MESSAGE =
   'This record was changed by someone else while you were editing. Please reload and try again.';
 
+const EMPLOYER_IN_TRASH = 'That employer is in the Trash. Restore it first.';
+const CONTACT_IN_TRASH = 'That contact is in the Trash. Restore it first.';
+const RESTORE_EMPLOYER_FIRST = 'Restore the employer first.';
+
+/** The current time as stored in DeletedAt: UTC, YYYY-MM-DD HH:MM:SS. */
+const storedUtc = (date) => date.toISOString().replace('T', ' ').slice(0, 19);
+
 const versionSchema = z.object({ UpdatedAt: recordTimestamp() });
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -32,7 +39,8 @@ const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && 
  * @param {ReturnType<import('../db/repositories/crud-repository').createCrudRepository>} deps.repository
  * @param {object} deps.definition  the record type definition (src/domain/record-types.js)
  * @param {{ bodySchema: import('zod').ZodType }} deps.schema  the record type's validation module
- * @param {{ findCompany: Function, findContact: Function }} deps.lookups  stored company/contact by id
+ * @param {{ findCompany: Function, findContact: Function }} deps.lookups  stored company/contact by id,
+ *   including one in the Trash (its DeletedAt says so)
  * @param {string} deps.timeZone  the office time zone; "today" is computed in it once per call
  * @param {object} [deps.hooks]
  * @param {(values: object, context: object) => void} [deps.hooks.beforeWrite]  adjust values before saving
@@ -91,8 +99,12 @@ function createRecordService({
     return new NotFoundError(definition.notFoundMessage);
   }
 
-  /** Make sure the employer and contact a record points to exist and belong together. */
-  function resolveReferences(values) {
+  /**
+   * Make sure the employer and contact a record points to exist, are not in
+   * the Trash and belong together. An edit may keep pointing to a contact that
+   * has since been deleted; it cannot newly choose one.
+   */
+  function resolveReferences(values, existing = null) {
     const found = { company: null, contact: null };
     if (definition.references.company) {
       found.company = lookups.findCompany(values.CompanyID);
@@ -100,12 +112,16 @@ function createRecordService({
         const message = 'The selected employer does not exist';
         throw new ValidationError(message, { CompanyID: message });
       }
+      if (found.company.DeletedAt) throw new ValidationError(EMPLOYER_IN_TRASH, { CompanyID: EMPLOYER_IN_TRASH });
     }
     if (definition.references.contact) {
       found.contact = lookups.findContact(values.ContactID);
       if (!found.contact) {
         const message = 'The selected contact does not exist';
         throw new ValidationError(message, { ContactID: message });
+      }
+      if (found.contact.DeletedAt && existing?.ContactID !== values.ContactID) {
+        throw new ValidationError(CONTACT_IN_TRASH, { ContactID: CONTACT_IN_TRASH });
       }
       if (found.contact.CompanyID !== values.CompanyID) {
         const message = 'The selected contact does not belong to this employer';
@@ -125,15 +141,16 @@ function createRecordService({
   function save(id, body, { existing, currentDay, user }) {
     const values = parseWith(schema.bodySchema, protectSensitive(user, body ?? {}, existing));
     applyDateDefaults(values, existing, currentDay);
-    const references = resolveReferences(values);
+    const references = resolveReferences(values, existing);
     const context = { today: currentDay, existing, ...references };
     hooks.beforeWrite?.(values, context);
 
     let recordId = id;
+    const userId = user?.id ?? null;
     if (existing) {
-      repository.update(recordId, values);
+      repository.update(recordId, values, { userId });
     } else {
-      recordId = repository.insert(values);
+      recordId = repository.insert(values, { userId });
     }
     repository.replaceChildren(recordId, values);
     hooks.afterWrite?.(recordId, values, context);
@@ -156,12 +173,35 @@ function createRecordService({
     return save(id, body, { existing: repository.getStoredById(id), currentDay, user });
   });
 
-  const removeInTransaction = db.transaction((id) => {
+  const removeInTransaction = db.transaction((id, user) => {
     const stored = repository.getStoredById(id);
     if (!stored) throw notFound();
     const summary = hooks.describeRemoval ? hooks.describeRemoval(stored) : { message: 'Deleted' };
-    repository.remove(id);
+    repository.softDelete(id, { userId: user?.id ?? null, deletedAt: storedUtc(now()) });
     return summary;
+  });
+
+  /** Whether the employer a stored record belongs to is in the Trash. */
+  const employerInTrash = (stored) =>
+    definition.references.company && Boolean(lookups.findCompany(stored.CompanyID)?.DeletedAt);
+
+  const restoreInTransaction = db.transaction((id) => {
+    const stored = repository.getStoredById(id, { includeDeleted: true });
+    if (!stored) throw notFound();
+    if (employerInTrash(stored)) throw new ValidationError(RESTORE_EMPLOYER_FIRST);
+    if (!stored.DeletedAt) throw new ValidationError(`This ${definition.label.toLowerCase()} is not in the Trash.`);
+    repository.restore(id);
+    return repository.getById(id);
+  });
+
+  const purgeInTransaction = db.transaction((id) => {
+    const stored = repository.getStoredById(id, { includeDeleted: true });
+    if (!stored) throw notFound();
+    if (!stored.DeletedAt) {
+      throw new ValidationError('Only a record in the Trash can be deleted permanently. Delete it first.');
+    }
+    repository.purge(id);
+    return { message: 'Deleted permanently' };
   });
 
   return {
@@ -243,12 +283,44 @@ function createRecordService({
       return present(user, updateInTransaction(id, body, today(), { checkVersion: false, user }));
     },
 
-    /** Delete a record; returns the response body describing the deletion. */
+    /**
+     * Move a record to the Trash (it stays in the database, with its children,
+     * and can be restored); returns the response body describing the deletion.
+     */
     remove(id, ctx) {
-      authorize.requireRecordAccess(ctx, P.RECORD_DELETE, recordType);
-      return removeInTransaction(id);
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_DELETE, recordType);
+      return removeInTransaction(id, user);
+    },
+
+    /**
+     * Take a record out of the Trash; returns it in the list shape. Refused for
+     * a record whose employer is in the Trash, and for one that is not deleted.
+     */
+    restore(id, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_RESTORE, recordType);
+      return present(user, restoreInTransaction(id));
+    },
+
+    /** Permanently delete a record that is already in the Trash (its children cascade). */
+    purge(id, ctx) {
+      authorize.requireRecordAccess(ctx, P.RECORD_PURGE, recordType);
+      return purgeInTransaction(id);
+    },
+
+    /** One record in the list shape, in the Trash or not, for the Trash screens; NotFoundError when missing. */
+    getAny(id, ctx) {
+      const user = authorize.requireRecordAccess(ctx, P.RECORD_READ, recordType);
+      const record = repository.getById(id, { includeDeleted: true });
+      if (!record) throw notFound();
+      return present(user, record);
     },
   };
 }
 
-module.exports = { createRecordService, STALE_RECORD_MESSAGE };
+module.exports = {
+  createRecordService,
+  STALE_RECORD_MESSAGE,
+  EMPLOYER_IN_TRASH,
+  CONTACT_IN_TRASH,
+  RESTORE_EMPLOYER_FIRST,
+};

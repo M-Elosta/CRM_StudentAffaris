@@ -1,5 +1,7 @@
 'use strict';
 
+const { liveTable } = require('../../domain/live');
+
 /** ' AND column >= ? AND column <= ?' for whichever bounds are given, with their parameters. */
 function rangeClause(column, from, to) {
   let sql = '';
@@ -34,19 +36,25 @@ function createDashboardRepository(db) {
       const followUps =
         from || to ? rangeClause('FollowUpDate', from, to) : { sql: ' AND FollowUpDate >= ?', params: [today] };
       return {
-        totalCompanies: count(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted = 0${added.sql}`, added.params),
-        totalBlacklisted: count(`SELECT COUNT(*) AS n FROM Company WHERE Blacklisted = 1${added.sql}`, added.params),
-        totalContacts: count(`SELECT COUNT(*) AS n FROM Contact WHERE 1 = 1${added.sql}`, added.params),
+        totalCompanies: count(
+          `SELECT COUNT(*) AS n FROM ${liveTable('Company')} WHERE Blacklisted = 0${added.sql}`,
+          added.params
+        ),
+        totalBlacklisted: count(
+          `SELECT COUNT(*) AS n FROM ${liveTable('Company')} WHERE Blacklisted = 1${added.sql}`,
+          added.params
+        ),
+        totalContacts: count(`SELECT COUNT(*) AS n FROM ${liveTable('Contact')} WHERE 1 = 1${added.sql}`, added.params),
         mailableContacts: count(
-          `SELECT COUNT(*) AS n FROM Contact WHERE Status = 'Mailable' AND ExcludeFromMailing = 0${added.sql}`,
+          `SELECT COUNT(*) AS n FROM ${liveTable('Contact')} WHERE Status = 'Mailable' AND ExcludeFromMailing = 0${added.sql}`,
           added.params
         ),
         outreachThisMonth: count(
-          `SELECT COUNT(*) AS n FROM OutreachEngagement WHERE 1 = 1${outreach.sql}`,
+          `SELECT COUNT(*) AS n FROM ${liveTable('OutreachEngagement')} WHERE 1 = 1${outreach.sql}`,
           outreach.params
         ),
         upcomingFollowUps: count(
-          `SELECT COUNT(*) AS n FROM OutreachEngagement WHERE InteractionStatus = 'In-progress'${followUps.sql}`,
+          `SELECT COUNT(*) AS n FROM ${liveTable('OutreachEngagement')} WHERE InteractionStatus = 'In-progress'${followUps.sql}`,
           followUps.params
         ),
       };
@@ -57,7 +65,7 @@ function createDashboardRepository(db) {
       const range = rangeClause('DateAdded', from, to);
       return db
         .prepare(
-          `SELECT strftime('%Y-%m', DateAdded) AS month, COUNT(*) AS count FROM Company
+          `SELECT strftime('%Y-%m', DateAdded) AS month, COUNT(*) AS count FROM ${liveTable('Company')}
            WHERE Blacklisted = 0${range.sql} GROUP BY month ORDER BY month`
         )
         .all(...range.params);
@@ -69,7 +77,7 @@ function createDashboardRepository(db) {
       return db
         .prepare(
           `SELECT strftime('%Y-%m', InteractionDate) AS month, InteractionType AS type, COUNT(*) AS count
-           FROM OutreachEngagement WHERE 1 = 1${range.sql} GROUP BY month, type ORDER BY month`
+           FROM ${liveTable('OutreachEngagement')} WHERE 1 = 1${range.sql} GROUP BY month, type ORDER BY month`
         )
         .all(...range.params);
     },
@@ -79,7 +87,7 @@ function createDashboardRepository(db) {
       const range = rangeClause('DateAdded', from, to);
       return db
         .prepare(
-          `SELECT Sector AS label, COUNT(*) AS count FROM Company
+          `SELECT Sector AS label, COUNT(*) AS count FROM ${liveTable('Company')}
            WHERE Blacklisted = 0${range.sql} GROUP BY Sector ORDER BY count DESC`
         )
         .all(...range.params);
@@ -91,7 +99,7 @@ function createDashboardRepository(db) {
       return db
         .prepare(
           `SELECT m.Major AS label, COUNT(*) AS count
-           FROM Recruitment_TargetMajors m JOIN Recruitment r ON m.RecruitmentID = r.RecruitmentID
+           FROM Recruitment_TargetMajors m JOIN ${liveTable('Recruitment')} r ON m.RecruitmentID = r.RecruitmentID
            WHERE 1 = 1${range.sql} GROUP BY m.Major ORDER BY count DESC`
         )
         .all(...range.params);
@@ -102,7 +110,7 @@ function createDashboardRepository(db) {
       const range = rangeClause('EventDate', from, to);
       return db
         .prepare(
-          `SELECT EventName, RegisteredStatus AS status, COUNT(*) AS count FROM CareerEvent
+          `SELECT EventName, RegisteredStatus AS status, COUNT(*) AS count FROM ${liveTable('CareerEvent')}
            WHERE 1 = 1${range.sql} GROUP BY EventName, RegisteredStatus ORDER BY EventName`
         )
         .all(...range.params);
@@ -117,11 +125,11 @@ function createDashboardRepository(db) {
       return db
         .prepare(
           `SELECT c.CompanyName AS company,
-             (SELECT COUNT(*) FROM OutreachEngagement WHERE CompanyID = c.CompanyID${outreach.sql}) +
-             (SELECT COUNT(*) FROM Recruitment WHERE CompanyID = c.CompanyID${postings.sql}) +
-             (SELECT COUNT(*) FROM CareerEvent WHERE CompanyID = c.CompanyID${events.sql}) +
-             (SELECT COUNT(*) FROM AcademicClassroomEngagement WHERE CompanyID = c.CompanyID${sessions.sql}) AS total
-           FROM Company c
+             (SELECT COUNT(*) FROM ${liveTable('OutreachEngagement')} WHERE CompanyID = c.CompanyID${outreach.sql}) +
+             (SELECT COUNT(*) FROM ${liveTable('Recruitment')} WHERE CompanyID = c.CompanyID${postings.sql}) +
+             (SELECT COUNT(*) FROM ${liveTable('CareerEvent')} WHERE CompanyID = c.CompanyID${events.sql}) +
+             (SELECT COUNT(*) FROM ${liveTable('AcademicClassroomEngagement')} WHERE CompanyID = c.CompanyID${sessions.sql}) AS total
+           FROM ${liveTable('Company')} c
            ORDER BY total DESC LIMIT 10`
         )
         .all(...outreach.params, ...postings.params, ...events.params, ...sessions.params);
@@ -132,7 +140,7 @@ function createDashboardRepository(db) {
       const range = rangeClause('DateReported', from, to);
       return db
         .prepare(
-          `SELECT strftime('%Y-%m', DateReported) AS month, COUNT(*) AS count FROM HiringFeedback
+          `SELECT strftime('%Y-%m', DateReported) AS month, COUNT(*) AS count FROM ${liveTable('HiringFeedback')}
            WHERE HiredStudentAlumni = 'Yes'${range.sql} GROUP BY month ORDER BY month`
         )
         .all(...range.params);

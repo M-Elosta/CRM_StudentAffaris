@@ -156,13 +156,61 @@ describe('crud-repository', () => {
     assert.deepEqual(bulk.TargetMajors, ['CS', 'IS']);
   });
 
-  it('deletes a record together with its child rows', () => {
+  it('moves a record to the Trash without removing it or its child rows', () => {
     const id = recruitment.insert(posting('To delete', '2025-02-01'));
     recruitment.replaceChildren(id, { ClassLevels: ['Junior'] });
-    assert.equal(recruitment.remove(id), 1);
+    const childRows = () =>
+      db.prepare('SELECT COUNT(*) AS n FROM Recruitment_ClassLevel WHERE RecruitmentID = ?').get(id).n;
+    assert.equal(recruitment.softDelete(id, { userId: null, deletedAt: '2025-03-01 10:00:00' }), 1);
     assert.equal(recruitment.getById(id), undefined);
+    assert.equal(recruitment.getStoredById(id), undefined);
+    assert.equal(recruitment.getUpdatedAt(id), undefined);
+    assert.ok(!recruitment.list().some((row) => row.RecruitmentID === id));
+    const stored = recruitment.getStoredById(id, { includeDeleted: true });
+    assert.equal(stored.DeletedAt, '2025-03-01 10:00:00');
+    assert.deepEqual(stored.ClassLevels, ['Junior']);
+    assert.equal(childRows(), 1);
+    assert.equal(recruitment.softDelete(id, { userId: null, deletedAt: '2025-03-02 10:00:00' }), 0);
+  });
+
+  it('purges only a record that is in the Trash, together with its child rows', () => {
+    const id = recruitment.insert(posting('To purge', '2025-02-01'));
+    recruitment.replaceChildren(id, { ClassLevels: ['Junior'] });
+    assert.equal(recruitment.purge(id), 0, 'a live record is not purged');
+    assert.ok(recruitment.getById(id));
+    recruitment.softDelete(id, { userId: null, deletedAt: '2025-03-01 10:00:00' });
+    assert.equal(recruitment.purge(id), 1);
+    assert.equal(recruitment.getStoredById(id, { includeDeleted: true }), undefined);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM Recruitment_ClassLevel WHERE RecruitmentID = ?').get(id).n, 0);
-    assert.equal(recruitment.remove(id), 0);
+  });
+
+  it('restores a record from the Trash', () => {
+    const id = recruitment.insert(posting('To restore', '2025-02-01'));
+    recruitment.softDelete(id, { userId: null, deletedAt: '2025-03-01 10:00:00' });
+    assert.equal(recruitment.restore(id), 1);
+    const stored = recruitment.getStoredById(id);
+    assert.equal(stored.DeletedAt, null);
+    assert.equal(stored.DeletedBy, null);
+    assert.equal(recruitment.restore(id), 0);
+  });
+
+  it('hides the records of an employer in the Trash without flagging them', () => {
+    const ownId = companies.insert({ ...COMPANY, CompanyName: 'Hidden Parent' });
+    const childId = contacts.insert({
+      CompanyID: ownId,
+      FirstName: 'Hid',
+      LastName: 'Den',
+      DateAdded: '2025-03-01',
+      EmailAddress: 'hid@example.qa',
+      Status: 'Mailable',
+    });
+    companies.softDelete(ownId, { userId: null, deletedAt: '2025-03-01 10:00:00' });
+    assert.equal(contacts.getById(childId), undefined);
+    assert.equal(contacts.getStoredById(childId), undefined);
+    assert.equal(contacts.count({ companyId: String(ownId) }), 0);
+    assert.equal(contacts.getStoredById(childId, { includeDeleted: true }).DeletedAt, null);
+    companies.restore(ownId);
+    assert.ok(contacts.getById(childId));
   });
 });
 

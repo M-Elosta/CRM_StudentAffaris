@@ -108,12 +108,17 @@ describe('Recruitment child arrays', () => {
     assert.deepEqual(res.body.TargetMajors, []);
   });
 
-  it('removes the child rows when the posting is deleted', async () => {
+  it('keeps the child rows when the posting is moved to the Trash, and brings them back on restore', async () => {
     const created = await create();
     assert.equal((await del(admin, `/api/recruitment/${created.RecruitmentID}`)).status, 200);
     assert.equal((await admin.get(`/api/recruitment/${created.RecruitmentID}`)).status, 404);
-    for (const { table } of RECRUITMENT_CHILD_TABLES) {
-      assert.equal(childCount(table, created.RecruitmentID), 0, table);
+    for (const { table, field } of RECRUITMENT_CHILD_TABLES) {
+      assert.equal(childCount(table, created.RecruitmentID), arrays[field].length, table);
+    }
+    assert.equal((await post(admin, `/api/recruitment/${created.RecruitmentID}/restore`)).status, 200);
+    const restored = await admin.get(`/api/recruitment/${created.RecruitmentID}`);
+    for (const { field } of RECRUITMENT_CHILD_TABLES) {
+      assert.deepEqual(sorted(restored.body[field]), sorted(arrays[field]), field);
     }
   });
 
@@ -190,11 +195,13 @@ describe('Potential collaboration opportunities', () => {
     assert.equal(opportunityCount(created.PotentialCollaborationID), 1);
   });
 
-  it('removes the opportunities when the record is deleted', async () => {
+  it('keeps the opportunities when the record is moved to the Trash', async () => {
     const created = await create();
+    const before = opportunityCount(created.PotentialCollaborationID);
+    assert.ok(before > 0);
     assert.equal((await del(admin, `/api/collaboration/${created.PotentialCollaborationID}`)).status, 200);
     assert.equal((await admin.get(`/api/collaboration/${created.PotentialCollaborationID}`)).status, 404);
-    assert.equal(opportunityCount(created.PotentialCollaborationID), 0);
+    assert.equal(opportunityCount(created.PotentialCollaborationID), before);
   });
 
   it('accepts a record with no opportunities', async () => {
