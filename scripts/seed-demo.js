@@ -9,13 +9,16 @@
  *
  * THIS SCRIPT DELETES EVERY RECORD before inserting the demo set, so it is
  * fenced in:
- *   - it refuses to run in staging or production, and
+ *   - it always refuses to run in production,
+ *   - it runs in staging only with an explicit --staging flag (a staging
+ *     instance must never hold a copy of production data), and
  *   - it refuses to touch a database that already contains employers unless
  *     --reset is passed.
  *
  *   npm run seed:demo                              seed an empty development database
  *   npm run seed:demo -- --reset                   wipe the development database and reseed
  *   npm run seed:demo -- --anchor=2026-03-01       date everything relative to that day
+ *   npm run seed:demo -- --staging                 seed an empty staging database (NODE_ENV=staging)
  *
  * The data is deterministic: the same anchor date always produces the same
  * rows. Without --anchor the anchor is today in Asia/Qatar.
@@ -922,9 +925,12 @@ async function main() {
   loadDotEnv();
   const config = loadConfig();
 
-  if (config.isProductionLike) {
+  if (config.isProduction) {
+    throw new Error('Refusing to run in "production". Demo data never goes into production.');
+  }
+  if (config.env === 'staging' && !process.argv.slice(2).includes('--staging')) {
     throw new Error(
-      `Refusing to run in "${config.env}". Demo data is for development only and this script deletes all records.`
+      'Refusing to run in "staging" without --staging. Run "npm run seed:demo -- --staging" to seed a staging instance.'
     );
   }
 
