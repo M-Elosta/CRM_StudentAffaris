@@ -986,6 +986,10 @@ th[aria-sort='descending'] .table__sort .icon {
 .col--action {
   width: 156px;
 }
+/* Two row buttons: Restore and Delete permanently (the Trash) */
+.col--actions {
+  width: 248px;
+}
 
 .table-footer {
   display: flex;

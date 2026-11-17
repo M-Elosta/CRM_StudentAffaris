@@ -35,6 +35,10 @@ const DETAIL_SOURCES = [
   '/collaboration-ideas',
 ];
 
+/** The Trash, visited by the roles that may open it, whether or not anything is in it. */
+const TRASH = ['/trash', '/trash?type=companies'];
+const TRASH_ROLES = ['admin', 'staff'];
+
 function parseArgs(argv) {
   const args = { base: 'http://localhost:3120', user: 'admin', password: process.env.ADMIN_PASSWORD || '' };
   for (let index = 0; index < argv.length; index += 2) {
@@ -111,7 +115,7 @@ async function checkRole(browser, args, role) {
   await signIn(page, args.base, username, role === 'admin' ? args.password : ROLE_PASSWORD);
 
   const navLinks = await page.$$eval('#nav a.nav__link', (links) => links.map((link) => link.getAttribute('href')));
-  const paths = [...new Set([...navLinks, '/account', '/search?q=al'])];
+  const paths = [...new Set([...navLinks, '/account', '/search?q=al', ...(TRASH_ROLES.includes(role) ? TRASH : [])])];
   const results = [];
   for (const path of paths) results.push({ role, path, ...(await visit(page, args.base, path, problems)) });
 
