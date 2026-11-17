@@ -391,6 +391,13 @@ describe('the Trash', () => {
         /Last edited by <span dir="auto">staff-user<\/span> on/
       );
     });
+
+    it('keeps an account that records name: deleting it is refused with 409', async () => {
+      const res = await del(api.admin, `/api/users/${userId('staff-user')}`);
+      assert.equal(res.status, 409);
+      assert.match(res.body.error, /Deactivate it instead/);
+      assert.ok(userId('staff-user'));
+    });
   });
 
   describe('import', () => {
