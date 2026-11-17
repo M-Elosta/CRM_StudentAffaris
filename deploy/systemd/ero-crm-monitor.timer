@@ -1,0 +1,15 @@
+# Daily monitoring checks at 07:40 Qatar time, before the office opens. A failed
+# check starts ero-crm-alert@ero-crm-monitor.service.service (one alert a day at most).
+# IT's own monitoring can run scripts/ops/monitor.js --json as often as it likes.
+
+[Unit]
+Description=Daily Employer Relations CRM monitoring checks
+
+[Timer]
+OnCalendar=*-*-* 07:40:00 Asia/Qatar
+RandomizedDelaySec=5min
+Persistent=true
+Unit=ero-crm-monitor.service
+
+[Install]
+WantedBy=timers.target

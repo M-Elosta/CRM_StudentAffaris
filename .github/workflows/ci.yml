@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test, audit (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Dependency audit (fails on high or critical)
+        run: npm audit --audit-level=high
+
+      - name: Build check — migrations apply to an empty database and the app starts
+        env:
+          NODE_ENV: production
+          DATABASE_PATH: ${{ runner.temp }}/ci/employer.db
+          BACKUP_DIR: ${{ runner.temp }}/ci/backups
+          SESSION_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+          BOOTSTRAP_ADMIN_PASSWORD: ci-only-password-not-used-anywhere
+          BASE_URL: http://127.0.0.1:3000
+          SESSION_COOKIE_SECURE: 'false'
+        run: |
+          npm run migrate
+          node src/server.js &
+          SERVER_PID=$!
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:3000/healthz; then
+              kill "$SERVER_PID"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          kill "$SERVER_PID" || true
+          echo "The server did not become healthy" >&2
+          exit 1

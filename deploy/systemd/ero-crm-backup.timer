@@ -1,0 +1,14 @@
+# Nightly backup at 01:30 Qatar time, plus up to 10 minutes of random delay.
+# Persistent=true: if the server was off at 01:30, the backup runs at the next boot.
+
+[Unit]
+Description=Nightly Employer Relations CRM backup
+
+[Timer]
+OnCalendar=*-*-* 01:30:00 Asia/Qatar
+RandomizedDelaySec=10min
+Persistent=true
+Unit=ero-crm-backup.service
+
+[Install]
+WantedBy=timers.target

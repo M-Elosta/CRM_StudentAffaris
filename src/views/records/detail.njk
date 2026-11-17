@@ -1,0 +1,64 @@
+{#
+  One record of a generic type: its fields, when it was last edited, and the
+  actions the role allows. Contacts add their interactions (timeline).
+
+  Locals: screen, record, name, can { update, delete, logInteraction }, deleteText, lastEditedBy,
+          timeline? (items for the timeline component), breadcrumb
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, linkButton, deleteForm, emptyState %}
+{% from "macros/record.njk" import detailRow %}
+{% from "macros/activity.njk" import timeline as timelineList %}
+
+{% set pageTitle = name %}
+
+{% block content %}
+  {% call pageHeader(name, screen.singular | capitalize, breadcrumb) %}
+    {% if can.delete %}{{ deleteForm(screen.base ~ '/' ~ record[screen.idField] ~ '/delete', name, csrfToken, deleteText) }}{% endif %}
+    {% if can.update %}
+      {{ linkButton('Edit', screen.base ~ '/' ~ record[screen.idField] ~ '/edit', 'primary' if not can.logInteraction else '', 'edit', 'hx-get="' ~ screen.base ~ '/' ~ record[screen.idField] ~ '/edit" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
+    {% endif %}
+    {% if can.logInteraction %}
+      {{ linkButton('Log interaction', '/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode), 'primary', 'plus', 'hx-get="/interactions/new?CompanyID=' ~ record.CompanyID ~ '&ContactID=' ~ record.ContactID ~ '&returnTo=' ~ (currentPath | urlencode) ~ '" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
+    {% endif %}
+  {% endcall %}
+
+  <div class="grid grid--profile">
+    <div class="stack">
+      <section class="card" aria-labelledby="details-heading">
+        <div class="card__header"><h2 id="details-heading">Details</h2></div>
+        <div class="card__body">
+          <dl class="details">
+            {% for f in screen.fields %}{{ detailRow(f, record) }}{% endfor %}
+          </dl>
+        </div>
+        <div class="card__footer">Last edited {% if lastEditedBy %}by <span dir="auto">{{ lastEditedBy }}</span> on {% endif %}{{ record.UpdatedAt | datetime }}</div>
+      </section>
+
+      {% if showTimeline %}
+        <section class="card" aria-labelledby="timeline-heading">
+          <div class="card__header"><h2 id="timeline-heading">Interactions</h2><span class="text-sm text-muted">{{ timeline.length }} recorded</span></div>
+          <div class="card__body">
+            {% if timeline.length %}
+              {{ timelineList(timeline, false) }}
+            {% else %}
+              {{ emptyState('No interactions yet', 'Calls, meetings and visits with this person appear here.') }}
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="stack" aria-label="Related">
+      <section class="card" aria-labelledby="employer-heading">
+        <div class="card__header"><h2 id="employer-heading">Employer</h2></div>
+        <div class="card__body">
+          <p class="cell--primary"><a href="/employers/{{ record.CompanyID }}" dir="auto">{{ record.CompanyName }}</a></p>
+          {% if record.ContactName and screen.recordType != 'contacts' %}
+            <p class="text-sm text-muted mt-2">Contact: <a href="/contacts/{{ record.ContactID }}" dir="auto">{{ record.ContactName }}</a></p>
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

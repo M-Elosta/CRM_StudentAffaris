@@ -1,0 +1,69 @@
+{#
+  The results region of the employers list. Returned on its own when the
+  request comes from htmx (HX-Request header) with HX-Target "results".
+
+  The column set and widths are fixed, the row height is fixed and the footer
+  is always present, so replacing this region never moves anything around it.
+#}
+{% from "macros/ui.njk" import icon, badge, sortHeader, tableFooter, emptyState, linkButton, restricted %}
+
+<section id="results" class="is-loading-target" aria-label="Employers" aria-live="polite" aria-busy="false">
+  <div class="table-wrap">
+    <table class="table">
+      <caption class="visually-hidden">
+        Employers{% if list.q %} matching “{{ list.q }}”{% endif %}, sorted by {{ list.sortLabel }} {{ 'ascending' if list.dir == 'asc' else 'descending' }}
+      </caption>
+      <colgroup>
+        <col class="col--name" /><col class="col--md" /><col class="col--sm" /><col class="col--sm" />
+        <col class="col--sm" /><col class="col--xs" /><col />
+      </colgroup>
+      <thead>
+        <tr>
+          {{ sortHeader('Employer', 'name', list) }}
+          {{ sortHeader('Industry', 'industry', list) }}
+          {{ sortHeader('Sector', 'sector', list) }}
+          {{ sortHeader('Country', 'country', list) }}
+          {{ sortHeader('Last contact', 'lastContact', list) }}
+          {{ sortHeader('Contacts', 'contacts', list, true) }}
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for employer in list.rows %}
+          <tr>
+            <td class="cell--primary cell--truncate user-text" dir="auto">
+              <a href="/employers/{{ employer.CompanyID }}">{{ employer.CompanyName }}</a>
+            </td>
+            <td class="cell--truncate" dir="auto">{{ employer.Industry }}</td>
+            <td>{{ employer.Sector }}</td>
+            <td class="cell--truncate" dir="auto">{{ employer.Country }}</td>
+            <td class="tabular">{% if employer.lastContactAt %}{{ employer.lastContactAt | date }}{% else %}<span class="text-subtle">Never</span>{% endif %}</td>
+            <td class="cell--num">{{ employer.contactCount }}</td>
+            <td>
+              {% if employer.Blacklisted %}{{ badge('Do not engage', 'danger') }}
+              {% elif employer.isDormant %}{{ badge('Dormant', 'warning') }}
+              {% else %}{{ badge('Active', 'success') }}{% endif %}
+              {% if employer.SignedMoU %}<span class="tag">MoU</span>{% endif %}
+              {% if employer.FavoriteEmployer %}<span class="tag">Key partner</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if not list.rows.length %}
+      {% if list.hasFilters %}
+        {% call emptyState('No employers match these filters', 'Try a different search term or remove a filter.') %}
+          {{ linkButton('Clear filters', '/employers') }}
+        {% endcall %}
+      {% else %}
+        {% call emptyState('No employers yet', 'Add the first employer, or import a list from a spreadsheet.') %}
+          {% if can.create %}{{ linkButton('Add employer', '/employers/new', 'primary', 'plus') }}{% endif %}
+          {% if can.import %}{{ linkButton('Import from a file', '/import') }}{% endif %}
+        {% endcall %}
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {{ tableFooter(list, 'employers') }}
+</section>

@@ -1,0 +1,32 @@
+{#
+  Base document. Every page extends this, through app.njk (signed-in shell)
+  or plain.njk (sign-in and error pages).
+
+  Rules for all templates:
+    - No inline <script> and no inline style attributes: the Content Security
+      Policy forbids both. Behaviour lives in /assets/js/app.js and is attached
+      through data- attributes.
+    - Autoescaping is on. Never use the "safe" filter on anything a person typed.
+    - Text that a person typed gets dir="auto" (Arabic and English both read correctly).
+    - Dates are formatted on the server with the "date" and "datetime" filters only.
+#}
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrfToken }}" />
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"defaultSwapStyle":"outerHTML","scrollIntoViewOnBoost":false}' />
+    <title>{% block title %}{{ pageTitle }}{% endblock %} · Employer Relations CRM</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/vendor/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/assets/css/fonts.css?v={{ assetVersion }}" />
+    <link rel="stylesheet" href="/assets/css/app.css?v={{ assetVersion }}" />
+    <script src="/vendor/htmx.min.js?v={{ assetVersion }}" defer></script>
+    {% block head %}{% endblock %}
+    <script src="/assets/js/app.js?v={{ assetVersion }}" defer></script>
+  </head>
+  <body {% block bodyAttributes %}{% endblock %}>
+    {% block body %}{% endblock %}
+  </body>
+</html>

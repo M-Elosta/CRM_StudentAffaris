@@ -1,0 +1,84 @@
+{#
+  Generic pieces of the record screens, driven by src/web/screens.js:
+  one table cell, one form field and one details row per declared column/field.
+#}
+{% from "macros/ui.njk" import icon, badge, field, textarea, select, checkbox, checkboxGroup, restricted %}
+
+{% macro empty() -%}<span class="text-subtle">—</span>{%- endmacro %}
+
+{# The value of a column for a row, as text. #}
+{% macro cellValue(column, row) -%}
+  {%- set value = column.value(row) if column.value else row[column.field] -%}
+  {%- if row._withheld and (column.field in row._withheld) -%}{{ restricted() }}
+  {%- elif value | blank -%}{{ empty() }}
+  {%- elif column.type == 'date' -%}{{ value | date }}
+  {%- elif column.type == 'badge' -%}{{ badge(value, column.tones[value] if column.tones else '') }}
+  {%- elif column.type == 'bool' -%}{{ 'Yes' if value else 'No' }}
+  {%- elif column.type == 'number' -%}{{ value | number }}
+  {%- elif column.type == 'tags' -%}{{ value | join(', ') }}
+  {%- elif column.href -%}<a href="{{ column.href(row) }}" dir="auto">{{ value }}</a>
+  {%- else -%}<span dir="auto">{{ value }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{# One <td>; columns that hold typed text get dir="auto" through their content. #}
+{% macro cell(column, row) -%}
+  {%- set classes = ('cell--primary ' if column.primary else '') ~ ('cell--truncate ' if column.type in ['text', 'link', 'email', 'tags'] else '') ~ ('cell--num ' if column.type == 'number' else '') ~ ('tabular' if column.type == 'date' else '') -%}
+  <td{% if classes | trim %} class="{{ classes | trim }}"{% endif %}>
+    {%- if column.href and column.type == 'date' and not (row._withheld and column.field in row._withheld) and row[column.field] -%}
+      <a href="{{ column.href(row) }}">{{ row[column.field] | date }}</a>
+    {%- else -%}
+      {{ cellValue(column, row) }}
+    {%- endif -%}
+  </td>
+{%- endmacro %}
+
+{# One form control from a field description.
+   options.employers / options.contacts hold the choices of the employer and contact selects.
+   withheld lists the fields this user may not see: they show "Restricted" and are not sent. #}
+{% macro formField(f, form, options, withheld, hasContact) -%}
+  {% if withheld and (f.name in withheld) %}
+    <div class="field{% if f.full %} form-grid__full{% endif %}">
+      <span class="field__label">{{ f.label }}</span>
+      <p class="mt-2">{{ restricted() }}</p>
+      <span class="field__error"></span>
+    </div>
+  {% elif f.control == 'textarea' %}
+    {{ textarea(f.name, f.label, form, required=f.required, hint=f.hint or '', full=true, rows=f.rows or 4, maxlength=f.max or 2000) }}
+  {% elif f.control == 'select' %}
+    {{ select(f.name, f.label, form, f.options, required=f.required, hint=f.hint or '', full=f.full, placeholder=(f.placeholder | default('Select…'))) }}
+  {% elif f.control == 'employer' %}
+    {% set narrow = 'hx-get="/options/contacts" hx-trigger="change" hx-target="#f-ContactID" hx-select="#f-ContactID" hx-swap="outerHTML" hx-push-url="false" hx-sync="this:replace"' if hasContact else '' %}
+    {{ select(f.name, f.label, form, options.employers, required=f.required, hint=f.hint or '', full=f.full, placeholder='Choose an employer…', attrs=narrow) }}
+  {% elif f.control == 'contact' %}
+    {{ select(f.name, f.label, form, options.contacts, required=f.required, hint=(f.hint if options.contacts.length or not form.values.CompanyID else 'This employer has no contacts yet. Add one first.'), full=f.full, placeholder=('Choose a contact…' if form.values.CompanyID else 'Choose the employer first')) }}
+  {% elif f.control == 'checkbox' %}
+    <div class="form-grid__full">{{ checkbox(f.name, f.label, form, f.hint or '') }}</div>
+  {% elif f.control == 'checkboxes' %}
+    {{ checkboxGroup(f.name, f.label, form, f.options) }}
+  {% else %}
+    {% set types = { email: 'email', url: 'url', tel: 'tel', number: 'number', date: 'date', time: 'time', password: 'password' } %}
+    {% set autocompletes = { email: 'email', tel: 'tel', password: 'new-password' } %}
+    {{ field(f.name, f.label, form, type=(types[f.control] or 'text'), required=f.required, hint=f.hint or '', full=f.full, userText=(f.control == 'text'), maxlength=f.max or 255, autocomplete=(autocompletes[f.control] or 'off')) }}
+  {% endif %}
+{%- endmacro %}
+
+{# One row of a details list. #}
+{% macro detailRow(f, record, labels) -%}
+  {% set value = record[f.name] %}
+  <dt>{{ f.label }}</dt>
+  <dd>
+    {%- if record._withheld and (f.name in record._withheld) -%}{{ restricted() }}
+    {%- elif f.control == 'employer' -%}<a href="/employers/{{ record.CompanyID }}" dir="auto">{{ record.CompanyName }}</a>
+    {%- elif f.control == 'contact' -%}{% if record.ContactID %}<a href="/contacts/{{ record.ContactID }}" dir="auto">{{ record.ContactName }}</a>{% else %}{{ empty() }}{% endif %}
+    {%- elif f.control == 'checkbox' -%}{{ 'Yes' if value else 'No' }}
+    {%- elif value | blank -%}{{ empty() }}
+    {%- elif f.control == 'date' -%}{{ value | date }}
+    {%- elif f.control == 'checkboxes' -%}<span class="row row--wrap">{% for tag in value %}<span class="tag">{{ tag }}</span>{% endfor %}</span>
+    {%- elif f.control == 'url' -%}<a href="{{ value }}" target="_blank" rel="noopener noreferrer" dir="auto">{{ value }}<span class="visually-hidden"> (opens in a new tab)</span></a>
+    {%- elif f.control == 'email' -%}<a href="mailto:{{ value }}">{{ value }}</a>
+    {%- elif f.control == 'textarea' -%}<span class="timeline__body" dir="auto">{{ value }}</span>
+    {%- else -%}<span dir="auto">{{ value }}</span>
+    {%- endif -%}
+  </dd>
+{%- endmacro %}
