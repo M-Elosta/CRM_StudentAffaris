@@ -4,7 +4,7 @@
   the next follow-ups. Tabs are links; htmx swaps #tab-panel only.
 
   Locals: employer, summary { lastContactAt, isDormant }, tabs, panel, followUps,
-          returnTo (encoded), deleteText, can
+          returnTo (encoded), deleteText, lastEditedBy, can
 #}
 {% extends "layouts/app.njk" %}
 {% from "macros/ui.njk" import icon, badge, linkButton, deleteForm, emptyState, restricted %}
@@ -38,7 +38,7 @@
       </div>
       <p class="page-header__meta">
         Last contact {% if summary.lastContactAt %}{{ summary.lastContactAt | date }}{% else %}never{% endif %}
-        · Last edited {{ employer.UpdatedAt | datetime }}
+        · Last edited {% if lastEditedBy %}by <span dir="auto">{{ lastEditedBy }}</span> on {% endif %}{{ employer.UpdatedAt | datetime }}
       </p>
     </div>
     <div class="page-header__actions">

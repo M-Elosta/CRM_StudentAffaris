@@ -8,10 +8,13 @@
  * message through the HX-Trigger response header instead; app.js shows it.
  */
 
-/** Store a message for the next rendered page. */
-function flash(req, message, kind = 'success') {
+/**
+ * Store a message for the next rendered page. `options.undoUrl` adds an Undo
+ * button that POSTs there (with the CSRF token).
+ */
+function flash(req, message, kind = 'success', { undoUrl } = {}) {
   if (!req.session) return;
-  req.session.flash = [...(req.session.flash ?? []), { kind, message }];
+  req.session.flash = [...(req.session.flash ?? []), { kind, message, ...(undoUrl ? { undoUrl } : {}) }];
 }
 
 /** Take (and clear) the stored messages. */

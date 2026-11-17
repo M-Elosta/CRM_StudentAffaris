@@ -221,9 +221,22 @@
 {% macro deleteForm(action, recordName, csrfToken, what='', label='Delete') -%}
   <form action="{{ action }}" method="post" data-confirm
         data-confirm-title="Delete {{ recordName }}?"
-        data-confirm-text="{{ what or 'It moves to the trash and can be restored from there.' }}"
+        data-confirm-text="{{ what or (recordName ~ ' moves to the Trash. You can restore it from there.') }}"
         data-confirm-action="Delete">
     <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
     {{ button(label, 'danger', 'submit', 'trash') }}
+  </form>
+{%- endmacro %}
+
+{# ── Small action form ────────────────────────────────────────────────────
+   A POST button for a table row (Restore in the Trash). `returnTo` brings the
+   person back to the same page afterwards. With `confirm` ({ title, text,
+   action }) the shared dialog asks first, as for deleteForm. #}
+{% macro actionForm(action, label, csrfToken, ariaLabel, returnTo='', variant='', confirm=null) -%}
+  <form action="{{ action }}" method="post"
+        {% if confirm %}data-confirm data-confirm-title="{{ confirm.title }}" data-confirm-text="{{ confirm.text }}" data-confirm-action="{{ confirm.action }}"{% endif %}>
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+    {% if returnTo %}<input type="hidden" name="returnTo" value="{{ returnTo }}" />{% endif %}
+    {{ button(label, variant, 'submit', '', 'aria-label="' ~ (ariaLabel | escape) ~ '"', true) }}
   </form>
 {%- endmacro %}

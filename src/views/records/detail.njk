@@ -2,7 +2,7 @@
   One record of a generic type: its fields, when it was last edited, and the
   actions the role allows. Contacts add their interactions (timeline).
 
-  Locals: screen, record, name, can { update, delete, logInteraction }, deleteText,
+  Locals: screen, record, name, can { update, delete, logInteraction }, deleteText, lastEditedBy,
           timeline? (items for the timeline component), breadcrumb
 #}
 {% extends "layouts/app.njk" %}
@@ -32,7 +32,7 @@
             {% for f in screen.fields %}{{ detailRow(f, record) }}{% endfor %}
           </dl>
         </div>
-        <div class="card__footer">Last edited {{ record.UpdatedAt | datetime }}</div>
+        <div class="card__footer">Last edited {% if lastEditedBy %}by <span dir="auto">{{ lastEditedBy }}</span> on {% endif %}{{ record.UpdatedAt | datetime }}</div>
       </section>
 
       {% if showTimeline %}

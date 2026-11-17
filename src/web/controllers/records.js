@@ -42,6 +42,9 @@ function formChoices(services, ctx, companyId) {
   return { employers, contacts };
 }
 
+/** What the delete confirmation says about a record. */
+const trashText = (name) => `${name} moves to the Trash. You can restore it from there.`;
+
 /** The list query spec of a screen (filters, sorts) for parseListQuery. */
 const listSpec = (screen) => ({ filters: screen.filters, sorts: screen.sorts, defaultSort: screen.defaultSort });
 
@@ -90,7 +93,7 @@ function renderList(req, res, services, screen, extra = {}) {
  * @param {object} deps.screen  an entry of SCREENS
  * @param {boolean} [deps.list]  serve the generic list at screen.base
  * @param {boolean} [deps.detail]  serve the generic detail page
- * @param {(record: object, ctx: object) => string} [deps.deleteText]  what deleting removes
+ * @param {(record: object, ctx: object) => string} [deps.deleteText]  what the delete confirmation says
  */
 function createRecordController({ services, config, screen, list = true, detail = true, deleteText }) {
   const router = express.Router();
@@ -192,9 +195,8 @@ function createRecordController({ services, config, screen, list = true, detail 
           name,
           timeline,
           showTimeline: timeline !== null,
-          deleteText: deleteText
-            ? deleteText(record, req.ctx)
-            : `This permanently deletes the ${screen.singular}. It cannot be undone.`,
+          deleteText: deleteText ? deleteText(record, req.ctx) : trashText(name),
+          lastEditedBy: services.users.usernameOf(record.UpdatedBy),
           breadcrumb: [
             { label: screen.tab ? screen.tabLabel : screen.title, href: listHrefOf(screen) },
             { label: name },
@@ -241,7 +243,16 @@ function createRecordController({ services, config, screen, list = true, detail 
       const id = idOf(req);
       const record = service.get(id, req.ctx);
       service.remove(id, req.ctx);
-      return redirectWithMessage(req, res, listHrefOf(screen), `${screen.nameOf(record)} deleted`);
+      return redirectWithMessage(
+        req,
+        res,
+        listHrefOf(screen),
+        `${screen.nameOf(record)} moved to the Trash.`,
+        'success',
+        {
+          undoUrl: `/trash/${type}/${id}/restore`,
+        }
+      );
     })
   );
 
@@ -296,4 +307,11 @@ function createOptionsController({ services }) {
   return router;
 }
 
-module.exports = { createRecordController, createEventsController, createOptionsController, formChoices };
+module.exports = {
+  createRecordController,
+  createEventsController,
+  createOptionsController,
+  formChoices,
+  listHrefOf,
+  trashText,
+};

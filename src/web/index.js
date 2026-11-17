@@ -14,6 +14,7 @@ const { createReportsController } = require('./controllers/reports');
 const { createAdminUsersController } = require('./controllers/admin-users');
 const { createImportController, IMPORT_UPLOAD_PATH } = require('./controllers/import');
 const { createSearchController } = require('./controllers/search');
+const { createTrashController } = require('./controllers/trash');
 const { SCREENS } = require('./screens');
 
 /** Paths a user who must change their password may still open. */
@@ -35,7 +36,7 @@ function createWebRouter({ services, config, logger = console }) {
   router.use((req, _res, next) => (req.path.startsWith('/api/') ? next('router') : next()));
 
   router.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit, parameterLimit: 500 }));
-  router.use(createLocals({ config, assetVersion: version, followUps: services.activity }));
+  router.use(createLocals({ config, assetVersion: version, followUps: services.activity, trash: services.trash }));
   const expired = (req, res) =>
     renderErrorPage(req, res, 403, {
       title: 'This form has expired',
@@ -58,6 +59,7 @@ function createWebRouter({ services, config, logger = console }) {
   router.use(createAdminUsersController({ services }));
   router.use(createSearchController({ services }));
   router.use(createImportController({ services, expired }));
+  router.use(createTrashController({ services }));
   router.use(createOptionsController({ services }));
   for (const screen of SCREENS) {
     if (screen.recordType !== 'companies')

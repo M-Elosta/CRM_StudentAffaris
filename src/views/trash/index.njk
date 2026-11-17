@@ -1,0 +1,84 @@
+{#
+  The Trash: every deleted record, newest first, one table across types.
+  A record hidden only because its employer was deleted is not listed: the
+  employer's row says how much is hidden with it.
+
+  Locals: list (rows [{ type, id, typeLabel, name, employer, hiddenText, deletedAt,
+          deletedByName, canRestore, canPurge, restoreUrl, purgeUrl }]), here (this page's URL),
+          typeOptions [{ value, label }]
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import button, pageHeader, tableFooter, emptyState, linkButton, actionForm %}
+
+{% set pageTitle = 'Trash' %}
+
+{% block content %}
+  {% call pageHeader('Trash', 'Deleted records stay here until they are restored or deleted permanently.') %}{% endcall %}
+
+  <form class="toolbar" action="/trash" method="get" aria-label="Filter the Trash"
+        hx-get="/trash" hx-target="#results" hx-select="#results" hx-push-url="true"
+        hx-trigger="submit, change from:select" data-filter-form>
+    <label class="visually-hidden" for="filter-type">Type</label>
+    <select class="select" id="filter-type" name="type">
+      <option value="">All types</option>
+      {% for option in typeOptions %}<option value="{{ option.value }}" {% if list.filters.type == option.value %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+    </select>
+    <noscript>{{ button('Apply', '', 'submit') }}</noscript>
+    <div class="toolbar__end">
+      {% if list.hasFilters %}<a class="btn btn--ghost btn--sm" href="/trash">Clear filter</a>{% endif %}
+    </div>
+  </form>
+
+  <section id="results" class="is-loading-target" aria-label="Deleted records" aria-live="polite" aria-busy="false">
+    <div class="table-wrap">
+      <table class="table">
+        <caption class="visually-hidden">Deleted records, newest first</caption>
+        <colgroup><col class="col--sm" /><col class="col--name" /><col class="col--name" /><col class="col--sm" /><col class="col--md" /><col /></colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Type</th><th scope="col">Name</th><th scope="col">Employer</th>
+            <th scope="col">Deleted by</th><th scope="col">Deleted on</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in list.rows %}
+            <tr>
+              <td>{{ row.typeLabel }}</td>
+              <td class="cell--primary cell--truncate"><span dir="auto">{{ row.name }}</span></td>
+              <td class="cell--truncate">
+                {% if row.employer %}<span dir="auto">{{ row.employer }}</span>{% elif row.hiddenText %}<span class="text-muted">{{ row.hiddenText }}</span>{% else %}<span class="text-subtle">—</span>{% endif %}
+              </td>
+              <td class="cell--truncate">{% if row.deletedByName %}<span dir="auto">{{ row.deletedByName }}</span>{% else %}<span class="text-subtle">Unknown</span>{% endif %}</td>
+              <td class="tabular">{{ row.deletedAt | datetime }}</td>
+              <td class="cell--actions">
+                <div class="row">
+                  {% if row.canRestore %}{{ actionForm(row.restoreUrl, 'Restore', csrfToken, 'Restore ' ~ row.name, here) }}{% endif %}
+                  {% if row.canPurge %}
+                    {{ actionForm(row.purgeUrl, 'Delete permanently', csrfToken, 'Delete ' ~ row.name ~ ' permanently', here, 'danger', {
+                      title: 'Delete ' ~ row.name ~ ' permanently?',
+                      text: row.name ~ (' and everything hidden with it' if row.hiddenText else '') ~ ' will be deleted for good. This cannot be undone.',
+                      action: 'Delete permanently'
+                    }) }}
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if not list.rows.length %}
+        {% if list.hasFilters %}
+          {% call emptyState('Nothing of this type is in the Trash', 'Choose another type or show everything.') %}
+            {{ linkButton('Show all types', '/trash') }}
+          {% endcall %}
+        {% else %}
+          {{ emptyState('The Trash is empty.', 'Deleted records appear here, ready to be restored.') }}
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {{ tableFooter(list, 'deleted records') }}
+  </section>
+{% endblock %}
