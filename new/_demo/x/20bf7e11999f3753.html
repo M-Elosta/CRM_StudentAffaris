@@ -1,0 +1,647 @@
+
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="lRYzHaezb--zKFF13jq6f21D_DZ_hOiJNIA6NvxnqLs" />
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"defaultSwapStyle":"outerHTML","scrollIntoViewOnBoost":false}' />
+    <title>Asirvane Data Systems · Employer Relations CRM</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/vendor/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/assets/css/fonts.css?v=0.9.0" />
+    <link rel="stylesheet" href="/assets/css/app.css?v=0.9.0" />
+    <script src="/vendor/htmx.min.js?v=0.9.0" defer></script>
+    <script src="/assets/js/app.js?v=0.9.0" defer></script>
+  </head>
+  <body hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML show:window:top" hx-select-oob="#nav,#toasts" hx-headers='{"X-CSRF-Token": "lRYzHaezb--zKFF13jq6f21D_DZ_hOiJNIA6NvxnqLs"}' data-session-idle="1800" data-session-warn="120">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="/">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Employer Relations<span class="brand__org">CMU-Q</span></span>
+      </a>
+
+<nav class="nav" id="nav">
+    <div class="nav__group">
+      <ul role="list" >
+          <li>
+            <a class="nav__link" href="/dashboard" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#dashboard"></use></svg>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/follow-ups" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#tasks"></use></svg>
+              <span>Follow-ups</span>
+<span class="nav__count" aria-label="66 overdue">66</span>            </a>
+          </li>
+      </ul>
+    </div>
+    <div class="nav__group">
+<div class="nav__heading" id="nav-2">Relationships</div>      <ul role="list" aria-labelledby="nav-2">
+          <li>
+            <a class="nav__link" href="/employers" aria-current="page">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#building"></use></svg>
+              <span>Employers</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/contacts" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#users"></use></svg>
+              <span>Contacts</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/interactions" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#interactions"></use></svg>
+              <span>Interactions</span>
+            </a>
+          </li>
+      </ul>
+    </div>
+    <div class="nav__group">
+<div class="nav__heading" id="nav-3">Opportunities</div>      <ul role="list" aria-labelledby="nav-3">
+          <li>
+            <a class="nav__link" href="/postings" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#briefcase"></use></svg>
+              <span>Postings</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/events" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#calendar"></use></svg>
+              <span>Events</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/hiring-outcomes" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#outcomes"></use></svg>
+              <span>Hiring outcomes</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/collaboration-ideas" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#opportunities"></use></svg>
+              <span>Collaboration ideas</span>
+            </a>
+          </li>
+      </ul>
+    </div>
+    <div class="nav__group">
+<div class="nav__heading" id="nav-4">Insights</div>      <ul role="list" aria-labelledby="nav-4">
+          <li>
+            <a class="nav__link" href="/reports" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#reports"></use></svg>
+              <span>Reports</span>
+            </a>
+          </li>
+      </ul>
+    </div>
+    <div class="nav__group">
+<div class="nav__heading" id="nav-5">Admin</div>      <ul role="list" aria-labelledby="nav-5">
+          <li>
+            <a class="nav__link" href="/admin/users" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#shield"></use></svg>
+              <span>Users</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/import" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#import"></use></svg>
+              <span>Import</span>
+            </a>
+          </li>
+          <li>
+            <a class="nav__link" href="/trash" >
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#trash"></use></svg>
+              <span>Trash</span>
+            </a>
+          </li>
+      </ul>
+    </div>
+</nav>
+    </aside>
+
+    <header class="topbar">
+      <button class="btn btn--ghost btn--icon topbar__menu-button" type="button" data-action="toggle-sidebar" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#menu"></use></svg>
+      </button>
+
+      <form class="topbar__search" action="/search" method="get" role="search">
+        <div class="input-group">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#search"></use></svg>
+          <label class="visually-hidden" for="global-search">Search employers, contacts and events</label>
+          <input class="input" id="global-search" name="q" type="search" dir="auto" autocomplete="off"
+                 placeholder="Search employers, contacts, events"
+                 hx-get="/search/suggest" hx-trigger="input changed delay:250ms, focus" hx-target="#search-suggestions" hx-select="unset" hx-swap="innerHTML" hx-push-url="false" hx-sync="this:replace"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggestions" data-shortcut="/" />
+          <kbd class="input-group__kbd" aria-hidden="true">/</kbd>
+        </div>
+        <div id="search-suggestions" class="menu" role="listbox" hidden></div>
+      </form>
+
+      <div class="topbar__spacer"></div>
+
+      <details class="account-menu" data-menu>
+        <summary class="account" aria-label="Account: admin, Admin">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#user"></use></svg>
+          <span class="account__name" dir="auto">admin</span>
+          <span class="badge badge--plain">Admin</span>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#chevron-down"></use></svg>
+        </summary>
+        <div class="menu menu--end" role="menu">
+          <div class="menu__label">Signed in as admin</div>
+          <a class="menu__item" role="menuitem" href="/account"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#settings"></use></svg> Account and security</a>
+          <div class="menu__separator" role="separator"></div>
+          <form action="/auth/sign-out" method="post" hx-boost="false">
+            <input type="hidden" name="_csrf" value="lRYzHaezb--zKFF13jq6f21D_DZ_hOiJNIA6NvxnqLs" />
+            <button class="menu__item" role="menuitem" type="submit"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#logout"></use></svg> Sign out</button>
+          </form>
+        </div>
+      </details>
+    </header>
+
+    <main class="main " id="main" tabindex="-1">
+  <nav aria-label="Breadcrumb"><ol class="breadcrumb" role="list">
+    <li><a href="/employers">Employers</a></li>
+    <li><span dir="auto" aria-current="page">Asirvane Data Systems</span></li>
+  </ol></nav>
+
+  <div class="page-header">
+    <div>
+      <h1 dir="auto">Asirvane Data Systems</h1>
+      <div class="row row--wrap mt-2">
+<span class="badge badge--success">Active</span>          <a class="text-sm" href="https://www.asirvane-data.example" target="_blank" rel="noopener noreferrer" aria-label="Website of Asirvane Data Systems (opens in a new tab)">
+            asirvane-data.example
+          </a>
+      </div>
+      <p class="page-header__meta">
+        Last contact 26 Nov 2026        · Last edited 1 Aug 2024, 13:23
+      </p>
+    </div>
+    <div class="page-header__actions">
+<form action="/employers/55/delete" method="post" data-confirm
+        data-confirm-title="Delete Asirvane Data Systems?"
+        data-confirm-text="Asirvane Data Systems moves to the Trash. You can restore it from there. Its 6 contacts and 50 activities are hidden with it until then."
+        data-confirm-action="Delete">
+    <input type="hidden" name="_csrf" value="lRYzHaezb--zKFF13jq6f21D_DZ_hOiJNIA6NvxnqLs" />
+    <button class="btn btn--danger" type="submit"  >
+    <span class="btn__spinner" aria-hidden="true"></span><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#trash"></use></svg><span>Delete</span>
+  </button>
+  </form>        <a class="btn" href="/employers/55/edit" hx-get="/employers/55/edit" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#edit"></use></svg><span>Edit</span>
+  </a>
+        <a class="btn" href="/contacts/new?CompanyID=55&amp;returnTo=%2Femployers%2F55%3Ftab%3Dcontacts" hx-get="/contacts/new?CompanyID=55&returnTo=%2Femployers%2F55%3Ftab%3Dcontacts" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#plus"></use></svg><span>Add contact</span>
+  </a>
+        <a class="btn btn--primary" href="/interactions/new?CompanyID=55&amp;returnTo=%2Femployers%2F55" hx-get="/interactions/new?CompanyID=55&returnTo=%2Femployers%2F55" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons.svg#plus"></use></svg><span>Log interaction</span>
+  </a>
+    </div>
+  </div>
+
+  <div class="grid grid--profile">
+    <div id="tab-panel" class="is-loading-target">
+      <nav class="tabs" aria-label="Employer sections">
+          <a class="tabs__tab" href="/employers/55" hx-get="/employers/55" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" aria-current="page">
+            Timeline<span class="tabs__count">49</span>          </a>
+          <a class="tabs__tab" href="/employers/55?tab=contacts" hx-get="/employers/55?tab=contacts" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" >
+            Contacts<span class="tabs__count">6</span>          </a>
+          <a class="tabs__tab" href="/employers/55?tab=postings" hx-get="/employers/55?tab=postings" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" >
+            Postings<span class="tabs__count">7</span>          </a>
+          <a class="tabs__tab" href="/employers/55?tab=events" hx-get="/employers/55?tab=events" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" >
+            Events<span class="tabs__count">10</span>          </a>
+          <a class="tabs__tab" href="/employers/55?tab=notes" hx-get="/employers/55?tab=notes" hx-target="#tab-panel" hx-select="#tab-panel" hx-swap="outerHTML" hx-push-url="true" >
+            Notes          </a>
+      </nav>
+
+        <section class="card" aria-label="Timeline">
+          <div class="card__body">
+              <ol class="timeline" role="list">
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/161" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">4 Jan 2027</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Graduate Recruitment Showcase 2027 (Cancelled)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/139" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Dec 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Tech Networking Night 2026 (Cancelled)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/academic/60" dir="auto">Guest Lecture</a></span>
+<span>Academic engagement</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">26 Nov 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/176" dir="auto">طارق الأنصاري</a>        </div>
+<p class="timeline__body" dir="auto">DEMO-410 Capstone Project Studio: Careers in sustainable finance</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/hiring-outcomes/64" dir="auto">Hiring outcome</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">16 Nov 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Hired: No, reported by Company</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/121" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">5 Nov 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Business &amp; Finance Employer Showcase 2026 (Attended)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/520" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">18 Oct 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/178" dir="auto">فاطمة الزعابي</a>        </div>
+<p class="timeline__body" dir="auto">Discussed a memorandum of understanding covering internships and guest speakers.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/517" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">15 Oct 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Planning meeting for a sponsored hackathon on smart-city data.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/105" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Oct 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Fall Career Fair 2026 (Attended)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/130" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">11 Oct 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Part-time Data Analyst</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/499" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">8 Oct 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/178" dir="auto">فاطمة الزعابي</a>        </div>
+<p class="timeline__body" dir="auto">Discussed a memorandum of understanding covering internships and guest speakers.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/466" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">17 Sep 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Reviewed feedback from last summer&#39;s interns; manager very satisfied.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/460" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Sep 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/176" dir="auto">طارق الأنصاري</a>        </div>
+<p class="timeline__body" dir="auto">Asked about graduate programme timelines for Computer Science seniors.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/453" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">10 Sep 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">اجتماع لمناقشة برنامج الإرشاد المهني للطالبات وخطة الفصل القادم.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/413" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">19 Jul 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">مكالمة لمتابعة فرص التدريب الصيفي للطلاب القطريين في تخصص Computer Science.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/406" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">5 Jul 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/176" dir="auto">طارق الأنصاري</a>        </div>
+<p class="timeline__body" dir="auto">Planning meeting for a sponsored hackathon on smart-city data.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/404" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">24 Jun 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Toured the new headquarters; agreed to host a job-shadowing day in Fall 2026.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/378" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">30 Apr 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Office tour with 5 students followed by a Q&amp;A with recent graduates.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/370" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">26 Apr 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Toured the new headquarters; agreed to host a job-shadowing day in Summer 2026.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/academic/33" dir="auto">Community Project Partnership</a></span>
+<span>Academic engagement</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">26 Apr 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">DEMO-342 Corporate Finance: Recycling awareness campaign with student volunteers</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/86" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">9 Apr 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Healthcare &amp; Life Sciences Careers Day 2026 (Attended)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/hiring-outcomes/38" dir="auto">Hiring outcome</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">31 Mar 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Hired: Yes, reported by Student/Alumni</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/332" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">15 Mar 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/176" dir="auto">طارق الأنصاري</a>        </div>
+<p class="timeline__body" dir="auto">Reviewed feedback from last summer&#39;s interns; manager very satisfied.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/318" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">1 Mar 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/176" dir="auto">طارق الأنصاري</a>        </div>
+<p class="timeline__body" dir="auto">Clarified visa and sponsorship requirements for international students.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/81" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">18 Feb 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Policy Research Intern</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/76" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">2 Feb 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">IT Systems Analyst</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/287" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">21 Jan 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Office tour with 2 students followed by a Q&amp;A with recent graduates.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/71" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">5 Jan 2026</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Financial Analyst</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/269" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">25 Dec 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Call to confirm attendance at the employer networking evening. تم تأكيد الحضور مبدئياً.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/hiring-outcomes/21" dir="auto">Hiring outcome</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">13 Nov 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Hired: No, reported by Other</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/246" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">26 Oct 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Asked about graduate programme timelines for Business Administration seniors.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/245" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">26 Oct 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Clarified visa and sponsorship requirements for international students.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/244" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">23 Oct 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Visit to review the internship workspace and supervision arrangements.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/39" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Oct 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/179" dir="auto">Tarek Darwish</a>        </div>
+<p class="timeline__body" dir="auto">Fall Career Fair 2025 (Cancelled)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/229" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">8 Oct 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Met to discuss sponsorship of a student-led conference.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/46" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">16 Sep 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Data Analytics Intern</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/203" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Sep 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Agreed on a timeline for posting Spring 2026 roles on Handshake.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/201" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">14 Sep 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Planning meeting for a sponsored hackathon on smart-city data.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/36" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">10 Aug 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Cloud Skills Bootcamp</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/academic/12" dir="auto">Community Project Partnership</a></span>
+<span>Academic engagement</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">17 Jun 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">DEMO-355 Genomics and Society: Recycling awareness campaign with student volunteers</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/137" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">28 May 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Clarified visa and sponsorship requirements for international students.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/136" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">25 May 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/177" dir="auto">عبد العزيز حمدان</a>        </div>
+<p class="timeline__body" dir="auto">Visited the innovation lab and met the engineering leadership team.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/hiring-outcomes/10" dir="auto">Hiring outcome</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">28 Apr 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Hired: Yes, reported by Company</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/postings/19" dir="auto">Posting</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">17 Mar 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Graduate Software Engineer</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/82" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">10 Mar 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Office tour with 4 students followed by a Q&amp;A with recent graduates.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/events/career/14" dir="auto">Career event</a></span>
+          <span aria-hidden="true">·</span>
+          <span class="tabular">18 Feb 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Spring Career Fair 2025 (Attended)</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/70" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">12 Feb 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/180" dir="auto">Ziad Nassar</a>        </div>
+<p class="timeline__body" dir="auto">Discussed participation in the upcoming career fair and booth requirements.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/61" dir="auto">Call</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">23 Jan 2025</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Reviewed feedback from last summer&#39;s interns; manager very satisfied.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/29" dir="auto">Company Visit</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">7 Nov 2024</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Visited the innovation lab and met the engineering leadership team.</p>      </li>
+      <li class="timeline__item">
+        <div class="timeline__meta">
+          <span class="timeline__title"><a href="/interactions/9" dir="auto">Meeting</a></span>
+<span>Interaction</span>          <span aria-hidden="true">·</span>
+          <span class="tabular">12 Sep 2024</span>
+<span aria-hidden="true">·</span><a href="/contacts/175" dir="auto">Mark Anthony Villanueva</a>        </div>
+<p class="timeline__body" dir="auto">Discussed a memorandum of understanding covering internships and guest speakers.</p>      </li>
+  </ol>
+          </div>
+        </section>
+    </div>
+
+    <aside class="stack" aria-label="Employer details">
+      <section class="card" aria-labelledby="details-heading">
+        <div class="card__header"><h2 id="details-heading">Details</h2></div>
+        <div class="card__body">
+          <dl class="details">
+            <dt>Industry</dt><dd dir="auto">Technology</dd>
+            <dt>Sector</dt><dd>Private</dd>
+            <dt>Country</dt><dd dir="auto">Saudi Arabia</dd>
+            <dt>Address</dt><dd dir="auto">Level 6, Riyadh, Saudi Arabia</dd>
+            <dt>Links</dt>
+            <dd>
+              <span class="row row--wrap">
+<a href="https://www.asirvane-data.example" target="_blank" rel="noopener noreferrer">Website<span class="visually-hidden"> of Asirvane Data Systems (opens in a new tab)</span></a><a href="https://www.handshake.example/employers/asirvane-data" target="_blank" rel="noopener noreferrer">Handshake<span class="visually-hidden"> of Asirvane Data Systems (opens in a new tab)</span></a>              </span>
+            </dd>
+            <dt>Date added</dt><dd class="tabular">1 Aug 2024</dd>
+          </dl>
+        </div>
+      </section>
+
+        <section class="card" aria-labelledby="followups-heading">
+          <div class="card__header"><h2 id="followups-heading">Next follow-ups</h2></div>
+            <div class="card__body"><ul class="stack--sm" role="list">
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/404" class="tabular">2 Aug 2026</a>
+<span class="badge badge--danger">Overdue</span>                  </div>
+                  <p class="text-sm text-muted" dir="auto">Share the career fair registration link and booth options.</p>
+                </li>
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/413" class="tabular">25 Aug 2026</a>
+<span class="badge badge--danger">Overdue</span>                  </div>
+                  <p class="text-sm text-muted" dir="auto">Draft MoU and send to legal for review.</p>
+                </li>
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/466" class="tabular">13 Nov 2026</a>
+<span class="badge badge--danger">Overdue</span>                  </div>
+                  <p class="text-sm text-muted" dir="auto">Book a room for the information session.</p>
+                </li>
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/499" class="tabular">28 Nov 2026</a>
+<span class="badge badge--warning">This week</span>                  </div>
+                  <p class="text-sm text-muted" dir="auto">Send the latest resume book extract for Computer Science.</p>
+                </li>
+                <li>
+                  <div class="row row--between">
+                    <a href="/interactions/517" class="tabular">20 Dec 2026</a>
+                  </div>
+                  <p class="text-sm text-muted" dir="auto">Share the career fair registration link and booth options.</p>
+                </li>
+            </ul></div>
+        </section>
+    </aside>
+  </div>
+    </main>
+  </div>
+
+  
+  <dialog class="dialog" id="dialog" aria-labelledby="dialog-title" data-dialog>
+    <div id="dialog-body"></div>
+  </dialog>
+
+  
+  <dialog class="dialog dialog--sm" id="session-warning" aria-labelledby="session-warning-title">
+    <div class="dialog__header"><h2 id="session-warning-title">Still there?</h2></div>
+    <div class="dialog__body">
+      <p>You will be signed out in <strong data-session-countdown>2 minutes</strong> because there has been no activity. Anything you have typed stays on this page.</p>
+    </div>
+    <div class="dialog__footer">
+      <button class="btn btn--primary" type="button" data-action="extend-session">Stay signed in</button>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false">
+  </div>
+  </body>
+</html>

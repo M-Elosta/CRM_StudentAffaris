@@ -1,0 +1,1 @@
+{"rows":[{"Country":"Qatar","Company Count":10,"Contact Count":24},{"Country":"UAE","Company Count":3,"Contact Count":6}],"count":2,"chartData":{"type":"bar","indexAxis":"y","labels":["Qatar","UAE"],"datasets":[{"label":"Companies","data":[10,3],"backgroundColor":"#4361ee","borderRadius":4}]},"meta":{"periodMode":"all","periodLabel":"All time","from":null,"to":null}}
