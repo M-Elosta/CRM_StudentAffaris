@@ -1,0 +1,435 @@
+'use strict';
+
+/**
+ * 0001 — Baseline.
+ *
+ * Brings any database to the schema the application had before versioned
+ * migrations existed. It is safe to run against:
+ *   - an empty database (creates everything), and
+ *   - a database created by any earlier version of the application (adds only
+ *     what is missing and never removes or rewrites existing rows).
+ *
+ * Earlier versions added columns at start-up with ALTER TABLE inside
+ * try/catch. Those additions are reproduced here explicitly, checked against
+ * the actual table definition.
+ */
+
+/** Columns that older databases may be missing. Order matters only for readability. */
+const ADDED_COLUMNS = [
+  { table: 'Users', column: 'Role', definition: "TEXT NOT NULL DEFAULT 'admin'" },
+  { table: 'Users', column: 'MustChangePassword', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'PotentialCollaboration', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'HiringFeedback', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'CareerEvent', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'StudentLedEvent', column: 'UpdatedAt', definition: 'DATETIME' },
+  { table: 'AcademicClassroomEngagement', column: 'UpdatedAt', definition: 'DATETIME' },
+];
+
+const TABLES_WITH_UPDATED_AT = [
+  'Company',
+  'Contact',
+  'OutreachEngagement',
+  'Recruitment',
+  'PotentialCollaboration',
+  'HiringFeedback',
+  'CareerEvent',
+  'StudentLedEvent',
+  'AcademicClassroomEngagement',
+];
+
+function tableExists(db, table) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+
+function columnExists(db, table, column) {
+  return db.pragma(`table_info(${table})`).some((info) => info.name === column);
+}
+
+function up(db) {
+  // 1. Existing tables first: add columns that later statements (triggers,
+  //    queries) rely on. Skipped entirely on an empty database.
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    if (tableExists(db, table) && !columnExists(db, table, column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  // 2. Rows from older databases may have no UpdatedAt. Fill it from CreatedAt.
+  //    This runs before step 3 on purpose: the "set UpdatedAt on update"
+  //    triggers created there would replace the value with the current time.
+  for (const table of TABLES_WITH_UPDATED_AT) {
+    if (tableExists(db, table)) {
+      db.exec(`UPDATE ${table} SET UpdatedAt = COALESCE(CreatedAt, datetime('now')) WHERE UpdatedAt IS NULL`);
+    }
+  }
+
+  // 3. Create whatever does not exist yet. Every statement is IF NOT EXISTS.
+  db.exec(SCHEMA_SQL);
+}
+
+const SCHEMA_SQL = `
+-- ============================================
+-- CORE ENTITIES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS Company (
+    CompanyID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyName TEXT NOT NULL,
+    DateAdded DATE NOT NULL DEFAULT (date('now')),
+    Industry TEXT NOT NULL,
+    Sector TEXT NOT NULL CHECK (Sector IN ('Government', 'NGO', 'Private', 'Semi-government', 'Startup')),
+    Country TEXT NOT NULL,
+    Address TEXT,
+    Website TEXT,
+    LinkedInURL TEXT,
+    HandshakeURL TEXT,
+    SignedMoU INTEGER DEFAULT 0,        -- 0/1 boolean
+    FavoriteEmployer INTEGER DEFAULT 0,
+    Blacklisted INTEGER DEFAULT 0,
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS Contact (
+    ContactID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    FirstName TEXT NOT NULL,
+    LastName TEXT NOT NULL,
+    DateAdded DATE NOT NULL DEFAULT (date('now')),
+    JobTitle TEXT,
+    EmailAddress TEXT NOT NULL,
+    Address TEXT,
+    Country TEXT,
+    WorkPhone TEXT,
+    Mobile TEXT,
+    LinkedInURL TEXT,
+    HandshakeURL TEXT,
+    CMUQGraduate INTEGER DEFAULT 0,
+    Major TEXT,
+    GraduationYear INTEGER,
+    PrimaryContact INTEGER DEFAULT 0,
+    Status TEXT NOT NULL DEFAULT 'Mailable' CHECK (Status IN ('Mailable', 'Non-mailable')),
+    ResumeBook INTEGER DEFAULT 0,
+    EventInvitation INTEGER DEFAULT 0,
+    ExcludeFromMailing INTEGER DEFAULT 0,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+-- ============================================
+-- ENGAGEMENT & TRACKING ENTITIES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS PotentialCollaboration (
+    PotentialCollaborationID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+-- Junction table for multi-valued collaboration opportunities
+CREATE TABLE IF NOT EXISTS PotentialCollaboration_Opportunities (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    PotentialCollaborationID INTEGER NOT NULL REFERENCES PotentialCollaboration(PotentialCollaborationID) ON DELETE CASCADE,
+    OpportunityType TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS OutreachEngagement (
+    OutreachEngagementID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    InteractionType TEXT NOT NULL CHECK (InteractionType IN ('Call', 'Meeting', 'Company Visit')),
+    InteractionDate DATE NOT NULL,
+    DiscussionItems TEXT NOT NULL,
+    ActionPlan TEXT,
+    FollowUpDate DATE,
+    InteractionStatus TEXT NOT NULL DEFAULT 'In-progress' CHECK (InteractionStatus IN ('Complete', 'In-progress')),
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS Recruitment (
+    RecruitmentID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    DatePosted DATE NOT NULL DEFAULT (date('now')),
+    OpportunityTitle TEXT NOT NULL,
+    Duration TEXT,
+    HiringStartDate DATE,
+    HiringEndDate DATE,
+    Country TEXT,
+    Mode TEXT NOT NULL CHECK (Mode IN ('Onsite', 'Hybrid', 'Remote')),
+    Status TEXT NOT NULL CHECK (Status IN ('Paid', 'Unpaid')),
+    PayAmount TEXT,
+    TargetGroup TEXT NOT NULL CHECK (TargetGroup IN ('Qatari only', 'Open to all')),
+    ArabicSpeaker INTEGER DEFAULT 0,
+    HiredStudentAlumni TEXT NOT NULL DEFAULT 'Not Reported' CHECK (HiredStudentAlumni IN ('Yes', 'No', 'Not Reported')),
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+-- Junction tables for Recruitment multi-valued fields
+CREATE TABLE IF NOT EXISTS Recruitment_OpportunityType (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RecruitmentID INTEGER NOT NULL REFERENCES Recruitment(RecruitmentID) ON DELETE CASCADE,
+    Type TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Recruitment_CollectApplications (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RecruitmentID INTEGER NOT NULL REFERENCES Recruitment(RecruitmentID) ON DELETE CASCADE,
+    Channel TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Recruitment_TargetMajors (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RecruitmentID INTEGER NOT NULL REFERENCES Recruitment(RecruitmentID) ON DELETE CASCADE,
+    Major TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Recruitment_ClassLevel (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RecruitmentID INTEGER NOT NULL REFERENCES Recruitment(RecruitmentID) ON DELETE CASCADE,
+    ClassLevel TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS HiringFeedback (
+    HiringFeedbackID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    FeedbackProvider TEXT NOT NULL CHECK (FeedbackProvider IN ('Company', 'Student/Alumni', 'Other')),
+    HiredStudentAlumni TEXT NOT NULL CHECK (HiredStudentAlumni IN ('Yes', 'No')),
+    DateReported DATE NOT NULL,
+    HiredStudentName TEXT,
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS CareerEvent (
+    CareerEventID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    EventName TEXT NOT NULL,
+    EventDate DATE NOT NULL,
+    RegisteredStatus TEXT NOT NULL CHECK (RegisteredStatus IN ('Attended', 'No-Show', 'Cancelled')),
+    CMUQAlumniAtBooth INTEGER DEFAULT 0,
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS StudentLedEvent (
+    StudentLedEventID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    ProposalDate DATE NOT NULL,
+    OrganizationName TEXT NOT NULL,
+    StudentName TEXT NOT NULL,
+    StudentEmail TEXT NOT NULL,
+    StudentPhoneNumber TEXT NOT NULL,
+    CollaborationOutcome TEXT NOT NULL DEFAULT 'Pending' CHECK (CollaborationOutcome IN ('Completed', 'Pending')),
+    EventDate DATE,
+    EventTitle TEXT,
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS AcademicClassroomEngagement (
+    EngagementID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CompanyID INTEGER NOT NULL REFERENCES Company(CompanyID) ON DELETE CASCADE,
+    ContactID INTEGER NOT NULL REFERENCES Contact(ContactID) ON DELETE CASCADE,
+    EngagementType TEXT NOT NULL CHECK (
+        EngagementType IN (
+            'Guest Lecture', 'Panel Discussion', 'Community Project Partnership',
+            'Mock Interviews', 'Research Collaboration', 'Competition/Hackathon Sponsorship', 'Other'
+        )
+    ),
+    GuestSpeakerName TEXT NOT NULL,
+    GuestTitle TEXT NOT NULL,
+    Email TEXT,
+    PhoneNumber TEXT,
+    FacultyName TEXT NOT NULL,
+    CourseNumber TEXT NOT NULL,
+    CourseTitle TEXT NOT NULL,
+    TopicTheme TEXT NOT NULL,
+    SessionDate DATE NOT NULL,
+    SessionTime TEXT NOT NULL,  -- SQLite has no TIME type, store as "HH:MM"
+    Comment TEXT,
+    CreatedAt DATETIME DEFAULT (datetime('now')),
+    UpdatedAt DATETIME DEFAULT (datetime('now'))
+);
+
+-- ============================================
+-- INDEXES (for search & filter performance)
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_company_name ON Company(CompanyName);
+CREATE INDEX IF NOT EXISTS idx_company_country ON Company(Country);
+CREATE INDEX IF NOT EXISTS idx_company_blacklisted ON Company(Blacklisted);
+CREATE INDEX IF NOT EXISTS idx_company_sector ON Company(Sector);
+
+CREATE INDEX IF NOT EXISTS idx_contact_company ON Contact(CompanyID);
+CREATE INDEX IF NOT EXISTS idx_contact_name ON Contact(LastName, FirstName);
+CREATE INDEX IF NOT EXISTS idx_contact_email ON Contact(EmailAddress);
+CREATE INDEX IF NOT EXISTS idx_contact_status ON Contact(Status);
+
+CREATE INDEX IF NOT EXISTS idx_outreach_date ON OutreachEngagement(InteractionDate);
+CREATE INDEX IF NOT EXISTS idx_outreach_followup ON OutreachEngagement(FollowUpDate);
+CREATE INDEX IF NOT EXISTS idx_outreach_status ON OutreachEngagement(InteractionStatus);
+
+CREATE INDEX IF NOT EXISTS idx_recruitment_date ON Recruitment(DatePosted);
+CREATE INDEX IF NOT EXISTS idx_recruitment_company ON Recruitment(CompanyID);
+
+CREATE INDEX IF NOT EXISTS idx_career_event_date ON CareerEvent(EventDate);
+CREATE INDEX IF NOT EXISTS idx_career_event_status ON CareerEvent(RegisteredStatus);
+
+CREATE INDEX IF NOT EXISTS idx_academic_date ON AcademicClassroomEngagement(SessionDate);
+
+-- ============================================
+-- TRIGGER: Auto-update blacklist cascade
+-- When a company is blacklisted, set all its contacts to Non-mailable
+-- ============================================
+
+CREATE TRIGGER IF NOT EXISTS blacklist_cascade_contacts
+AFTER UPDATE OF Blacklisted ON Company
+WHEN NEW.Blacklisted = 1
+BEGIN
+    UPDATE Contact SET Status = 'Non-mailable', UpdatedAt = datetime('now')
+    WHERE CompanyID = NEW.CompanyID;
+END;
+
+-- ============================================
+-- TRIGGER: Auto-update UpdatedAt timestamps
+-- ============================================
+
+CREATE TRIGGER IF NOT EXISTS company_updated
+AFTER UPDATE ON Company
+BEGIN
+    UPDATE Company SET UpdatedAt = datetime('now') WHERE CompanyID = NEW.CompanyID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS contact_updated
+AFTER UPDATE ON Contact
+BEGIN
+    UPDATE Contact SET UpdatedAt = datetime('now') WHERE ContactID = NEW.ContactID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS outreach_updated
+AFTER UPDATE ON OutreachEngagement
+BEGIN
+    UPDATE OutreachEngagement SET UpdatedAt = datetime('now') WHERE OutreachEngagementID = NEW.OutreachEngagementID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS recruitment_updated
+AFTER UPDATE ON Recruitment
+BEGIN
+    UPDATE Recruitment SET UpdatedAt = datetime('now') WHERE RecruitmentID = NEW.RecruitmentID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS collaboration_updated
+AFTER UPDATE ON PotentialCollaboration
+BEGIN
+    UPDATE PotentialCollaboration SET UpdatedAt = datetime('now') WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS hiring_feedback_updated
+AFTER UPDATE ON HiringFeedback
+BEGIN
+    UPDATE HiringFeedback SET UpdatedAt = datetime('now') WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS career_event_updated
+AFTER UPDATE ON CareerEvent
+BEGIN
+    UPDATE CareerEvent SET UpdatedAt = datetime('now') WHERE CareerEventID = NEW.CareerEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS student_event_updated
+AFTER UPDATE ON StudentLedEvent
+BEGIN
+    UPDATE StudentLedEvent SET UpdatedAt = datetime('now') WHERE StudentLedEventID = NEW.StudentLedEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS academic_engagement_updated
+AFTER UPDATE ON AcademicClassroomEngagement
+BEGIN
+    UPDATE AcademicClassroomEngagement SET UpdatedAt = datetime('now') WHERE EngagementID = NEW.EngagementID;
+END;
+
+-- ============================================
+-- USERS (authentication)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS Users (
+    UserID       INTEGER PRIMARY KEY AUTOINCREMENT,
+    Username     TEXT UNIQUE NOT NULL,
+    PasswordHash TEXT NOT NULL,
+    Role         TEXT NOT NULL DEFAULT 'admin',
+    MustChangePassword INTEGER NOT NULL DEFAULT 0,
+    CreatedAt    DATETIME DEFAULT (datetime('now'))
+);
+
+-- ============================================
+-- SAVED REPORTS (custom report builder configs)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS SavedReports (
+    ReportID    INTEGER PRIMARY KEY AUTOINCREMENT,
+    ReportName  TEXT NOT NULL,
+    Entity      TEXT NOT NULL,
+    Columns     TEXT NOT NULL,
+    Filters     TEXT NOT NULL,
+    SortBy      TEXT,
+    SortOrder   TEXT DEFAULT 'ASC',
+    ChartType   TEXT,
+    ChartGroupBy TEXT,
+    CreatedAt   DATETIME DEFAULT (datetime('now'))
+);
+
+-- ============================================
+-- TRIGGER: set UpdatedAt on insert
+-- Needed where UpdatedAt was added to an existing table without a default.
+-- ============================================
+
+CREATE TRIGGER IF NOT EXISTS collaboration_inserted
+AFTER INSERT ON PotentialCollaboration
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE PotentialCollaboration SET UpdatedAt = datetime('now') WHERE PotentialCollaborationID = NEW.PotentialCollaborationID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS hiring_feedback_inserted
+AFTER INSERT ON HiringFeedback
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE HiringFeedback SET UpdatedAt = datetime('now') WHERE HiringFeedbackID = NEW.HiringFeedbackID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS career_event_inserted
+AFTER INSERT ON CareerEvent
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE CareerEvent SET UpdatedAt = datetime('now') WHERE CareerEventID = NEW.CareerEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS student_event_inserted
+AFTER INSERT ON StudentLedEvent
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE StudentLedEvent SET UpdatedAt = datetime('now') WHERE StudentLedEventID = NEW.StudentLedEventID;
+END;
+
+CREATE TRIGGER IF NOT EXISTS academic_engagement_inserted
+AFTER INSERT ON AcademicClassroomEngagement
+WHEN NEW.UpdatedAt IS NULL
+BEGIN
+    UPDATE AcademicClassroomEngagement SET UpdatedAt = datetime('now') WHERE EngagementID = NEW.EngagementID;
+END;
+`;
+
+module.exports = { up };

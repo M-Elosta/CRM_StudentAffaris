@@ -1,0 +1,15 @@
+{#
+  The row of a follow-up just marked complete, swapped in place (hx-select picks the row),
+  and the sidebar with its new count (picked by the shell's hx-select-oob).
+#}
+{% from "macros/ui.njk" import badge %}
+<table>
+  <tr id="follow-up-{{ item.OutreachEngagementID }}">
+    <td class="tabular cell--muted">{{ item.FollowUpDate | date }}</td>
+    <td class="cell--muted cell--truncate"><span dir="auto">{{ item.CompanyName }}</span></td>
+    <td class="cell--muted cell--truncate"><span dir="auto">{{ item.ContactName }}</span></td>
+    <td class="cell--muted cell--truncate"><span dir="auto">{{ item.ActionPlan or item.DiscussionItems }}</span></td>
+    <td class="cell--actions">{{ badge('Complete', 'success') }}</td>
+  </tr>
+</table>
+{% include "partials/nav.njk" %}

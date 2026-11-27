@@ -1,22 +1,58 @@
 {
-  "name": "employer-relations-system",
-  "version": "1.0.0",
-  "description": "CMU-Q Employer Relations Data Management System",
-  "main": "server.js",
+  "name": "employer-relations-crm",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Employer Relations CRM for the Employer Relations Office at Carnegie Mellon University in Qatar",
+  "license": "UNLICENSED",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.12.0 <25"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "ops:backup-key": "node scripts/ops/generate-backup-key.js",
+    "ops:integrity": "node scripts/ops/integrity-check.js",
+    "ops:monitor": "node scripts/ops/monitor.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "build:icons": "node scripts/build-icons.js",
+    "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "screenshots": "node scripts/capture-screenshots.js",
+    "check:routes": "node scripts/check-routes.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "better-sqlite3": "^12.10.1",
-    "cors": "^2.8.5",
-    "express": "^4.18.0",
-    "express-session": "^1.18.0",
-    "multer": "^1.4.5-lts.1",
-    "xlsx": "^0.18.5"
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@fontsource/ibm-plex-sans-arabic": "5.3.0",
+    "bcrypt": "6.0.0",
+    "better-sqlite3": "12.11.1",
+    "chart.js": "4.6.1",
+    "exceljs": "4.4.0",
+    "express": "4.22.3",
+    "express-rate-limit": "8.7.4",
+    "express-session": "1.19.0",
+    "helmet": "8.3.0",
+    "htmx.org": "2.0.11",
+    "multer": "2.5.0",
+    "nunjucks": "3.2.4",
+    "zod": "4.6.7"
   },
-  "allowScripts": {
-    "bcrypt@5.1.1": true,
-    "better-sqlite3@12.10.1": true
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.15.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.14.0",
+    "lucide-static": "1.73.0",
+    "prettier": "3.10.1",
+    "supertest": "7.3.2"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }

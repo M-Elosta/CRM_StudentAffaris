@@ -1,0 +1,84 @@
+{#
+  Employers list — the reference list screen. Every other list follows it:
+
+    page header        title, count line, one primary action
+    saved views        tabs: built-in views first, then the user's own
+    toolbar            search, filters, export
+    #results           the only region that changes: table + footer
+
+  The server renders the first page of rows in the page itself. Search,
+  filters, sorting and paging are normal GET requests with every parameter in
+  the URL (so a view can be bookmarked or shared); htmx replaces #results and
+  updates the address bar. Nothing is loaded after the page appears.
+
+  Controller locals:
+    list      { rows, total, from, to, page, pages, sort, dir, q, filters, url(overrides), activeView }
+    views     [{ id, label, href, current, count?, own }]
+    options   { sectors, regions, statuses }
+    can       { create, export }
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import icon, button, linkButton, pageHeader %}
+
+{% set pageTitle = 'Employers' %}
+
+{% block content %}
+  {% call pageHeader('Employers', 'Companies and organisations the office works with.') %}
+    {% if can.export %}
+      {{ linkButton('Export', list.url({ format: 'xlsx', page: none }), '', 'download', 'hx-boost="false" download') }}
+    {% endif %}
+    {% if can.create %}
+      {{ linkButton('Add employer', '/employers/new', 'primary', 'plus', 'hx-get="/employers/new" hx-target="#dialog-body" hx-select="#form" hx-swap="innerHTML" hx-push-url="false" hx-select-oob="unset" data-opens-dialog') }}
+    {% endif %}
+  {% endcall %}
+
+  <nav class="tabs" aria-label="Saved views">
+    {% for view in views %}
+      <a class="tabs__tab" href="{{ view.href }}" {% if view.current %}aria-current="page"{% endif %}>
+        <span dir="auto">{{ view.label }}</span>
+        {% if view.count is defined %}<span class="tabs__count">{{ view.count }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+
+  <form class="toolbar" action="/employers" method="get" role="search" aria-label="Filter employers"
+        hx-get="/employers" hx-target="#results" hx-select="#results" hx-push-url="true"
+        hx-trigger="submit, change from:select, input changed delay:300ms from:#q" data-filter-form>
+    <input type="hidden" name="sort" value="{{ list.sort }}" />
+    <input type="hidden" name="dir" value="{{ list.dir }}" />
+    {% if list.activeView %}<input type="hidden" name="view" value="{{ list.activeView }}" />{% endif %}
+
+    <div class="input-group">
+      {{ icon('search') }}
+      <label class="visually-hidden" for="q">Search employers by name, industry or country</label>
+      <input class="input" id="q" name="q" type="search" value="{{ list.q }}" dir="auto" autocomplete="off" placeholder="Search by name, industry or country" />
+    </div>
+
+    <label class="visually-hidden" for="filter-sector">Sector</label>
+    <select class="select" id="filter-sector" name="sector">
+      <option value="">All sectors</option>
+      {% for sector in options.sectors %}<option value="{{ sector }}" {% if list.filters.sector == sector %}selected{% endif %}>{{ sector }}</option>{% endfor %}
+    </select>
+
+    <label class="visually-hidden" for="filter-region">Location</label>
+    <select class="select" id="filter-region" name="region">
+      <option value="">All locations</option>
+      {% for region in options.regions %}<option value="{{ region.value }}" {% if list.filters.region == region.value %}selected{% endif %}>{{ region.label }}</option>{% endfor %}
+    </select>
+
+    <label class="visually-hidden" for="filter-status">Status</label>
+    <select class="select" id="filter-status" name="status">
+      <option value="">Any status</option>
+      {% for status in options.statuses %}<option value="{{ status.value }}" {% if list.filters.status == status.value %}selected{% endif %}>{{ status.label }}</option>{% endfor %}
+    </select>
+
+
+    <noscript>{{ button('Apply', '', 'submit') }}</noscript>
+
+    <div class="toolbar__end">
+      {% if list.hasFilters %}<a class="btn btn--ghost btn--sm" href="/employers">Clear filters</a>{% endif %}
+    </div>
+  </form>
+
+  {% include "employers/_results.njk" %}
+{% endblock %}

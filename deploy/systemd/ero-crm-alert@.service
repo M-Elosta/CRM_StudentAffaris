@@ -1,0 +1,30 @@
+# Employer Relations CRM — raise an alert when another unit fails.
+# Started by OnFailure=ero-crm-alert@%n.service; the instance (%i) is the name
+# of the unit that failed, e.g. ero-crm-alert@ero-crm-backup.service.service.
+# The alert always goes to the journal; ALERT_COMMAND in the environment file
+# can also send it on (mail, IT's monitoring). Test the whole path with:
+#   sudo systemctl start ero-crm-alert@test.service
+#   sudo journalctl -u ero-crm-alert@test.service -n 20 --no-pager
+
+[Unit]
+Description=Employer Relations CRM alert for %i
+
+[Service]
+Type=oneshot
+User=ero-crm
+Group=ero-crm
+WorkingDirectory=/opt/ero-crm/current
+EnvironmentFile=/etc/ero-crm/ero-crm.env
+ExecStart=/usr/bin/node /opt/ero-crm/current/scripts/ops/alert.js %i
+TimeoutStartSec=2min
+
+# Lighter hardening than the other units on purpose: ALERT_COMMAND may be a
+# local mailer such as `mail`, whose sendmail helper is setgid and writes to
+# the mail spool. NoNewPrivileges and ProtectSystem=strict would break it.
+UMask=0027
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes

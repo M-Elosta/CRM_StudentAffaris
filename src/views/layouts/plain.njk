@@ -1,0 +1,13 @@
+{# Sign-in, sign-out and error pages: one centred card, no navigation. #}
+{% extends "layouts/base.njk" %}
+{% block body %}
+  <main class="center-page" id="main">
+    <div class="center-card">
+      <a class="brand" href="/" aria-label="Employer Relations CRM home">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Employer Relations<span class="brand__org">Carnegie Mellon University in Qatar</span></span>
+      </a>
+      <div class="mt-6">{% block content %}{% endblock %}</div>
+    </div>
+  </main>
+{% endblock %}

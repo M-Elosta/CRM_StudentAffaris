@@ -1,0 +1,21 @@
+{#
+  A chart in a fixed-height box, so drawing it never moves the page.
+  spec: { type, labels, series: [{ label, data }], xLabel, yLabel } (see src/web/charts.js)
+  The data is also in a visually hidden table for screen readers.
+#}
+{% macro chart(id, title, spec, small=false) -%}
+  <figure class="chart{% if small %} chart--sm{% endif %}">
+    <canvas id="{{ id }}" role="img" aria-label="{{ title }}. The same figures are in the table that follows."></canvas>
+    <script type="application/json" data-chart>{{ spec | json }}</script>
+  </figure>
+  <table class="visually-hidden">
+    <caption>{{ title }}</caption>
+    <thead><tr><th scope="col">{{ spec.xLabel or 'Item' }}</th>{% for series in spec.series %}<th scope="col">{{ series.label }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for label in spec.labels %}
+        {% set row = loop.index0 %}
+        <tr><th scope="row" dir="auto">{{ label }}</th>{% for series in spec.series %}<td>{{ series.data[row] }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}

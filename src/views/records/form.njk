@@ -1,0 +1,16 @@
+{#
+  A record form on its own page (also the source of the dialog form, see _form.njk).
+  Locals: as _form.njk, plus breadcrumb
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader %}
+
+{% set pageTitle = formTitle %}
+{% block mainClass %}main--narrow{% endblock %}
+
+{% block content %}
+  {% call pageHeader(formTitle, '', breadcrumb) %}{% endcall %}
+  <div class="card form-page">
+    {% include "records/_form.njk" %}
+  </div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{#
+  Account and security: change password.
+  Locals: form { values, errors, message }, mustChange, next, account { username, roleLabel, lastLoginAt }
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import field, button, formErrors, pageHeader, icon %}
+
+{% set pageTitle = 'Account and security' %}
+{% block mainClass %}main--narrow{% endblock %}
+
+{% block content %}
+  {% call pageHeader('Account and security', 'Signed in as ' ~ currentUser.username ~ ' · ' ~ currentUser.roleLabel) %}{% endcall %}
+
+  {% if mustChange %}
+    <div class="notice notice--warning" role="alert">
+      {{ icon('warning') }}
+      <div>
+        <p class="notice__title">Choose a new password to continue</p>
+        <p>Your password must be changed before you can use the system. Choose one you do not use anywhere else.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <section class="card mt-4" aria-labelledby="password-heading">
+    <div class="card__header"><h2 id="password-heading">Change password</h2></div>
+    <form id="form" class="card__body" action="/account/password" method="post" novalidate data-guard>
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+      {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+      {{ formErrors(form) }}
+      <div class="form-grid mt-2">
+        <div class="form-grid__full">
+          {{ field('currentPassword', 'Current password', form, type='password', required=true, autocomplete='current-password') }}
+        </div>
+        {{ field('newPassword', 'New password', form, type='password', required=true, autocomplete='new-password', hint='At least 12 characters. A short sentence is easy to remember.') }}
+        {{ field('confirmPassword', 'Repeat the new password', form, type='password', required=true, autocomplete='new-password') }}
+      </div>
+      <div class="form-actions mt-2">
+        {{ button('Change password', 'primary', 'submit') }}
+      </div>
+    </form>
+  </section>
+{% endblock %}

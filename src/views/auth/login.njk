@@ -1,0 +1,27 @@
+{#
+  Sign-in page. Locals: form { values, errors, message }, next, notice
+#}
+{% extends "layouts/plain.njk" %}
+{% from "macros/ui.njk" import field, button, formErrors %}
+
+{% set pageTitle = 'Sign in' %}
+
+{% block content %}
+  <h1>Sign in</h1>
+  <p class="page-header__meta">Use the account the office administrator gave you.</p>
+
+  {% if notice %}
+    <div class="notice notice--success mt-4" role="status"><p>{{ notice }}</p></div>
+  {% endif %}
+
+  <form class="stack--sm mt-6" action="/login" method="post" novalidate data-busy-form>
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
+    {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+    {{ formErrors(form) }}
+    {{ field('username', 'Username', form, required=true, autocomplete='username', userText=false, maxlength=64, attrs='autocapitalize="none" spellcheck="false" autofocus') }}
+    {{ field('password', 'Password', form, type='password', required=true, autocomplete='current-password') }}
+    <div class="mt-4">
+      {{ button('Sign in', 'primary', 'submit', attrs='data-block') }}
+    </div>
+  </form>
+{% endblock %}

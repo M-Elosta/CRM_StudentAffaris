@@ -1,0 +1,30 @@
+{#
+  The reports the role may run, grouped, each with one line about it.
+  Locals: groups [{ group, reports: [{ type, name, description, period }] }]
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader %}
+
+{% set pageTitle = 'Reports' %}
+
+{% block content %}
+  {% call pageHeader('Reports', 'Choose a report, then the period it covers. Every report can be printed or exported.') %}{% endcall %}
+
+  <div class="grid grid--2">
+    {% for group in groups %}
+      <section class="card" aria-labelledby="group-{{ loop.index }}">
+        <div class="card__header"><h2 id="group-{{ loop.index }}">{{ group.group }}</h2></div>
+        <ul class="report-list" role="list">
+          {% for report in group.reports %}
+            <li>
+              <a class="report-list__item" href="/reports/{{ report.type }}">
+                <span class="report-list__name">{{ report.name }}</span>
+                <span class="report-list__text">{{ report.description }}{% if not report.period %} Current records.{% endif %}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  </div>
+{% endblock %}

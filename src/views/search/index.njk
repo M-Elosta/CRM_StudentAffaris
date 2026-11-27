@@ -1,0 +1,91 @@
+{#
+  Search results, grouped: employers, contacts, events. Up to 25 per group.
+  Locals: q, results { employers, contacts, events } | null (a group is null when not readable)
+#}
+{% extends "layouts/app.njk" %}
+{% from "macros/ui.njk" import pageHeader, emptyState, icon, button %}
+
+{% set pageTitle = 'Search' %}
+
+{% macro more(group, noun, href) -%}
+  {% if group.total > group.rows.length %}
+    <div class="card__footer">Showing {{ group.rows.length }} of {{ group.total }} {{ noun }}. <a href="{{ href }}">See them all in the list</a></div>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+  {% call pageHeader('Search', ('Results for “' ~ q ~ '”') if q else 'Find employers, contacts and events by name.') %}{% endcall %}
+
+  <form class="toolbar" action="/search" method="get" role="search" aria-label="Search everything">
+    <div class="input-group">
+      {{ icon('search') }}
+      <label class="visually-hidden" for="search-q">Search employers, contacts and events</label>
+      <input class="input" id="search-q" name="q" type="search" value="{{ q }}" dir="auto" autocomplete="off" placeholder="Search employers, contacts, events" />
+    </div>
+    {{ button('Search', '', 'submit') }}
+  </form>
+
+  {% if results %}
+    {% set total = (results.employers.total if results.employers else 0) + (results.contacts.total if results.contacts else 0) + (results.events.total if results.events else 0) %}
+    {% if not total %}
+      <div class="card">{{ emptyState('Nothing found for “' ~ q ~ '”', 'Check the spelling, or search for part of the name.') }}</div>
+    {% endif %}
+
+    {% if results.employers and results.employers.rows.length %}
+      <section class="card mt-4" aria-labelledby="hits-employers">
+        <div class="card__header"><h2 id="hits-employers">Employers <span class="tabs__count">{{ results.employers.total }}</span></h2></div>
+        <table class="table table--plain">
+          <caption class="visually-hidden">Employers matching “{{ q }}”</caption>
+          <tbody>
+            {% for row in results.employers.rows %}
+              <tr>
+                <td class="cell--primary cell--truncate"><a href="{{ row.href }}" dir="auto">{{ row.CompanyName }}</a></td>
+                <td class="cell--truncate" dir="auto">{{ row.Industry }}</td>
+                <td class="cell--truncate" dir="auto">{{ row.Country }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {{ more(results.employers, 'employers', '/employers?q=' ~ (q | urlencode)) }}
+      </section>
+    {% endif %}
+
+    {% if results.contacts and results.contacts.rows.length %}
+      <section class="card mt-4" aria-labelledby="hits-contacts">
+        <div class="card__header"><h2 id="hits-contacts">Contacts <span class="tabs__count">{{ results.contacts.total }}</span></h2></div>
+        <table class="table table--plain">
+          <caption class="visually-hidden">Contacts matching “{{ q }}”</caption>
+          <tbody>
+            {% for row in results.contacts.rows %}
+              <tr>
+                <td class="cell--primary cell--truncate"><a href="{{ row.href }}" dir="auto">{{ row.FirstName }} {{ row.LastName }}</a></td>
+                <td class="cell--truncate" dir="auto">{{ row.JobTitle }}</td>
+                <td class="cell--truncate" dir="auto">{{ row.CompanyName }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {{ more(results.contacts, 'contacts', '/contacts?q=' ~ (q | urlencode)) }}
+      </section>
+    {% endif %}
+
+    {% if results.events and results.events.rows.length %}
+      <section class="card mt-4" aria-labelledby="hits-events">
+        <div class="card__header"><h2 id="hits-events">Events <span class="tabs__count">{{ results.events.total }}</span></h2></div>
+        <table class="table table--plain">
+          <caption class="visually-hidden">Events matching “{{ q }}”</caption>
+          <tbody>
+            {% for row in results.events.rows %}
+              <tr>
+                <td class="cell--primary cell--truncate"><a href="{{ row.href }}" dir="auto">{{ row.title }}</a></td>
+                <td>{{ row.label }}</td>
+                <td class="tabular">{{ row.date | date }}</td>
+                <td class="cell--truncate" dir="auto">{{ row.companyName }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{# The sidebar navigation. A partial response that changes a count includes it; the shell's hx-select-oob picks it up. #}
+{% from "macros/ui.njk" import icon %}
+<nav class="nav" id="nav">
+  {% for group in nav %}
+    <div class="nav__group">
+      {% if group.heading %}<div class="nav__heading" id="nav-{{ loop.index }}">{{ group.heading }}</div>{% endif %}
+      <ul role="list" {% if group.heading %}aria-labelledby="nav-{{ loop.index }}"{% endif %}>
+        {% for item in group.items %}
+          <li>
+            <a class="nav__link" href="{{ item.href }}" {% if item.current %}aria-current="page"{% endif %}>
+              {{ icon(item.icon) }}
+              <span>{{ item.label }}</span>
+              {% if item.count %}<span class="nav__count" aria-label="{{ item.count }} {{ item.countLabel }}">{{ item.count }}</span>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+</nav>
