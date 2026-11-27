@@ -5,6 +5,9 @@ A relationship management system for the Employer Relations Office at Carnegie M
 [![CI](https://github.com/M-Elosta/CRM_StudentAffaris/actions/workflows/ci.yml/badge.svg)](https://github.com/M-Elosta/CRM_StudentAffaris/actions/workflows/ci.yml)
 ![Version](https://img.shields.io/badge/version-0.9.0-informational)
 ![Node](https://img.shields.io/badge/node-22%20LTS-brightgreen)
+[![UI demo](https://img.shields.io/badge/UI%20demo-live-990000)](https://m-elosta.github.io/CRM_StudentAffaris/)
+
+**[Try the UI demo](https://m-elosta.github.io/CRM_StudentAffaris/)**: a clickable copy of the old and new interface running on fake data, nothing is saved.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
